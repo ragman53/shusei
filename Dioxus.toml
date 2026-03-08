@@ -1,0 +1,48 @@
+[application]
+name = "shusei"
+default_platform = "desktop"
+
+# Asset directory
+asset_dir = "assets"
+
+# Dioxus 0.7 configuration
+[web.app]
+title = "Shusei"
+base_path = "shusei"
+
+[web.watcher]
+watch_path = "src"
+index_on_404 = true
+
+[web.resource]
+style = ["/style/main.css"]
+script = []
+
+[web.resource.dev]
+script = []
+
+# Desktop configuration
+[desktop.app]
+title = "Shusei"
+width = 800
+height = 600
+resizable = true
+
+[desktop.resource]
+icon = ["assets/icon.png"]
+
+# Android configuration
+[bundle]
+identifier = "com.shusei.app"
+publisher = "shusei"
+version = "0.1.0"
+icon = ["assets/icon.png"]
+resources = ["assets/models/*"]
+
+# Platform-specific features
+[features]
+default = []
+android = ["jni"]
+desktop = []
+web = []
+ios = []

@@ -1,0 +1,44 @@
+# Rust
+/target/
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+*.dSYM/
+
+# Dioxus
+.dioxus/
+
+# Assets (models will be downloaded separately)
+assets/models/
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+
+# Test coverage
+coverage/
+
+# Documentation
+docs/_build/

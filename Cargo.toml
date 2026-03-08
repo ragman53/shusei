@@ -1,0 +1,93 @@
+[package]
+name = "shusei"
+version = "0.1.0"
+edition = "2021"
+description = "Shusei - Offline reading app with OCR and STT capabilities"
+authors = ["shusei team"]
+license = "TBD"
+
+[dependencies]
+# UI Framework
+dioxus = { version = "0.7", features = ["router"] }
+dioxus-router = "0.7"
+
+# Async trait support
+async-trait = "0.1"
+
+# Inference Runtime (Pure Rust - OCR + STT)
+tract-onnx = "0.21"
+
+# Image Processing
+image = "0.25"
+ndarray = "0.16"
+
+# PDF Processing (optional - for Phase 2)
+pdfium-render = { version = "0.8", features = ["static"], optional = true }
+
+# Database
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Japanese Morphological Analysis (optional - requires dictionary download)
+lindera = { version = "0.34", features = ["ipadic"], optional = true }
+
+# Markdown Rendering
+pulldown-cmark = "0.12"
+
+# Tokenizer (for STT)
+tokenizers = "0.20"
+
+# Audio Processing
+hound = "3.5"
+
+# JNI (Android)
+jni = { version = "0.21", optional = true }
+
+# Async Runtime
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "fs"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+
+# Error Handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Utilities
+parking_lot = "0.12"
+once_cell = "1"
+
+[features]
+default = []
+android = ["jni"]
+ios = []
+desktop = []
+web = []
+lindera = ["dep:lindera"]
+pdf = ["dep:pdfium-render"]
+ndlocr-test = []  # Enable NDLOCR tract compatibility tests
+moonshine-test = []  # Enable Moonshine tract compatibility tests
+
+[lib]
+name = "shusei"
+path = "src/lib.rs"
+
+[[bin]]
+name = "shusei"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+opt-level = 0
+debug = true
