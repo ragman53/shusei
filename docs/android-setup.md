@@ -8,10 +8,11 @@ This guide provides step-by-step instructions for setting up Android Studio, And
 2. [Android Studio Installation](#android-studio-installation)
 3. [Android SDK Setup](#android-sdk-setup)
 4. [Android NDK Installation](#android-ndk-installation)
-5. [Environment Variables Configuration](#environment-variables-configuration)
-6. [Verification Steps](#verification-steps)
-7. [Rust Android Target Setup](#rust-android-target-setup)
-8. [Troubleshooting](#troubleshooting)
+5. [Android 15 (API 35) Specific Features](#android-15-api-35-specific-features)
+6. [Environment Variables Configuration](#environment-variables-configuration)
+7. [Verification Steps](#verification-steps)
+8. [Rust Android Target Setup](#rust-android-target-setup)
+9. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -86,19 +87,20 @@ Before beginning the setup, ensure you have:
    - Or click the SDK Manager icon in the toolbar
 
 2. **SDK Platforms Tab**:
-   - Check **Android 14 (API 34)** or **Android 15 (API 35)**
-   - For Shusei project, **API Level 34** is recommended for broader compatibility
+  - Check **Android 15 (API 35)** (Recommended for Moto G66j 5G with Android 15)
+  - Check **Android 14 (API 34)** as a fallback option for compatibility
+  - For Shusei project, **API Level 35** is recommended as the primary target
 
-3. **SDK Tools Tab**:
-   - Check the following:
-     - ☑ Android SDK Build-Tools 34.0.0
-     - ☑ Android SDK Command-line Tools (latest)
-     - ☑ Android SDK Platform-Tools
-     - ☑ NDK (Side by side) - Version 25.2.9519653 (r25c) or 26.1.10909125 (r26)
-     - ☑ Android SDK Tools (Obsolete - if needed for legacy support)
-     - ☑ Google USB Driver (for Windows)
+  3. **SDK Tools Tab**:
+    - Check the following:
+      - ☑ Android SDK Build-Tools 35.0.0
+      - ☑ Android SDK Command-line Tools (latest)
+      - ☑ Android SDK Platform-Tools
+      - ☑ NDK (Side by side) - Version 25.2.9519653 (r25c) or 26.1.10909125 (r26)
+      - ☑ Android SDK Tools (Obsolete - if needed for legacy support)
+      - ☑ Google USB Driver (for Windows)
 
-4. **SDK Update Sites Tab**:
+  4. **SDK Update Sites Tab**:
    - Ensure "https://dl.google.com/android/repository/addons_list-3.xml" is checked
 
 5. Click **Apply** and wait for downloads to complete
@@ -107,13 +109,15 @@ Before beginning the setup, ensure you have:
 
 | Component | Recommended Version | Notes |
 |-----------|---------------------|-------|
-| Android Studio | Ladybug (2024.2) | Latest stable |
-| Compile SDK | API 34 (Android 14) | Compatible with most devices |
-| Target SDK | API 34 | Required for Play Store |
+| Android Studio | Ladybug (2024.2) or Meerkat (2024.3) | Latest stable |
+| Compile SDK | API 35 (Android 15) | Primary recommendation for Android 15 devices |
+| Target SDK | API 35 | Required for Android 15 optimizations |
 | Min SDK | API 24 (Android 7.0) | Moto G66j 5G support |
-| Build Tools | 34.0.0 | Stable release |
+| Build Tools | 35.0.0 | Latest stable release |
 | NDK | r25c or r26 | Compatible with tract-onnx |
 | CMake | 3.22.1 or later | For native builds |
+
+**フォールバックオプション**: API 34 (Android 14) は、必要に応じてより広い互換性のために使用できます。
 
 ---
 
@@ -146,6 +150,60 @@ Before beginning the setup, ensure you have:
 
 ---
 
+## Android 15 (API 35) Specific Features
+
+### Storage Permission Changes
+
+Android 15 introduces significant changes to storage access permissions. The most important change is the introduction of `READ_MEDIA_VISUAL_USER_SELECTED` permission for granular media access.
+
+#### New Storage Permissions
+
+| Permission | Description | Usage |
+|------------|-------------|-------|
+| `READ_MEDIA_IMAGES` | Access to images | Required for camera/gallery access |
+| `READ_MEDIA_VIDEO` | Access to videos | Required for video playback |
+| `READ_MEDIA_AUDIO` | Access to audio files | Required for audio playback |
+| `READ_MEDIA_VISUAL_USER_SELECTED` | User-selected media access | **Recommended for Android 15+** - Allows access only to media items the user explicitly selects |
+
+#### Manifest Configuration for Android 15
+
+For the Shusei project, add the following permissions to [`platform/android/AndroidManifest.xml`](platform/android/AndroidManifest.xml):
+
+```xml
+<!-- For Android 13+ (API 33+) -->
+<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+<uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+
+<!-- For Android 12 and below -->
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
+    android:maxSdkVersion="32" />
+```
+
+#### Runtime Permission Request (Android 15)
+
+When requesting storage permissions on Android 15, use the `READ_MEDIA_VISUAL_USER_SELECTED` permission for better user privacy:
+
+```java
+// For Android 15 (API 35) and above
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+    ActivityCompat.requestPermissions(this, 
+        new String[]{
+            Manifest.permission.READ_MEDIA_IMAGES,
+            Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+        }, 
+        PERMISSION_REQUEST_CODE);
+}
+```
+
+### Other Android 15 Features
+
+- **Partial Screen Recording**: Apps can record only their own content
+- **Improved Battery Saver**: More granular control over background processes
+- **Enhanced Privacy**: More control over media access
+- **Better Large Screen Support**: Improved tablet and foldable optimization
+
+---
+
 ## Environment Variables Configuration
 
 ### Setting Up Environment Variables on Windows 11
@@ -175,11 +233,11 @@ Before beginning the setup, ensure you have:
    - Click "New" and add the following entries:
 
    ```
-   %ANDROID_HOME%\platform-tools
-   %ANDROID_HOME%\cmdline-tools\latest\bin
-   %ANDROID_HOME%\build-tools\34.0.0
-   %ANDROID_NDK_HOME%
-   %ANDROID_NDK_HOME%\toolchains\llvm\prebuilt\windows-x86_64\bin
+    %ANDROID_HOME%\platform-tools
+    %ANDROID_HOME%\cmdline-tools\latest\bin
+    %ANDROID_HOME%\build-tools\35.0.0
+    %ANDROID_NDK_HOME%
+    %ANDROID_NDK_HOME%\toolchains\llvm\prebuilt\windows-x86_64\bin
    ```
 
    - Click "OK" to save
@@ -441,15 +499,18 @@ This tool simplifies building Rust libraries for Android.
 1. **Install via SDK Manager**:
    - Open SDK Manager
    - Go to SDK Tools tab
-   - Check "Android SDK Build-Tools 34.0.0"
+   - Check "Android SDK Build-Tools 35.0.0" (or "34.0.0" for fallback)
    - Click Apply
 
 2. **Update project configuration**:
    In [`platform/android/app/build.gradle`](platform/android/app/build.gradle):
    ```gradle
    android {
-       compileSdkVersion 34
-       buildToolsVersion "34.0.0"
+       compileSdkVersion 35
+       buildToolsVersion "35.0.0"
+       // For fallback compatibility, use:
+       // compileSdkVersion 34
+       // buildToolsVersion "34.0.0"
    }
    ```
 
@@ -497,15 +558,18 @@ This tool simplifies building Rust libraries for Android.
 | Android SDK | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk` |
 | NDK | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\ndk\25.2.9519653` |
 | Platform Tools | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\platform-tools` |
-| Build Tools | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\build-tools\34.0.0` |
+| Build Tools | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\build-tools\35.0.0` |
 
 ### Essential Commands
 
 ```cmd
 # SDK Management
 sdkmanager --list
-sdkmanager --install "platform-tools" "build-tools;34.0.0"
+sdkmanager --install "platform-tools" "build-tools;35.0.0"
 sdkmanager --update
+
+# For fallback compatibility:
+# sdkmanager --install "build-tools;34.0.0"
 
 # Device Management
 adb devices

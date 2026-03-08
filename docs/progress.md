@@ -141,5 +141,5 @@ shusei/
 
 - [Dioxus 0.7 Documentation](https://dioxuslabs.com/)
 - [tract ONNX Runtime](https://github.com/sonos/tract)
-- [NDLOCR-Lite](https://github.com/ndl-lab/ndlocr)
+- [NDLOCR-Lite](https://github.com/ndl-lab/ndlocr-lite)
 - [Moonshine ASR](https://github.com/usefulsensors/moonshine)
