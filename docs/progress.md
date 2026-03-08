@@ -8,9 +8,9 @@
 
 ### 1. 計画・設計フェーズ
 
-- [x] 仕様書確認 (`plans/shusei-mvp-v2.3.md`)
-- [x] レビュー文書確認 (`plans/shusei-mvp-v2.3-review.md`)
-- [x] 詳細実装計画書作成 (`plans/shusei-implementation-plan.md`)
+- [x] 仕様書確認 (`docs/shusei-mvp-v2.3.md`)
+- [x] レビュー文書確認 (`docs/shusei-mvp-v2.3-review.md`)
+- [x] 詳細実装計画書作成 (`docs/shusei-implementation-plan.md`)
 - [x] Week 1 カメラ PoC を最優先事項として計画に反映
 
 ### 2. プロジェクト初期化
@@ -26,7 +26,7 @@ shusei/
 ├── Cargo.lock                    # ロックファイル（自動生成）
 ├── Dioxus.toml                   # Dioxus設定
 ├── .gitignore                    # Git除外設定
-├── plans/
+├── docs/
 │   ├── shusei-implementation-plan.md  # 実装計画書
 │   ├── shusei-mvp-v2.3.md            # 仕様書
 │   └── shusei-mvp-v2.3-review.md     # レビュー文書
