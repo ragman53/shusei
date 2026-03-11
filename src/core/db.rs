@@ -82,13 +82,19 @@ impl Database {
             
             -- Book pages table
             CREATE TABLE IF NOT EXISTS book_pages (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                book_id     INTEGER NOT NULL REFERENCES books(id),
-                page_number INTEGER NOT NULL,
-                markdown    TEXT NOT NULL,
-                confidence  REAL,
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                book_id         TEXT NOT NULL REFERENCES books(id),
+                page_number     INTEGER NOT NULL,
+                image_path      TEXT NOT NULL,
+                ocr_markdown    TEXT NOT NULL,
+                ocr_text_plain  TEXT NOT NULL,
+                confidence      REAL,
+                created_at      INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                 UNIQUE(book_id, page_number)
             );
+            
+            CREATE INDEX IF NOT EXISTS idx_book_pages_book ON book_pages(book_id);
+            CREATE INDEX IF NOT EXISTS idx_book_pages_number ON book_pages(page_number);
             
             -- Vocabulary table
             CREATE TABLE IF NOT EXISTS vocabulary (
@@ -383,6 +389,56 @@ impl Database {
 
         Ok(result > 0)
     }
+
+    // ==================== Book Pages ====================
+
+    /// Save a book page with OCR results
+    pub fn save_page(&self, page: &NewBookPage) -> Result<i64> {
+        let result = self.conn.execute(
+            r#"
+            INSERT INTO book_pages (
+                book_id, page_number, image_path, ocr_markdown, 
+                ocr_text_plain, confidence
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "#,
+            params![
+                page.book_id,
+                page.page_number,
+                page.image_path,
+                page.ocr_markdown,
+                page.ocr_text_plain,
+                page.confidence,
+            ],
+        )?;
+
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Get a book page by ID
+    pub fn get_page(&self, id: i64) -> Result<Option<BookPage>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM book_pages WHERE id = ?1")?;
+
+        let page = stmt
+            .query_row(params![id], |row| BookPage::from_row(row))
+            .optional()?;
+
+        Ok(page)
+    }
+
+    /// Get all pages for a book, ordered by page number
+    pub fn get_pages_by_book(&self, book_id: &str) -> Result<Vec<BookPage>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM book_pages WHERE book_id = ?1 ORDER BY page_number ASC")?;
+
+        let pages = stmt
+            .query_map(params![book_id], |row| BookPage::from_row(row))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(pages)
+    }
 }
 
 // ==================== Data Models ====================
@@ -496,6 +552,47 @@ pub struct UpdateBook {
     pub pages_captured: Option<i32>,
     pub total_pages: Option<i32>,
     pub last_opened_at: Option<i64>,
+}
+
+// ==================== Book Pages ====================
+
+/// Book page model
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BookPage {
+    pub id: i64,
+    pub book_id: String,
+    pub page_number: i32,
+    pub image_path: String,
+    pub ocr_markdown: String,
+    pub ocr_text_plain: String,
+    pub confidence: Option<f32>,
+    pub created_at: i64,
+}
+
+impl BookPage {
+    fn from_row(row: &Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            book_id: row.get(1)?,
+            page_number: row.get(2)?,
+            image_path: row.get(3)?,
+            ocr_markdown: row.get(4)?,
+            ocr_text_plain: row.get(5)?,
+            confidence: row.get(6)?,
+            created_at: row.get(7)?,
+        })
+    }
+}
+
+/// New book page (for creation)
+#[derive(Debug, Clone)]
+pub struct NewBookPage {
+    pub book_id: String,
+    pub page_number: i32,
+    pub image_path: String,
+    pub ocr_markdown: String,
+    pub ocr_text_plain: String,
+    pub confidence: Option<f32>,
 }
 
 #[cfg(test)]
@@ -834,6 +931,123 @@ mod tests {
 
             // Verify book is gone
             assert!(db.get_book(&id).unwrap().is_none());
+        }
+    }
+
+    mod book_pages {
+        use super::*;
+
+        #[test]
+        fn test_save_page_inserts_and_returns_id() {
+            let db = Database::in_memory().unwrap();
+
+            // Create a book first
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            let new_page = NewBookPage {
+                book_id: book_id.clone(),
+                page_number: 1,
+                image_path: "pages/test/image1.jpg".to_string(),
+                ocr_markdown: "# Page 1\nTest content".to_string(),
+                ocr_text_plain: "Page 1 Test content".to_string(),
+                confidence: Some(0.95),
+            };
+
+            let id = db.save_page(&new_page).unwrap();
+            assert!(id > 0);
+        }
+
+        #[test]
+        fn test_get_page_retrieves_by_id() {
+            let db = Database::in_memory().unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            let new_page = NewBookPage {
+                book_id: book_id.clone(),
+                page_number: 1,
+                image_path: "pages/test/image1.jpg".to_string(),
+                ocr_markdown: "# Page 1".to_string(),
+                ocr_text_plain: "Page 1".to_string(),
+                confidence: Some(0.9),
+            };
+            let page_id = db.save_page(&new_page).unwrap();
+
+            let page = db.get_page(page_id).unwrap().unwrap();
+            assert_eq!(page.id, page_id);
+            assert_eq!(page.book_id, book_id);
+            assert_eq!(page.page_number, 1);
+            assert_eq!(page.ocr_markdown, "# Page 1");
+        }
+
+        #[test]
+        fn test_get_pages_by_book_returns_sorted_pages() {
+            let db = Database::in_memory().unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Save pages in non-sequential order
+            db.save_page(&NewBookPage {
+                book_id: book_id.clone(),
+                page_number: 3,
+                image_path: "pages/test/img3.jpg".to_string(),
+                ocr_markdown: "Page 3".to_string(),
+                ocr_text_plain: "Page 3".to_string(),
+                confidence: None,
+            })
+            .unwrap();
+
+            db.save_page(&NewBookPage {
+                book_id: book_id.clone(),
+                page_number: 1,
+                image_path: "pages/test/img1.jpg".to_string(),
+                ocr_markdown: "Page 1".to_string(),
+                ocr_text_plain: "Page 1".to_string(),
+                confidence: None,
+            })
+            .unwrap();
+
+            db.save_page(&NewBookPage {
+                book_id: book_id.clone(),
+                page_number: 2,
+                image_path: "pages/test/img2.jpg".to_string(),
+                ocr_markdown: "Page 2".to_string(),
+                ocr_text_plain: "Page 2".to_string(),
+                confidence: None,
+            })
+            .unwrap();
+
+            let pages = db.get_pages_by_book(&book_id).unwrap();
+            assert_eq!(pages.len(), 3);
+            assert_eq!(pages[0].page_number, 1);
+            assert_eq!(pages[1].page_number, 2);
+            assert_eq!(pages[2].page_number, 3);
+        }
+
+        #[test]
+        fn test_get_page_returns_none_for_non_existent() {
+            let db = Database::in_memory().unwrap();
+
+            let result = db.get_page(999).unwrap();
+            assert!(result.is_none());
         }
     }
 }
