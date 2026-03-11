@@ -4,142 +4,185 @@
 
 ## Pattern Overview
 
-**Overall:** Layered architecture with platform abstraction
+**Overall:** Layered Architecture with Platform Abstraction Layer
+
+This codebase follows a layered architecture pattern with clear separation of concerns:
+- **UI Layer**: Dioxus components for cross-platform rendering
+- **Core Layer**: Business logic independent of UI and platform
+- **Platform Layer**: Platform-specific abstractions (Android via JNI, iOS, Desktop)
 
 **Key Characteristics:**
-- Core business logic is platform-agnostic (`src/core/`)
-- UI layer uses Dioxus reactive framework (`src/ui/`)
-- Platform-specific code behind trait abstraction (`src/platform/`)
-- Async-first design with Tokio runtime
-- Trait-based engine interfaces for OCR/STT enabling swappable implementations
+- Platform-agnostic core business logic
+- Trait-based abstractions for extensibility (OcrEngine, SttEngine, PlatformApi)
+- Async/await pattern throughout for non-blocking operations
+- Error handling via custom error enums with thiserror
+- Feature flags for conditional compilation (android, ios, desktop, web, pdf, lindera)
 
 ## Layers
 
-**Platform Abstraction Layer:**
-- Purpose: Abstract platform-specific functionality (camera, microphone, permissions)
-- Location: `src/platform/`
-- Contains: `PlatformApi` trait, Android JNI implementation, iOS stub, desktop fallback
-- Depends on: JNI (Android), async-trait
-- Used by: UI components via `get_platform_api()`
+### Core Layer
+- **Purpose**: Business logic for OCR, STT, database, and vocabulary management
+- **Location**: `src/core/`
+- **Contains**: Engine implementations, data models, error types, database operations
+- **Depends on**: External crates (tract-onnx, rusqlite, image, ndarray, tokenizers)
+- **Used by**: UI layer, Platform layer
 
-**Core Business Logic:**
-- Purpose: Platform-agnostic business logic and data processing
-- Location: `src/core/`
-- Contains: OCR engine, STT engine, database operations, vocabulary management, error types
-- Depends on: tract-onnx, rusqlite, serde, tokenizers
-- Used by: UI layer, platform callbacks
+**Sub-modules:**
+- `ocr/` - OCR pipeline with NDLOCR-Lite ONNX models
+- `stt/` - Speech-to-text with Moonshine Tiny models
+- `db.rs` - SQLite database with FTS5 for search
+- `vocab.rs` - Japanese word extraction and vocabulary management
+- `pdf.rs` - PDF rendering (optional, requires `pdf` feature)
+- `error.rs` - Centralized error types
 
-**UI/Presentation Layer:**
-- Purpose: User interface components and routing
-- Location: `src/ui/`, `src/app.rs`
-- Contains: Dioxus components, page views, shared UI components
-- Depends on: dioxus, dioxus-router, platform API
-- Used by: Dioxus runtime
+### UI Layer
+- **Purpose**: Dioxus-based user interface components
+- **Location**: `src/ui/`
+- **Contains**: Page components, shared UI components
+- **Depends on**: Core layer, PlatformApi
+- **Used by**: App routing layer
 
-**Entry Point:**
-- Purpose: Application bootstrap
-- Location: `src/main.rs`
-- Contains: Logger initialization, Dioxus launch
-- Depends on: app module, env_logger
-- Used by: OS/runtime
+**Sub-modules:**
+- `camera.rs` - Camera capture and OCR trigger page
+- `notes.rs` - Sticky notes list and search
+- `reader.rs` - PDF library and reading view
+- `vocab.rs` - Vocabulary list management
+- `components.rs` - Reusable UI components (Button, Card, LoadingSpinner, etc.)
+
+### Platform Layer
+- **Purpose**: Abstract platform-specific functionality (camera, microphone, file picker)
+- **Location**: `src/platform/`
+- **Contains**: Platform trait and implementations
+- **Depends on**: Core error types
+- **Used by**: UI layer for hardware access
+
+**Sub-modules:**
+- `android.rs` - JNI-based Android implementation
+- `ios.rs` - iOS implementation stub (future)
+- `mod.rs` - PlatformApi trait and DesktopPlatform fallback
+
+### App Layer
+- **Purpose**: Application routing and page coordination
+- **Location**: `src/app.rs`
+- **Contains**: Route definitions, page wrappers
+- **Depends on**: UI layer components
+- **Used by**: Main entry point
 
 ## Data Flow
 
-**Camera Capture → OCR → Storage:**
+### OCR Pipeline Flow:
 
-1. User clicks "Take Photo" in `src/ui/camera.rs`
-2. `CameraPage` calls `platform.capture_image()` via `get_platform_api()`
-3. On Android: JNI calls `MainActivity.startCameraCapture()` → captures image → `onImageCaptured()` JNI callback → Rust receives `CameraResult`
-4. UI displays captured image, user clicks "Run OCR"
-5. `OcrEngine::process_image()` processes image data (via `NdlocrEngine`)
-6. OCR result (markdown + plain text) returned to UI
-7. User clicks "Save as Note" → `Database::create_sticky_note()` persists to SQLite
+1. **Image Capture**: `ui/camera.rs` → `platform/android.rs` (JNI) → Android Camera API
+2. **Image Processing**: `core/ocr/preprocess.rs` → Resize, normalize, convert to tensor
+3. **Text Detection**: `core/ocr/postprocess.rs` → detect_text() (TODO: tract inference)
+4. **Text Recognition**: `core/ocr/postprocess.rs` → recognize_text() (TODO: tract inference)
+5. **Direction Classification**: `core/ocr/postprocess.rs` → classify_direction() (TODO)
+6. **Markdown Generation**: `core/ocr/markdown.rs` → Sort by reading order, format as Markdown
+7. **Storage**: `core/db.rs` → Save to SQLite with FTS5 index
 
-**Audio Recording → STT → Storage:**
+### STT Pipeline Flow:
 
-1. UI calls `platform.record_audio()` 
-2. Platform captures audio, returns `AudioResult` with PCM samples
-3. `SttEngine::transcribe()` processes audio (via `MoonshineEngine`)
-4. Transcribed text returned to UI
-5. Result stored in database via `Database`
+1. **Audio Recording**: `platform/android.rs` → Android AudioRecord API (TODO)
+2. **Audio Preprocessing**: `core/stt/engine.rs` → Mel-spectrogram computation (TODO)
+3. **Encoder**: `core/stt/engine.rs` → Run encoder model (TODO: tract)
+4. **Decoder**: `core/stt/decoder.rs` → Autoregressive decoding with KV cache (TODO)
+5. **Tokenization**: `core/stt/tokenizer.rs` → Decode tokens to text
+6. **Storage**: `core/db.rs` → Save transcript to sticky note
 
-**Vocabulary Extraction:**
+### Note Retrieval Flow:
 
-1. Text input (from OCR or manual) → `WordExtractor::extract_words()`
-2. Morphological analysis (lindera for Japanese, whitespace split for English)
-3. `VocabularyEntry` created and stored via `Database`
-
-**State Management:**
-- Database state: SQLite via `rusqlite` with FTS5 for full-text search
-- UI state: Dioxus signals (`use_signal`) for reactive state
-- Engine state: Struct fields with `initialized` flags
+1. **UI Request**: `ui/notes.rs` → User search query
+2. **Database Query**: `core/db.rs` → FTS5 search or list all
+3. **Display**: `ui/notes.rs` → Render NoteCard components
 
 ## Key Abstractions
 
-**`OcrEngine` trait:**
-- Purpose: Abstract OCR processing interface
-- Examples: `src/core/ocr/engine.rs` (`NdlocrEngine` implements this)
-- Pattern: Async trait with `process_image()`, `is_ready()`, `name()` methods
+### OcrEngine Trait
+- **Purpose**: Abstract interface for OCR implementations
+- **Location**: `src/core/ocr/engine.rs`
+- **Pattern**: Trait object for dependency injection
+- **Implementations**: `NdlocrEngine` (NDLOCR-Lite with tract)
+- **Methods**: `process_image()`, `is_ready()`, `name()`
 
-**`SttEngine` trait:**
-- Purpose: Abstract speech-to-text interface
-- Examples: `src/core/stt/engine.rs` (`MoonshineEngine` implements this)
-- Pattern: Async trait with `transcribe()`, `is_ready()`, `language()` methods
+### SttEngine Trait
+- **Purpose**: Abstract interface for speech-to-text
+- **Location**: `src/core/stt/engine.rs`
+- **Pattern**: Trait object with async support
+- **Implementations**: `MoonshineEngine` (Moonshine Tiny with tract)
+- **Methods**: `transcribe()`, `is_ready()`, `name()`, `language()`
 
-**`PlatformApi` trait:**
-- Purpose: Abstract platform capabilities (camera, mic, permissions, file picker)
-- Examples: `src/platform/mod.rs` (`AndroidPlatform`, `IosPlatform`, `DesktopPlatform`)
-- Pattern: Async trait with platform-specific implementations selected at compile-time via `cfg` attributes
+### PlatformApi Trait
+- **Purpose**: Abstract platform hardware access
+- **Location**: `src/platform/mod.rs`
+- **Pattern**: async_trait for async methods
+- **Implementations**: `AndroidPlatform` (JNI), `IosPlatform` (stub), `DesktopPlatform` (fallback)
+- **Methods**: `capture_image()`, `record_audio()`, `pick_file()`, permission checks
 
-**Error Hierarchy:**
-- Purpose: Unified error handling across layers
-- Examples: `src/core/error.rs`
-- Pattern: `ShuseiError` enum with `#[from]` attributes for automatic conversion from underlying errors (rusqlite, io, serde_json, etc.)
+### Error Types
+- **Purpose**: Structured error handling across layers
+- **Location**: `src/core/error.rs`
+- **Pattern**: thiserror-based enums with From impls
+- **Types**: `ShuseiError` (top-level), `OcrError`, `SttError`
 
 ## Entry Points
 
-**`src/main.rs`:**
-- Location: `src/main.rs`
-- Triggers: OS/binary execution
-- Responsibilities: Initialize logger, launch Dioxus app with `dioxus::launch(app::App)`
+### Desktop/Web Entry Point
+- **Location**: `src/main.rs`
+- **Triggers**: Direct execution
+- **Responsibilities**: Initialize logger, launch Dioxus app
 
-**`src/lib.rs`:**
-- Location: `src/lib.rs`
-- Triggers: Library imports
-- Responsibilities: Re-export core types (`ShuseiError`, `OcrEngine`, `SttEngine`, `Database`, `PlatformApi`)
+### Library Entry Point
+- **Location**: `src/lib.rs`
+- **Triggers**: Android JNI, iOS bindings, crate consumers
+- **Responsibilities**: Export public API modules and types
 
-**JNI Entry Points (Android):**
-- Location: `src/platform/android.rs`
-- Triggers: Java native method calls
-- Responsibilities: `Java_com_shusei_app_MainActivity_nativeInit`, `Java_com_shusei_app_MainActivity_onImageCaptured`
-
-**Java Entry Point (Android):**
-- Location: `platform/android/app/src/main/java/com/shusei/app/MainActivity.java`
-- Triggers: Android lifecycle
-- Responsibilities: Camera2 API management, JNI bridge, permission handling
+### Android JNI Entry Points
+- **Location**: `src/platform/android.rs`
+- **Triggers**: Java MainActivity callbacks
+- **Functions**:
+  - `Java_com_shusei_app_MainActivity_nativeInit` - Store JavaVM
+  - `Java_com_shusei_app_MainActivity_onImageCaptured` - Handle camera result
 
 ## Error Handling
 
-**Strategy:** Result-based with custom error types
+**Strategy**: Structured error propagation with thiserror
 
 **Patterns:**
-- `Result<T>` type alias for `std::result::Result<T, ShuseiError>` (`src/core/error.rs`)
-- `thiserror` derive macros for automatic error conversion
-- Error propagation via `?` operator
-- UI-level error display via `ErrorMessage` component (`src/ui/components.rs`)
-- Logging via `log::error!`/`log::info!` before returning errors
+- All errors convert to `ShuseiError` at boundaries
+- Platform errors use `ShuseiError::Platform(String)`
+- Module-specific errors (OcrError, SttError) with detailed variants
+- `Result<T>` type alias for convenience
+
+**Example:**
+```rust
+pub type Result<T> = std::result::Result<T, ShuseiError>;
+
+#[derive(Error, Debug)]
+pub enum ShuseiError {
+    #[error("OCR error: {0}")]
+    Ocr(#[from] OcrError),
+    // ...
+}
+```
 
 ## Cross-Cutting Concerns
 
-**Logging:** `log` crate with `env_logger` initialization in `main.rs`. Filter via `RUST_LOG` env var.
+**Logging:** Uses `log` crate with `env_logger` initialization in `main.rs`
 
-**Validation:** Input validation at module boundaries (e.g., model file existence checks in `OcrEngine::initialize()`)
+**Async Runtime:** Tokio with multi-threaded runtime (`Cargo.toml`)
 
-**Authentication:** Not implemented (offline-first app)
+**Feature Flags:**
+- `android` - JNI support
+- `ios` - iOS platform stubs
+- `desktop` - Desktop-specific features
+- `web` - Web platform support
+- `pdf` - PDF processing via pdfium-render
+- `lindera` - Japanese morphological analysis
 
-**Serialization:** `serde` with derive macros for all data models (database entities, engine results)
-
-**Async Runtime:** Tokio with `rt-multi-thread`, `sync`, `time`, `fs` features
+**Configuration:**
+- `Cargo.toml` - Dependencies and features
+- `Dioxus.toml` - UI framework configuration
+- `.cargo/config.toml` - Android cross-compilation settings
 
 ---
 

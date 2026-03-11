@@ -4,55 +4,32 @@
 
 ## Test Framework
 
-**Runner:**
-- Rust built-in test framework (`cargo test`)
-- No external test framework (no `test-group`, `rstest`, etc.)
-- Config: `Cargo.toml` with feature flags for test variants
+**Runner:** Built-in Rust test framework (`cargo test`)
+- No external test runner (like nextest) detected
+- Standard `#[test]` attribute for test functions
 
-**Assertion Library:**
-- Standard `assert!()`, `assert_eq!()`, `assert!(...is_none())`
-- `panic!()` for explicit failures in integration tests
-- No external assertion library (no `assert_cmd`, `pretty_assertions`)
-
-**Run Commands:**
-```bash
-cargo test                    # Run all tests
-cargo test --lib              # Run library tests only
-cargo test --test <name>      # Run specific integration test
-cargo test --features ndlocr-test  # Run with feature flag
-cargo test -- --nocapture     # Show println! output
-cargo test <pattern>          # Run tests matching pattern
-```
+**Test Organization:**
+- Unit tests: Inline in `#[cfg(test)]` modules within source files
+- Integration tests: Separate files in `tests/` directory
 
 ## Test File Organization
 
 **Location:**
+- Unit tests: At end of source file in `#[cfg(test)] mod tests`
 - Integration tests: `tests/` directory at project root
-- Unit tests: `#[cfg(test)] mod tests` within source files
-- Co-located pattern for unit tests
 
 **Naming:**
-- Integration tests: `{feature}_tract_test.rs`
-  - `moonshine_tract_test.rs`
-  - `ndlocr_tract_test.rs`
-- Unit test modules: `mod tests` inside source files
+- Unit tests: `mod tests` inside source file
+- Integration tests: `*_test.rs` pattern (e.g., `moonshine_tract_test.rs`, `ndlocr_tract_test.rs`)
 
-**Structure:**
-```
-shusei/
-├── src/
-│   ├── core/
-│   │   ├── db.rs           # Contains #[cfg(test)] mod tests
-│   │   └── ...
-│   └── ...
-└── tests/
-    ├── moonshine_tract_test.rs
-    └── ndlocr_tract_test.rs
-```
+**Current Test Files:**
+- `tests/moonshine_tract_test.rs` - Moonshine Tiny ONNX compatibility tests
+- `tests/ndlocr_tract_test.rs` - NDLOCR-Lite ONNX compatibility tests
+- `src/core/db.rs` (lines 287-313) - Inline database tests
 
 ## Test Structure
 
-**Unit Test Organization (from `src/core/db.rs`):**
+**Inline Unit Test Pattern:**
 ```rust
 #[cfg(test)]
 mod tests {
@@ -84,214 +61,227 @@ mod tests {
 }
 ```
 
-**Integration Test Organization (from `tests/moonshine_tract_test.rs`):**
+**Integration Test Pattern:**
 ```rust
+//! Module-level documentation describing test purpose
+
+use std::path::PathBuf;
+
+/// Helper function
+fn get_model_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("assets")
+        .join("models")
+}
+
+/// Conditional compilation for feature-gated tests
 #[cfg(feature = "moonshine-test")]
 mod tract_tests {
     use super::*;
     use tract_onnx::prelude::*;
 
     #[test]
-    fn test_english_encoder() {
-        test_model("moonshine-tiny-en-encoder.onnx");
+    fn test_model_loading() {
+        // Test implementation
     }
+}
 
-    #[test]
-    fn test_english_decoder() {
-        test_model("moonshine-tiny-en-decoder.onnx");
-    }
+/// Standard test (always runs)
+#[test]
+fn test_models_existence_check() {
+    println!("\n=== Model Existence Check ===");
+    // Test implementation
+}
+```
+
+## Feature-Gated Tests
+
+**Pattern:** Tests conditionally compiled based on Cargo features
+
+**Features in `Cargo.toml`:**
+```toml
+[features]
+default = []
+ndlocr-test = []  # Enable NDLOCR tract compatibility tests
+moonshine-test = []  # Enable Moonshine tract compatibility tests
+```
+
+**Usage:**
+```rust
+#[cfg(feature = "moonshine-test")]
+mod tract_tests {
+    // Tests that require ONNX models
+}
+
+// Tests outside the module always run
+#[test]
+fn test_always_runs() {
+    // Basic availability checks
+}
+```
+
+**Run Commands:**
+```bash
+# Run all tests
+cargo test
+
+# Run feature-gated tests
+cargo test --features moonshine-test
+cargo test --features ndlocr-test
+
+# Run specific test
+cargo test test_model_loading
+```
+
+## Test Patterns
+
+**Model Existence Checks:**
+```rust
+fn models_exist() -> bool {
+    let model_dir = get_model_dir();
+    let detection = model_dir.join("text_detection.onnx");
+    let recognition = model_dir.join("text_recognition.onnx");
+    
+    detection.exists() && recognition.exists()
 }
 
 #[test]
 fn test_models_existence_check() {
-    // Always runs, checks model availability
-}
-```
-
-**Patterns:**
-- Setup: Direct instantiation or helper functions
-- Teardown: Not used (Rust drops automatically)
-- Assertions: Standard library `assert!` macros
-- Test helpers: Private functions within test modules
-
-## Mocking
-
-**Framework:** None (Rust standard library only)
-
-**Patterns:**
-- In-memory databases for isolation: `Database::in_memory()`
-- Trait-based abstraction for testability: `OcrEngine`, `SttEngine`, `PlatformApi`
-- Desktop stub implementations for platform APIs
-
-**Example from `src/platform/mod.rs`:**
-```rust
-/// Desktop platform implementation (for testing/development)
-pub struct DesktopPlatform;
-
-#[async_trait]
-impl PlatformApi for DesktopPlatform {
-    async fn capture_image(&self) -> Result<CameraResult> {
-        Err(ShuseiError::Platform("Camera not available on desktop".into()).into())
+    if models_exist() {
+        println!("✓ All required models are present");
+    } else {
+        let missing = get_missing_models();
+        println!("✗ Missing models: {:?}", missing);
     }
-    // ... stub implementations
 }
 ```
 
-**What to Mock:**
-- External hardware (camera, microphone)
-- Platform-specific APIs
-- File system access (use in-memory or temp files)
-
-**What NOT to Mock:**
-- Business logic (test directly)
-- Database operations (use in-memory SQLite)
-- Error handling paths (test with actual errors)
-
-## Fixtures and Factories
-
-**Test Data:**
+**Skip Pattern (Conditional Test):**
 ```rust
-// From src/core/db.rs
-let new_note = NewStickyNote {
-    ocr_markdown: Some("# Test\nHello world".to_string()),
-    ocr_text_plain: Some("Test Hello world".to_string()),
-    ..Default::default()
-};
+#[test]
+fn test_model() {
+    let model_path = get_model_dir().join("model.onnx");
+    
+    if !model_path.exists() {
+        eprintln!("SKIP: Model not found at {:?}", model_path);
+        return;  // Early return, test passes
+    }
+    
+    // Actual test logic...
+}
 ```
 
 **Helper Functions:**
 ```rust
-// From tests/moonshine_tract_test.rs
+/// Load and analyze an ONNX model file
+fn load_onnx_model(model_path: &PathBuf) -> Result<TypedModel, String> {
+    tract_onnx::onnx()
+        .model_for_path(model_path)
+        .map_err(|e| format!("Failed to load model: {:?}", e))?
+        .into_optimized()
+        .map_err(|e| format!("Failed to optimize model: {:?}", e))?
+        .into_run_config()
+        .map_err(|e| format!("Failed to configure model: {:?}", e))
+}
+```
+
+## Test Data and Fixtures
+
+**Model Paths:**
+- Models expected at: `assets/models/{model_type}/`
+- Path construction using `CARGO_MANIFEST_DIR`:
+```rust
 fn get_model_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("assets")
         .join("models")
         .join("moonshine")
 }
+```
 
-fn load_onnx_model(model_path: &PathBuf) -> Result<TypedModel, String> {
-    tract_onnx::onnx()
-        .model_for_path(model_path)
-        .map_err(|e| format!("Failed to load model: {:?}", e))?
-        // ...
+**Constants for Model Files:**
+```rust
+const ENGLISH_MODELS: [&str; 2] = [
+    "moonshine-tiny-en-encoder.onnx",
+    "moonshine-tiny-en-decoder.onnx",
+];
+
+const JAPANESE_MODELS: [&str; 2] = [
+    "moonshine-tiny-ja-encoder.onnx",
+    "moonshine-tiny-ja-decoder.onnx",
+];
+```
+
+## Mocking
+
+**No Mocking Framework:**
+- No mocking libraries detected in `Cargo.toml`
+- No `mockall`, `mockiato`, or similar crates
+
+**Manual Stub Pattern:**
+```rust
+// In DesktopPlatform implementation
+async fn capture_image(&self) -> Result<CameraResult> {
+    Err(ShuseiError::Platform("Camera not available on desktop".into()).into())
 }
 ```
 
-**Location:**
-- Helper functions defined at top of test files
-- No separate `fixtures/` or `factories/` directory
-- `Default` trait used for creating base instances
+**Test Doubles via Traits:**
+- Traits like `OcrEngine`, `SttEngine`, `PlatformApi` allow different implementations
+- `DesktopPlatform` acts as a stub for testing
 
 ## Coverage
 
-**Requirements:** None enforced (no `cargo-llvm-cov` or similar configured)
+**Coverage Tool:** Not configured
+- No `tarpaulin` or `grcov` configuration found
+- No coverage CI integration detected
 
-**View Coverage:**
+**View Coverage (if using tarpaulin):**
 ```bash
-# Install cargo-llvm-cov (if needed)
-cargo install cargo-llvm-cov
+# Install tarpaulin
+cargo install cargo-tarpaulin
 
-# Generate coverage report
-cargo llvm-cov
-cargo llvm-cov --html
+# Run with coverage
+cargo tarpaulin --out Html
 ```
-
-**Current Test Count:**
-- 7 test functions identified with `#[test]`
-- Unit tests in `src/core/db.rs`
-- Integration tests in `tests/` directory
 
 ## Test Types
 
 **Unit Tests:**
-- Scope: Individual functions and methods
-- Location: `#[cfg(test)] mod tests` within source files
-- Approach: Test with in-memory data, verify outputs
-- Example: Database CRUD operations
+- Database operations (`src/core/db.rs`)
+- Model creation and retrieval
+- In-memory database for isolation
 
 **Integration Tests:**
-- Scope: Model loading, ONNX compatibility
-- Location: `tests/` directory
-- Approach: Feature-flagged, requires external models
-- Example: `moonshine_tract_test.rs`, `ndlocr_tract_test.rs`
+- ONNX model compatibility tests
+- Tract runtime integration tests
+- End-to-end model loading tests
 
-**E2E Tests:**
-- Not used
-- UI testing would require Dioxus testing utilities
+**Documentation Tests:**
+- Doc comments may contain code examples
+- Run with `cargo test --doc`
 
-## Common Patterns
+## Testing Best Practices Observed
 
-**Async Testing:**
-```rust
-// Note: Tests are synchronous, async functions called with block_on if needed
-// Current pattern: Test async-capable code synchronously where possible
-#[test]
-fn test_database_in_memory() {
-    let db = Database::in_memory().unwrap();
-    // Database methods may be async in real usage
-}
-```
+1. **In-memory databases** for unit tests to avoid file system dependencies
+2. **Feature gates** for tests requiring external resources (model files)
+3. **Early return pattern** for graceful skipping when resources unavailable
+4. **Comprehensive logging** in tests with `println!` and `eprintln!`
+5. **Detailed documentation** in test files explaining model requirements
 
-**Error Testing:**
-```rust
-// Test error conditions with Result expectations
-#[test]
-fn test_model_not_found() {
-    let result = engine.process_image(&data).await;
-    assert!(result.is_err());
-    match result.unwrap_err() {
-        ShuseiError::Ocr(OcrError::ModelLoading(msg)) => {
-            assert!(msg.contains("not found"));
-        }
-        _ => panic!("Expected ModelLoading error"),
-    }
-}
-```
+## Known Testing Gaps
 
-**Feature-Flagged Tests:**
-```rust
-// Tests that require external dependencies
-#[cfg(feature = "moonshine-test")]
-mod tract_tests {
-    #[test]
-    fn test_english_encoder() {
-        // Only runs with --features moonshine-test
-    }
-}
-```
+**Not Yet Implemented:**
+- OCR engine tests (placeholder implementation)
+- STT engine tests (placeholder implementation)
+- UI component tests (Dioxus testing)
+- Platform API tests (requires mocking)
+- Vocabulary extraction tests (lindera not yet integrated)
 
-**Skip Pattern:**
-```rust
-// Gracefully skip tests when prerequisites not met
-#[test]
-fn test_models_existence_check() {
-    if !models_exist() {
-        eprintln!("SKIP: Models not found");
-        return;
-    }
-    // ... test logic
-}
-```
-
-## Test Documentation
-
-**Inline Documentation:**
-- Module-level doc comments explain test purpose
-- Comments document expected model files and locations
-- README-style headers in test files
-
-**Example from `tests/moonshine_tract_test.rs`:**
-```rust
-//! Moonshine Tiny ONNX tract compatibility test
-//!
-//! ## Models Required
-//! Moonshine is a family of speech-to-text models...
-//!
-//! ## Running the Test
-//! 1. Download the Moonshine Tiny ONNX models
-//! 2. Place them in `assets/models/moonshine/`
-//! 3. Run: `cargo test moonshine_tract_test --features moonshine-test`
-```
+**TODO Comments Related to Testing:**
+- `src/core/ocr/engine.rs:79` - Model loading implementation
+- `src/core/stt/engine.rs:68` - Model loading implementation
+- Various pipeline implementations pending
 
 ---
 

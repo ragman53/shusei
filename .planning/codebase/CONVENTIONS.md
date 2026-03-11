@@ -5,182 +5,186 @@
 ## Naming Patterns
 
 **Files:**
-- Snake case for module files: `engine.rs`, `decoder.rs`, `tokenizer.rs`
-- Module root files named `mod.rs`
-- Test files use `{module}_test.rs` pattern: `moonshine_tract_test.rs`, `ndlocr_tract_test.rs`
+- Snake_case for all Rust files: `engine.rs`, `mod.rs`, `postprocess.rs`
+- Module entry points: `mod.rs` in each directory
+
+**Modules:**
+- `src/core/mod.rs` - Core business logic
+- `src/ui/mod.rs` - UI components
+- `src/platform/mod.rs` - Platform abstraction
+
+**Structs:**
+- PascalCase: `OcrEngine`, `SttResult`, `NdlocrEngine`, `MoonshineEngine`
+- Descriptive names that describe the concept
+
+**Traits:**
+- PascalCase with descriptive names: `OcrEngine`, `SttEngine`, `PlatformApi`
+- Async traits use `#[async_trait]` attribute
 
 **Functions:**
-- Snake case: `process_image()`, `transcribe()`, `initialize_schema()`
-- Async functions prefixed with `async`: `async fn capture_image()`
-- Builder/constructor pattern: `new()`, `open()`, `in_memory()`
+- Snake_case: `process_image`, `transcribe`, `capture_image`
+- Async functions prefix not required (trait-based)
 
 **Variables:**
-- Snake case: `model_dir`, `initialized`, `audio_data`
-- Option types clearly named: `image_path: Option<String>`
-- Boolean flags: `initialized`, `enable_direction_classification`
+- Snake_case: `image_data`, `max_duration_seconds`, `model_dir`
+- Boolean flags: `is_ready`, `is_capturing`, `is_processing`
 
-**Types:**
-- PascalCase for structs and enums: `OcrResult`, `SttEngine`, `ShuseiError`
-- Trait names end with `Engine` or `Api`: `OcrEngine`, `SttEngine`, `PlatformApi`
-- Result aliases: `Result<T>` (module-specific error type)
+**Enums:**
+- PascalCase variants: `Language::English`, `Language::Japanese`
+- Error enums: `OcrError`, `SttError`, `ShuseiError`
+
+**Constants:**
+- UPPER_SNAKE_CASE: `ENGLISH_MODELS`, `JAPANESE_MODELS`
 
 ## Code Style
 
 **Formatting:**
-- No `.rustfmt.toml` detected - uses Rust defaults
-- 4-space indentation (Rust standard)
-- Maximum line length follows Rust conventions (~100 chars)
-- Blank lines between function definitions
-- Trailing commas in multi-line structs/arrays
+- Standard `rustfmt` formatting (no custom config file found)
+- 4 spaces for indentation
+- Max line length: standard Rust convention (~100 chars)
 
 **Linting:**
-- No ESLint/Biome config (Rust project)
-- Uses Rust compiler warnings
-- `#[derive(Debug)]` on most types for debugging
+- Clippy used (implied by Rust best practices)
+- No custom clippy configuration
 
 ## Import Organization
 
 **Order:**
-1. External crates: `use dioxus::prelude::*;`
-2. Standard library: `use std::path::Path;`
-3. Internal modules: `use crate::core::error::Result;`
-4. Super module imports: `use super::Language;`
+1. Standard library imports (`std::path::Path`, `std::collections::HashMap`)
+2. Third-party crate imports (`serde`, `async_trait`, `tract_onnx`)
+3. Internal module imports (`crate::core::error`)
 
-**Example from `src/core/db.rs`:**
+**Patterns:**
 ```rust
-use std::path::Path;
+use std::path::PathBuf;
 
-use rusqlite::{Connection, params, Row, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use async_trait::async_trait;
 
-use crate::core::error::{ShuseiError, Result};
+use crate::core::error::{OcrError, Result};
 ```
 
-**Path Aliases:**
-- `crate::` for root module access
-- `super::` for parent module access
-- No path aliases configured in `Cargo.toml`
-
-## Error Handling
-
-**Patterns:**
-- `thiserror` for custom error types with `#[derive(Error)]`
-- `anyhow` for application-level errors
-- Result type alias per module: `pub type Result<T> = std::result::Result<T, ShuseiError>;`
-- Error conversion with `#[from]` attribute for automatic `?` propagation
-
-**Example from `src/core/error.rs`:**
+**Re-exports:**
+- `pub use` pattern for exposing public API
+- Example from `src/core/mod.rs`:
 ```rust
-#[derive(Error, Debug)]
-pub enum ShuseiError {
-    #[error("OCR error: {0}")]
-    Ocr(#[from] OcrError),
-
-    #[error("Database error: {0}")]
-    Database(#[from] rusqlite::Error),
-
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-}
-```
-
-**Error Propagation:**
-- Use `?` operator for automatic conversion
-- `.into()` for manual conversion when needed
-- Context added with string interpolation: `OcrError::ModelLoading(format!(...))`
-
-## Logging
-
-**Framework:** `log` crate with `env_logger` for initialization
-
-**Patterns:**
-- `log::info!()` for startup/shutdown events
-- `log::debug!()` for detailed operation info
-- `log::warn!()` for non-critical issues
-- `log::error!()` avoided - errors returned as `Result` instead
-
-**Example from `src/core/ocr/engine.rs`:**
-```rust
-log::info!("Initializing NDLOCR engine from {:?}", self.model_dir);
-log::warn!("Direction classifier model not found, direction classification will be disabled");
-```
-
-**Configuration:**
-- Initialized in `main.rs`: `env_logger::Env::default().default_filter_or("info")`
-- Runtime filtering via `RUST_LOG` environment variable
-
-## Comments
-
-**When to Comment:**
-- Module-level doc comments (`//!`) for every module
-- Function doc comments (`///`) for public APIs
-- Inline comments (`//`) for TODOs and complex logic
-
-**JSDoc/TSDoc equivalent (Rust doc comments):**
-```rust
-//! Shusei - Offline reading app with OCR and STT capabilities
-//!
-//! Library module exposing core functionality.
-
-/// Top-level error type for the Shusei application
-#[derive(Error, Debug)]
-pub enum ShuseiError { ... }
-```
-
-**TODO Pattern:**
-- Format: `// TODO: Description`
-- Often includes context: `// TODO: Implement mel-spectrogram computation`
-- Tracked in codebase: 28 TODOs found across source files
-
-## Function Design
-
-**Size:**
-- Small to medium functions (10-50 lines typical)
-- Single responsibility per function
-- Helper functions extracted for complex operations
-
-**Parameters:**
-- Simple types passed by value: `id: i64`, `path: impl AsRef<Path>`
-- Large types passed by reference: `note: &NewStickyNote`
-- Configuration structs for many parameters: `OcrConfig`, `SttConfig`
-
-**Return Values:**
-- Always `Result<T>` for fallible operations
-- `Option<T>` for optional values
-- Specific result types: `OcrResult`, `SttResult`, `CameraResult`
-
-## Module Design
-
-**Exports:**
-- Public re-exports in `mod.rs` files
-- Clear separation between public API and internal implementation
-- Use of `pub use` for convenience re-exports
-
-**Example from `src/core/mod.rs`:**
-```rust
-pub mod error;
-pub mod ocr;
-pub mod stt;
-
 pub use error::{ShuseiError, OcrError, SttError};
 pub use ocr::OcrEngine;
 pub use stt::SttEngine;
+pub use db::Database;
 ```
 
-**Barrel Files:**
-- `mod.rs` files serve as barrel files for each module
-- `ui/components.rs` exports shared UI components
-- `lib.rs` re-exports commonly used types at crate root
+## Documentation
 
-## Trait Design
+**Module Documentation:**
+- Every module starts with a doc comment (`//!`)
+- Describes the module's purpose
+
+```rust
+//! OCR (Optical Character Recognition) pipeline
+//!
+//! This module implements the OCR pipeline using NDLOCR-Lite ONNX models
+//! with the tract inference runtime.
+```
+
+**Item Documentation:**
+- Public structs and functions have doc comments
+- Include usage examples for complex items
+
+**Doc Comments:**
+- `//!` for module-level documentation
+- `///` for item-level documentation
+
+## Error Handling
+
+**Strategy:** `thiserror` for custom error types
+
+**Pattern:**
+```rust
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum OcrError {
+    #[error("Image preprocessing failed: {0}")]
+    Preprocessing(String),
+
+    #[error("Model loading failed: {0}")]
+    ModelLoading(String),
+    // ...
+}
+```
+
+**Result Type:**
+- Custom `Result<T>` alias for `std::result::Result<T, ShuseiError>`
+- Located in `src/core/error.rs`
+
+**Error Propagation:**
+- Use `?` operator for automatic conversion
+- `#[from]` attribute for automatic error conversion
+
+## Logging
+
+**Framework:** `log` crate with `env_logger`
 
 **Patterns:**
-- Async traits use `#[async_trait]` macro
-- Trait names end with descriptive suffix: `Engine`, `Api`
-- Common methods: `is_ready()`, `name()`, primary operation method
-
-**Example from `src/core/ocr/engine.rs`:**
 ```rust
+log::info!("Initializing NDLOCR engine from {:?}", self.model_dir);
+log::warn!("Direction classifier model not found, direction classification will be disabled");
+log::error!("Capture failed: {}", e);
+log::debug!("Preprocessing audio: {} samples", audio.len());
+```
+
+**Levels:**
+- `info!` - Initialization, completion events
+- `warn!` - Non-critical issues
+- `error!` - Errors that impact functionality
+- `debug!` - Detailed debugging information
+
+## Function Design
+
+**Size:** Functions tend to be focused and under 50 lines
+
+**Parameters:**
+- Use `impl Into<PathBuf>` for flexible path arguments
+- Use `Option<T>` for optional parameters in structs
+
+**Async Functions:**
+- Marked with `async fn` or `#[async_trait]` for traits
+- Return `Result<T>` for fallible operations
+
+**Builder Pattern:**
+- `Default` trait for configuration structs
+- Example: `OcrConfig`, `SttConfig`
+
+## Module Design
+
+**Structure:**
+```
+src/
+├── core/          # Business logic
+│   ├── error.rs   # Error types
+│   ├── db.rs      # Database operations
+│   ├── ocr/       # OCR module
+│   ├── stt/       # STT module
+│   └── vocab.rs   # Vocabulary management
+├── ui/            # Dioxus UI components
+├── platform/      # Platform abstraction
+├── app.rs         # Main app component
+├── lib.rs         # Library entry
+└── main.rs        # Binary entry
+```
+
+**Visibility:**
+- Public API: `pub`
+- Module-private: default (no keyword)
+- Re-export from parent modules for convenience
+
+## Traits and Generics
+
+**Async Trait Pattern:**
+```rust
+use async_trait::async_trait;
+
 #[async_trait]
 pub trait OcrEngine: Send + Sync {
     async fn process_image(&self, image_data: &[u8]) -> Result<OcrResult>;
@@ -189,33 +193,36 @@ pub trait OcrEngine: Send + Sync {
 }
 ```
 
-## Data Structures
+**Generic Bounds:**
+- `Send + Sync` for thread safety
+- `impl AsRef<Path>` for path parameters
 
-**Structs:**
-- Use `#[derive(Debug, Clone, Serialize, Deserialize)]` for data types
-- Separate `New*` and `Update*` structs for database operations
-- Builder pattern not used - direct struct initialization
+## Serde Serialization
 
-**Example from `src/core/db.rs`:**
+**Pattern:**
 ```rust
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct StickyNote {
-    pub id: i64,
-    pub created_at: String,
-    pub ocr_markdown: Option<String>,
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SttResult {
+    pub text: String,
+    pub confidence: Option<f32>,
     // ...
 }
 ```
 
-## Async Patterns
+**Feature Gates:**
+- Some modules conditionally compiled: `#[cfg(feature = "pdf")]`
 
-**Runtime:** Tokio with `rt-multi-thread`, `sync`, `time`, `fs` features
+## Testing Conventions
 
-**Patterns:**
-- `async fn` for I/O operations
-- `#[async_trait]` for trait methods
-- `await` for async calls
-- No explicit spawn in library code
+**Inline Tests:**
+- Located in `#[cfg(test)]` modules at bottom of file
+- Example in `src/core/db.rs` (lines 287-313)
+
+**Integration Tests:**
+- Located in `tests/` directory
+- Named: `*_test.rs` pattern
 
 ---
 

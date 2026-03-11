@@ -4,348 +4,294 @@
 
 ## Tech Debt
 
-### OCR Engine Not Implemented
+### Unimplemented TODOs
 
-**Issue:** The NDLOCR engine in `src/core/ocr/engine.rs` has placeholder implementations that return empty results.
+**OCR Engine (`src/core/ocr/engine.rs`):**
+- Line 79: Model loading via tract not implemented - `NdlocrEngine::initialize()` only checks file existence
+- Line 129: Full OCR pipeline not implemented - `process_image()` returns empty results
 
-**Files:** `src/core/ocr/engine.rs`, `src/core/ocr/postprocess.rs`
+**OCR Postprocessing (`src/core/ocr/postprocess.rs`):**
+- Line 15: Text detection using tract not implemented
+- Line 29: Text recognition using tract not implemented  
+- Line 43: Direction classification using tract not implemented
 
-**Impact:**
-- `process_image()` returns empty `OcrResult` with no regions, markdown, or plain text
-- Text detection, recognition, and direction classification all marked as TODO
-- Camera page shows placeholder message instead of actual OCR results
+**STT Engine (`src/core/stt/engine.rs`):**
+- Line 68: ONNX model loading via tract not implemented - `MoonshineEngine::initialize()` only checks file existence
+- Line 114: Mel-spectrogram preprocessing not implemented - returns raw audio as placeholder
+- Line 136: Full STT pipeline not implemented - `transcribe()` returns empty results
 
-**Fix approach:** Implement tract-onnx model loading and inference pipeline as planned in Week 3-5 roadmap.
+**STT Decoder (`src/core/stt/decoder.rs`):**
+- Line 152: Decoder step using tract not implemented - returns placeholder token
+- Line 194: Top-k sampling not implemented (falls through to greedy)
+- Line 203: Top-p sampling not implemented (falls through to greedy)
 
----
+**UI Pages (`src/ui/notes.rs`, `src/ui/reader.rs`, `src/ui/vocab.rs`):**
+- Line 20 in all: Database loading not implemented - all pages show empty state
+- Line 36 in notes.rs: FTS search not implemented
+- Line 74, 82 in vocab.rs: Markdown/CSV export not implemented
+- Line 52, 69 in reader.rs: File picker not implemented
 
-### STT Engine Not Implemented
+**Vocabulary Module (`src/core/vocab.rs`):**
+- Line 45: Lindera tokenizer initialization not implemented
+- Line 57: Japanese word extraction not implemented - returns empty Vec
 
-**Issue:** The Moonshine STT engine in `src/core/stt/engine.rs` has placeholder implementations.
+**Platform iOS (`src/platform/ios.rs`):**
+- Line 28: Camera using AVCaptureSession not implemented
+- Line 35: Audio using AVAudioRecorder not implemented
+- Line 42: File picker using UIDocumentPickerViewController not implemented
+- Line 49: Vibration using UIImpactFeedbackGenerator not implemented
 
-**Files:** `src/core/stt/engine.rs`, `src/core/stt/decoder.rs`
+### Stubs and Placeholders
 
-**Impact:**
-- `transcribe()` returns empty `SttResult` with no text
-- Mel-spectrogram preprocessing not implemented
-- Decoder inference, top-k sampling, and top-p sampling all marked as TODO
+**Desktop Platform (`src/platform/mod.rs`):**
+- Lines 85-118: `DesktopPlatform` returns errors or false for all operations
+- Desktop is a fallback that provides no actual functionality
+- Development must target Android device/emulator for camera features
 
-**Fix approach:** Implement tract-onnx model loading and decoder pipeline as planned in Week 9-10 roadmap.
+**UI Components (`src/ui/components.rs`):**
+- Components are well-structured but not yet used in main UI
+- Camera page uses inline HTML instead of shared components
 
----
+## Potential Bugs
 
-### UI Components Use Mock Data
+### Panic in Default Implementations
 
-**Issue:** All UI components load empty data instead of connecting to the database.
+**Critical:** Default trait implementations use `.expect()` which will panic:
 
-**Files:** 
-- `src/ui/notes.rs` - Lines 20, 36
-- `src/ui/reader.rs` - Line 17
-- `src/ui/vocab.rs` - Line 20
-- `src/ui/camera.rs` - Line 186
+- `src/core/vocab.rs` line 108: `WordExtractor::default()` calls `.expect("Failed to create WordExtractor")`
+- `src/core/pdf.rs` line 108: `PdfProcessor::default()` calls `.expect("Failed to create PdfProcessor")`
 
-**Impact:**
-- Notes page shows "No notes yet" even after OCR capture
-- Reader page cannot load books from database
-- Vocab page cannot display saved words
-- Save functionality in camera page is stubbed out
+**Impact:** Application will crash on startup if these types are instantiated via Default trait.
 
-**Fix approach:** Wire up UI components to `Database` methods for CRUD operations.
+**Fix approach:** Remove Default implementations or make them return Option/Result.
 
----
+### Float Comparison Fragility
 
-### Vocabulary Extractor Depends on Optional Lindera
+**Multiple locations use `partial_cmp` with unwrap:**
+- `src/core/ocr/markdown.rs` lines 90, 94, 101, 105, 114, 118
+- `src/core/ocr/postprocess.rs` line 60
+- `src/core/stt/decoder.rs` lines 189-208
 
-**Issue:** `WordExtractor` in `src/core/vocab.rs` requires the `lindera` feature for Japanese morphological analysis, but this is an optional dependency.
+**Issue:** `partial_cmp` returns None for NaN values, but code unwraps to Equal. Sorting may produce incorrect results with NaN confidence scores.
 
-**Files:** `src/core/vocab.rs`, `Cargo.toml`
+### Test-Only unwrap() Calls
 
-**Impact:**
-- Lines 45, 57, 84 all have TODOs for lindera implementation
-- Default build does not include lindera, breaking vocabulary extraction
-- Large dictionary download required for lindera (ipadic ~200MB)
+**Tests use `.unwrap()` extensively:**
+- `src/core/db.rs` lines 293-311: Database tests use unwrap
+- `src/core/vocab.rs` lines 215, 225: Vocabulary tests use unwrap
+- `src/core/ocr/markdown.rs` lines 190, 201: Markdown generation tests use unwrap
 
-**Fix approach:** Either make lindera a default feature or implement fallback tokenization strategy.
+**Risk:** Tests may panic instead of failing gracefully. Not critical for production but indicates test fragility.
 
----
+### JNI Thread Safety
 
-## Known Bugs
+**Android Platform (`src/platform/android.rs`):**
+- Line 14: `CAMERA_STATE` uses std Mutex across async boundaries
+- Line 16: `JAVA_VM` stored in Mutex
+- Lines 72-78: State mutation without considering reentrancy
 
-### Unsafe JNI Code in Android Platform
+**Risk:** Potential deadlocks if camera callbacks happen on unexpected threads.
 
-**Issue:** `src/platform/android.rs:193` uses unsafe conversion of JNI byte arrays.
+## Security Concerns
 
-**Files:** `src/platform/android.rs`
+### No Input Validation
 
-**Trigger:** Any camera capture on Android device.
+**Camera page (`src/ui/camera.rs`):**
+- Line 87-92: Base64 encoding of arbitrary image data without size limits
+- No validation of image dimensions from JNI callback
+- No protection against maliciously large images causing memory exhaustion
 
-**Current mitigation:** Wrapped in error handling, but unsafe block could panic if JNI environment is invalid.
+**Database (`src/core/db.rs`):**
+- Line 115-136: `create_sticky_note()` accepts arbitrary strings without sanitization
+- No SQL injection risk (uses parameterized queries), but no content validation
 
-**Workaround:** None - requires careful JNI lifecycle management.
+### JNI Security
 
----
+**Android Platform (`src/platform/android.rs`):**
+- Lines 163-181: `nativeInit` gets JavaVM and stores globally
+- No validation that caller is authorized Android activity
+- Potential for malicious native code injection if APK is tampered
 
-### FTS Search Not Implemented
+### File Path Exposure
 
-**Issue:** Notes search functionality is stubbed out.
+**PDF Processor (`src/core/pdf.rs`):**
+- Lines 21-26: Loads system library without path validation
+- If pdfium is not bundled, may load from attacker-controlled path
 
-**Files:** `src/ui/notes.rs:36`, `src/core/db.rs` (FTS table exists but not used)
+## Performance Issues
 
-**Trigger:** User types in search bar on notes page.
+### Memory Inefficiency
 
-**Current mitigation:** Returns empty list.
+**STT KV Cache (`src/core/stt/decoder.rs`):**
+- Lines 32-44: Pre-allocates `max_seq_len` worth of zeros for each layer
+- For typical values (4 layers, 8 heads, 64 dim, 512 seq): ~4 * 512 * 512 * 4 bytes = 4MB per cache
+- Multiple concurrent transcriptions could exhaust memory
 
-**Workaround:** Manual scanning of notes list.
+**Image Processing (`src/core/ocr/preprocess.rs`):**
+- Line 66-81: `image_to_rgb_tensor()` iterates pixel-by-pixel
+- Could be optimized with ndarray operations or parallel iteration
 
----
+### Synchronous Database Operations
 
-## Security Considerations
+**All database methods (`src/core/db.rs`):**
+- Database operations are synchronous but called from async UI context
+- UI may freeze during large queries
+- No connection pooling for multiple concurrent operations
 
-### No Input Validation on Database Queries
+### No Caching Strategy
 
-**Issue:** FTS search queries (when implemented) will use user input directly in SQL MATCH clause.
-
-**Files:** `src/core/db.rs:173-181`
-
-**Risk:** Potential FTS injection attacks if user input not sanitized.
-
-**Current mitigation:** None currently visible.
-
-**Recommendations:** 
-- Sanitize FTS query input (escape special characters: `"`, `-`, `+`, `(`, `)`, `{`, `}`, `[`, `]`, `^`, `~`, `*`, `?`, `:`, `\`)
-- Add query length limits
-
----
-
-### File Path Handling
-
-**Issue:** Image paths and book file paths stored as plain strings without validation.
-
-**Files:** `src/core/db.rs` (schema), `src/core/pdf.rs`
-
-**Risk:** Path traversal attacks if user-controlled paths used in file operations.
-
-**Current mitigation:** None visible.
-
-**Recommendations:**
-- Validate file paths are within app data directory
-- Use `PathBuf` with canonicalization before file access
-
----
-
-## Performance Bottlenecks
-
-### Database Queries Lack Pagination
-
-**Issue:** `get_all_sticky_notes()` loads all notes into memory at once.
-
-**Files:** `src/core/db.rs:151-162`
-
-**Cause:** No LIMIT/OFFSET clause in query.
-
-**Impact:** Performance degradation as note count grows (1000+ notes).
-
-**Improvement path:** Add pagination parameters to all list queries.
-
----
-
-### No Database Connection Pooling
-
-**Issue:** Single `Connection` object in `Database` struct.
-
-**Files:** `src/core/db.rs:14-16`
-
-**Cause:** rusqlite `Connection` is not thread-safe by default.
-
-**Impact:** Blocking I/O on async operations; cannot handle concurrent requests efficiently.
-
-**Improvement path:** Use `r2d2` connection pool or wrap `Connection` in `Arc<Mutex<>>`.
-
----
-
-### Image Encoding in Memory
-
-**Issue:** Camera captures full-resolution images and encodes to base64 for UI display.
-
-**Files:** `src/ui/camera.rs:88-92`
-
-**Cause:** `general_purpose::STANDARD.encode(&data)` creates full base64 string in memory.
-
-**Impact:** Large images (4MB+) cause memory pressure and UI lag.
-
-**Improvement path:** 
-- Downscale images before encoding
-- Use streaming/base64 chunking
-- Consider native image display via platform APIs
-
----
+- No LRU cache for rendered PDF pages
+- No image cache for camera captures
+- Repeated OCR on same image re-runs full pipeline
 
 ## Fragile Areas
 
-### Platform Feature Detection
+### JNI Bridge (`src/platform/android.rs`)
 
-**Files:** `src/platform/mod.rs`, `src/platform/android.rs`, `src/platform/ios.rs`
+**Complexity:** 223 lines of unsafe JNI interop
 
-**Why fragile:** 
-- iOS platform returns `false` for all permission checks
-- Android platform has partial implementation (audio recording, file picker not implemented)
-- No compile-time feature flags to prevent calling unimplemented methods
-
-**Safe modification:**
-- Always check return values from platform APIs
-- Add feature flags (`android`, `ios`, `desktop`) to gate functionality
-- Implement fallback behavior for missing features
-
-**Test coverage:** No platform integration tests detected.
-
----
-
-### Optional Feature Dependencies
-
-**Files:** `Cargo.toml:65-74`
-
-**Why fragile:**
-- `lindera`, `pdf`, `android`, `ios` features are optional
-- Default build excludes critical functionality
-- No runtime checks for feature availability
+**Fragility points:**
+- Line 81-89: Java method call via JNI - method name/signature must match exactly
+- Line 183-213: JNI callback from Java to Rust - byte array conversion uses unsafe
+- Line 193: `unsafe { JByteArray::from_raw(image_data) }` - assumes valid JNI reference
+- Line 215-223: Sender channel may be closed if callback happens unexpectedly
 
 **Safe modification:**
-- Add runtime feature detection helpers
-- Document required features for each use case
-- Consider making `lindera` and `pdf` default features
+- Add JNI signature validation tests
+- Wrap JNI calls in safer abstraction
+- Add timeout handling for all JNI operations
 
----
+### Model Loading (`src/core/ocr/engine.rs`, `src/core/stt/engine.rs`)
+
+**Fragility:**
+- Assumes models exist at specific paths relative to executable
+- No graceful degradation if models are missing
+- No model version checking
+
+**Safe modification:**
+- Check model checksums/hashes
+- Provide fallback to cloud API if models unavailable
+- Add model metadata validation
+
+### Float Operations in Sorting
+
+**Markdown Generation (`src/core/ocr/markdown.rs`):**
+- Lines 89-120: Sorting by bbox coordinates with partial_cmp
+- Lines 45-46: Threshold comparison for paragraph detection
+
+**Risk:** Page layouts with overlapping or strangely positioned text may sort incorrectly.
 
 ## Scaling Limits
 
-### SQLite Single-Writer Limitation
+### Database
 
-**Current capacity:** One write transaction at a time.
+**Current:** Single SQLite file per device
+- No migration strategy for schema changes (see `src/core/db.rs` line 40-106)
+- No backup/restore mechanism
+- FTS5 virtual table may have performance issues with large datasets
 
-**Limit:** WAL mode allows concurrent reads, but writes are serialized.
+**Limit:** Unknown - depends on device storage and FTS5 performance
 
-**Scaling path:** 
-- Enable WAL mode explicitly (`PRAGMA journal_mode=WAL`)
-- Batch writes where possible
-- Consider async queue for write operations
+### Models
 
----
+**OCR:** NDLOCR-Lite ~8-17MB total
+**STT:** Moonshine Tiny ~45-60MB per language
 
-### Model Loading Memory
+**Current approach:** Load models on demand, no memory management
 
-**Current capacity:** Models loaded into memory on initialization.
+**Limit:** Can only have one language model loaded at a time
 
-**Limit:** ONNX models (NDLOCR + Moonshine) may exceed 500MB combined.
+### Image Processing
 
-**Scaling path:**
-- Implement lazy model loading
-- Add model unloading on low-memory warnings
-- Consider quantized model variants
-
----
-
-## Dependencies at Risk
-
-### tract-onnx Compatibility
-
-**Risk:** `tract-onnx = "0.21"` - ONNX operator support may be incomplete for NDLOCR/Moonshine models.
-
-**Impact:** Model inference may fail if operators not supported.
-
-**Migration plan:** 
-- Test model compatibility early (Week 3 for OCR, Week 9 for STT)
-- Have fallback to ONNX Runtime (`ort` crate) if tract insufficient
-
----
-
-### pdfium-render Static Linking
-
-**Risk:** `pdfium-render = { version = "0.8", features = ["static"] }` - Large binary blob, potential licensing issues.
-
-**Impact:** Increased binary size (~50MB), potential GPL licensing conflicts.
-
-**Migration plan:** Review PDFium license; consider alternative PDF libraries if needed.
-
----
+**Preprocessing (`src/core/ocr/preprocess.rs`):**
+- Line 37-46: Images scaled to max_size (1024px) by default
+- No memory limit for very large images
+- Could OOM on 4K+ images
 
 ## Test Coverage Gaps
 
-### Platform Integration Tests
+### Missing Integration Tests
 
-**What's not tested:** 
-- JNI camera capture flow
-- Permission request flows
-- File picker integration
-- Audio recording
+- No end-to-end OCR pipeline test
+- No end-to-end STT pipeline test
+- No JNI integration tests (requires Android emulator)
+- No database migration tests
 
-**Files:** `src/platform/android.rs`, `src/platform/ios.rs`
+### Mock-Based Tests Only
 
-**Risk:** Platform-specific bugs only discovered on real devices.
+- OCR engine tests use placeholder implementations
+- STT tests use hardcoded dummy data
+- No tests with actual ONNX model loading
 
-**Priority:** High - blocks mobile deployment.
+### Platform Tests
 
----
+**iOS (`src/platform/ios.rs`):**
+- Entirely stubbed - no tests possible
 
-### OCR/STT Pipeline Tests
-
-**What's not tested:**
-- Full OCR pipeline (preprocess → detect → recognize → postprocess)
-- Full STT pipeline (audio → mel-spectrogram → encode → decode)
-- Model loading failures
-- Error handling in inference
-
-**Files:** `src/core/ocr/`, `src/core/stt/`
-
-**Risk:** Core functionality may break without detection.
-
-**Priority:** High - these are core value propositions.
-
----
-
-### Database Migration Tests
-
-**What's not tested:**
-- Schema upgrades
-- Data migration between versions
-- FTS index rebuilding
-
-**Files:** `src/core/db.rs`
-
-**Risk:** App updates may corrupt user data.
-
-**Priority:** Medium - becomes critical after user data exists.
-
----
+**Android (`src/platform/android.rs`):**
+- JNI callbacks cannot be unit tested
+- Requires instrumentation tests on device
 
 ## Missing Critical Features
 
-### Error Display in UI
+### Error Recovery
 
-**Problem:** Errors logged but not shown to users.
+- No retry logic for transient failures (JNI calls, model loading)
+- No graceful degradation when models unavailable
+- No offline queue for failed operations
 
-**Blocks:** User troubleshooting; understanding what went wrong.
+### Data Persistence
 
-**Files:** `src/ui/camera.rs` (partial), other UI components
+- No automatic backup of user data
+- No export/import functionality for notes (only vocabulary export implemented)
+- No data migration between app versions
 
----
+### Input Sanitization
 
-### Offline Model Management
+- No XSS protection in markdown rendering
+- No validation of OCR output before display
+- No limits on note size or vocabulary list size
 
-**Problem:** No mechanism to download/update ONNX models.
+## Dependency Risks
 
-**Blocks:** Initial app setup; model updates.
+### tract-onnx (v0.21)
 
-**Files:** Not implemented
+**Risk:** Core dependency for ML inference
+- Limited documentation on mobile deployment
+- Complex build requirements for cross-compilation
+- May have compatibility issues with specific ONNX ops
 
----
+**Mitigation:** Test files `tests/ndlocr_tract_test.rs` and `tests/moonshine_tract_test.rs` document known issues
 
-### Settings/Configuration UI
+### pdfium-render (v0.8)
 
-**Problem:** No UI for app settings (language, quality, storage location).
+**Risk:** PDF rendering dependency
+- Requires native pdfium library (not bundled by default)
+- Platform-specific build complexity
+- Optional feature but main use case depends on it
 
-**Blocks:** User customization.
+### Dioxus (v0.7)
 
-**Files:** Not implemented
+**Risk:** UI framework
+- Relatively new framework, API may change
+- Mobile support still maturing
+- Router integration is feature-flagged
+
+### jni (v0.21)
+
+**Risk:** Android JNI bindings
+- Unsafe code required for all JNI operations
+- Complex lifetime management between Java and Rust
+- Easy to introduce memory safety bugs
+
+## Recommended Priority Order
+
+1. **High:** Fix panic in Default implementations (`vocab.rs`, `pdf.rs`)
+2. **High:** Implement actual model loading in OCR/STT engines
+3. **Medium:** Add input validation for image sizes and note content
+4. **Medium:** Implement retry logic for JNI operations
+5. **Low:** Add database migration strategy
+6. **Low:** Optimize image preprocessing with parallel operations
 
 ---
 
