@@ -9,6 +9,7 @@ pub mod stt;
 pub mod db;
 pub mod vocab;
 pub mod storage;
+pub mod models;
 
 #[cfg(feature = "pdf")]
 pub mod pdf;
