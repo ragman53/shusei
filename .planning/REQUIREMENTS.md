@@ -122,6 +122,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PERF-02 | Phase 7 | Pending |
 | PERF-03 | Phase 7 | Pending |
 
+**Phase Mapping Summary:**
+- **Phase 1 (Core Infrastructure):** CORE-01 through CORE-05 (5 requirements)
+- **Phase 2 (Paper Book Capture):** PAPER-01 through PAPER-05 (5 requirements)
+- **Phase 3 (PDF Support):** PDF-01 through PDF-04 (4 requirements)
+- **Phase 4 (Annotation Foundation):** ANNO-01 through ANNO-04 (4 requirements)
+- **Phase 5 (Voice Memos):** VOICE-01 through VOICE-04 (4 requirements)
+- **Phase 6 (AI Enhancement):** AI-01 through AI-04 (4 requirements)
+- **Phase 7 (Performance Polish):** PERF-01 through PERF-03 (3 requirements)
+
 **Coverage:**
 - v1 requirements: 30 total
 - Mapped to phases: 30
@@ -129,4 +138,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-11*
-*Last updated: 2026-03-11 after initial definition*
+*Last updated: 2026-03-11 after roadmap creation*
