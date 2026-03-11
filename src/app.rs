@@ -1,13 +1,41 @@
 //! Root application component with routing
+//!
+//! This module handles application initialization with state restoration
+//! from Android lifecycle events.
 
 use dioxus::prelude::*;
 use dioxus_router::{Link, Routable, Router};
 
+use crate::core::state::AppState;
 use crate::ui::{CameraPage, NotesPage, ReaderPage, VocabPage};
+
+/// Application state signal for tracking restored state
+#[derive(Clone, Copy)]
+pub struct AppStateSignal {
+    pub restored_state: Signal<Option<AppState>>,
+}
 
 /// Main application component
 #[component]
 pub fn App() -> Element {
+    // Load saved state on initialization
+    let restored_state = use_signal(|| {
+        // Try to load persisted state (works on Android, returns None on desktop)
+        AppState::load_from_prefs().unwrap_or(None)
+    });
+
+    // Log state restoration for debugging
+    let state_opt = restored_state.read();
+    if let Some(state) = state_opt.as_ref() {
+        log::info!(
+            "App initialized with restored state: route={}, scroll={}",
+            state.current_route,
+            state.scroll_position
+        );
+    } else {
+        log::debug!("App initialized with default state (no saved state found)");
+    }
+
     rsx! {
         Router::<Route> {}
     }
