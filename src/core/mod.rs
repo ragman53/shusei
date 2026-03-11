@@ -8,6 +8,7 @@ pub mod ocr;
 pub mod stt;
 pub mod db;
 pub mod vocab;
+pub mod storage;
 
 #[cfg(feature = "pdf")]
 pub mod pdf;
@@ -16,3 +17,4 @@ pub use error::{ShuseiError, OcrError, SttError};
 pub use ocr::OcrEngine;
 pub use stt::SttEngine;
 pub use db::Database;
+pub use storage::StorageService;

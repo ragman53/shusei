@@ -61,6 +61,10 @@ env_logger = "0.11"
 # Utilities
 parking_lot = "0.12"
 once_cell = "1"
+uuid = { version = "1", features = ["v4"] }
+
+# Test dependencies
+tempfile = "3"
 
 [features]
 default = []
