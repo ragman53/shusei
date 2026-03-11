@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 
 /// Storage service for managing image files
 pub struct StorageService {
-    assets_dir: PathBuf,
+    pub assets_dir: PathBuf,
     images_dir: PathBuf,
 }
 
@@ -96,6 +96,45 @@ impl StorageService {
 
         Ok(())
     }
+
+    /// Save page image for a book
+    ///
+    /// This method:
+    /// 1. Creates directory structure: pages/{book_id}/{timestamp}_{uuid}.jpg
+    /// 2. Saves the (already downscaled) image data
+    /// 3. Returns relative path for database storage
+    ///
+    /// # Arguments
+    /// * `image_data` - Raw image bytes (should already be preprocessed)
+    /// * `book_id` - Book identifier for organizing files
+    ///
+    /// # Returns
+    /// Relative path to the saved file (e.g., "pages/book123/1234567890_abc123.jpg")
+    pub fn save_page_image(&self, image_data: &[u8], book_id: &str) -> Result<String> {
+        // Create pages directory for this book
+        let pages_dir = self.assets_dir.join("pages").join(book_id);
+        fs::create_dir_all(&pages_dir)
+            .with_context(|| format!("Failed to create pages directory: {:?}", pages_dir))?;
+
+        // Generate timestamp + UUID based filename
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let filename = format!("{}_{}.jpg", timestamp, uuid::Uuid::new_v4());
+        let file_path = pages_dir.join(&filename);
+
+        // Write file
+        let mut file = fs::File::create(&file_path)
+            .with_context(|| format!("Failed to create file: {:?}", file_path))?;
+
+        file.write_all(image_data)
+            .with_context(|| format!("Failed to write image data: {:?}", file_path))?;
+
+        // Return relative path (not absolute)
+        let relative_path = format!("pages/{}/{}", book_id, filename);
+        Ok(relative_path)
+    }
 }
 
 #[cfg(test)]
@@ -135,7 +174,7 @@ mod tests {
 
         // Should be relative, not absolute
         assert!(!result.starts_with('/'));
-        assert!(!result.starts_with("C:"));
+        assert!(!result.contains(':'));
         assert!(result.starts_with("images/"));
     }
 
@@ -184,5 +223,48 @@ mod tests {
         let _storage = StorageService::new(assets_dir).unwrap();
 
         assert!(images_dir.exists());
+    }
+
+    #[test]
+    fn test_save_page_image_creates_book_directory() {
+        let (storage, _temp) = setup_storage();
+        let image_data = b"fake page image data";
+        let book_id = "test-book-123";
+
+        let result = storage.save_page_image(image_data, book_id);
+        assert!(result.is_ok());
+
+        let relative_path = result.unwrap();
+        assert!(relative_path.starts_with(&format!("pages/{}/", book_id)));
+
+        // Verify file exists
+        let full_path = storage.assets_dir.join(&relative_path);
+        assert!(full_path.exists());
+    }
+
+    #[test]
+    fn test_save_page_image_returns_relative_path() {
+        let (storage, _temp) = setup_storage();
+        let image_data = b"fake page image data";
+        let book_id = "test-book-456";
+
+        let result = storage.save_page_image(image_data, book_id).unwrap();
+
+        // Should be relative, not absolute
+        assert!(!result.starts_with('/'));
+        assert!(!result.contains(':'));
+        assert!(result.starts_with(&format!("pages/{}/", book_id)));
+    }
+
+    #[test]
+    fn test_save_page_image_preserves_content() {
+        let (storage, _temp) = setup_storage();
+        let original_data = b"original page image data";
+        let book_id = "test-book-789";
+
+        let path = storage.save_page_image(original_data, book_id).unwrap();
+        let loaded_data = storage.get_image(&path).unwrap();
+
+        assert_eq!(original_data, loaded_data.as_slice());
     }
 }

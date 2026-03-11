@@ -126,15 +126,17 @@ impl OcrEngine for NdlocrEngine {
         
         let start = std::time::Instant::now();
         
-        // TODO: Implement full OCR pipeline
-        // 1. Preprocess image
-        // 2. Detect text regions
-        // 3. Classify direction
-        // 4. Recognize text
+        // Step 1: Preprocess image (downscale to 2MP, enhance contrast)
+        let processed_data = super::preprocess::preprocess_image(image_data)?;
+        
+        // TODO: Implement full OCR pipeline with tract-onnx
+        // 2. Detect text regions using text_detection.onnx
+        // 3. Classify direction using direction_classifier.onnx  
+        // 4. Recognize text using text_recognition.onnx
         // 5. Sort by reading order
         // 6. Generate markdown
         
-        // Placeholder implementation
+        // For now, return placeholder with preprocessing completed
         let result = OcrResult {
             markdown: String::new(),
             plain_text: String::new(),
@@ -142,6 +144,8 @@ impl OcrEngine for NdlocrEngine {
             confidence: 0.0,
             processing_time_ms: start.elapsed().as_millis() as u64,
         };
+        
+        log::info!("OCR preprocessing completed in {}ms", result.processing_time_ms);
         
         Ok(result)
     }
