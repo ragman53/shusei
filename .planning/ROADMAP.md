@@ -36,7 +36,13 @@
 
 **Research Flags:** None - standard Dioxus + SQLite patterns well-documented
 
-**Plans:** TBD
+**Plans:** 4 plans
+
+Plans:
+- [x] 01-01-PLAN.md — Database foundation (models + schema + CRUD)
+- [x] 01-02-PLAN.md — File storage for cover photos
+- [x] 01-03-PLAN.md — Library UI (list + add book form)
+- [x] 01-04-PLAN.md — Android lifecycle + state persistence
 
 ---
 
