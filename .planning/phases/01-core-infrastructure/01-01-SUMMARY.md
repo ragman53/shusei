@@ -131,3 +131,10 @@ Each task was committed atomically:
 ---
 *Phase: 01-core-infrastructure*
 *Completed: 2026-03-11*
+
+## Self-Check: PASSED
+
+- [x] 01-01-SUMMARY.md exists
+- [x] Commit 7e548e6 exists (fix: SQL parameter bugs)
+- [x] Commit 061e83b exists (docs: complete plan)
+- [x] All 22 tests passing (4 models + 18 db)
