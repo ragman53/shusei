@@ -172,14 +172,14 @@ Plans:
 
 | Category | Requirements | Phase | Status |
 |----------|---------------|-------|--------|
-| Core Infrastructure | 5 | 1 | Pending |
+| Core Infrastructure | 5 | 1 | In progress (1/5) |
 | Paper Book Capture | 5 | 2 | Pending |
 | PDF Support | 4 | 3 | Pending |
 | Annotation | 4 | 4 | Pending |
 | Voice Memos | 4 | 5 | Pending |
 | AI Enhancement | 4 | 6 | Pending |
 | Performance | 3 | 7 | Pending |
-| **Total** | **30** | **7 phases** | **Pending** |
+| **Total** | **30** | **7 phases** | **In progress (1/30)** |
 
 ✓ All 30 v1 requirements mapped to exactly one phase
 ✓ No orphaned requirements
@@ -223,7 +223,7 @@ Phase 7 (Polish) depends on all previous phases
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Infrastructure | 0/TBD | Not started | - |
+| 1. Core Infrastructure | 1/4 | In progress | 01-02 |
 | 2. Paper Book Capture | 0/TBD | Not started | - |
 | 3. PDF Support | 0/TBD | Not started | - |
 | 4. Annotation Foundation | 0/TBD | Not started | - |
@@ -234,4 +234,5 @@ Phase 7 (Polish) depends on all previous phases
 ---
 
 *Roadmap created: 2026-03-11*
+*Last updated: 2026-03-11T09:20:58Z*
 *Granularity: Standard | Mode: yolo*

@@ -11,7 +11,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **CORE-01**: Android アプリとして起動し、本ライブラリ画面が表示される
 - [ ] **CORE-02**: SQLite データベースに本メタデータ（タイトル、著者、表紙画像パス）を保存
-- [ ] **CORE-03**: ファイルシステムに画像・音声ファイルを保存（パスは SQLite）
+- [x] **CORE-03**: ファイルシステムに画像・音声ファイルを保存（パスは SQLite）
 - [ ] **CORE-04**: Android ライフサイクル（バックグラウンド移行）を適切に処理
 - [ ] **CORE-05**: JNI 参照管理パターンを確立（メモリリーク防止）
 
@@ -94,7 +94,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | CORE-01 | Phase 1 | Pending |
 | CORE-02 | Phase 1 | Pending |
-| CORE-03 | Phase 1 | Pending |
+| CORE-03 | Phase 1 | Complete |
 | CORE-04 | Phase 1 | Pending |
 | CORE-05 | Phase 1 | Pending |
 | PAPER-01 | Phase 2 | Pending |
