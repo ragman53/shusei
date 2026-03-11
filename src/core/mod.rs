@@ -10,6 +10,7 @@ pub mod db;
 pub mod vocab;
 pub mod storage;
 pub mod models;
+pub mod state;
 
 #[cfg(feature = "pdf")]
 pub mod pdf;
@@ -19,3 +20,4 @@ pub use ocr::OcrEngine;
 pub use stt::SttEngine;
 pub use db::Database;
 pub use storage::StorageService;
+pub use state::AppState;
