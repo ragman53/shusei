@@ -35,7 +35,13 @@ pub enum ShuseiError {
     Serialization(#[from] serde_json::Error),
 
     #[error("Storage error: {0}")]
-    Storage(#[from] anyhow::Error),
+    Storage(String),
+}
+
+impl From<anyhow::Error> for ShuseiError {
+    fn from(err: anyhow::Error) -> Self {
+        ShuseiError::Storage(err.to_string())
+    }
 }
 
 /// OCR-specific errors

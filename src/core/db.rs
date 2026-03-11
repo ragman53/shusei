@@ -62,23 +62,22 @@ impl Database {
                 content='sticky_notes', content_rowid='id'
             );
             
-            -- Books table for PDF reading and cover photos
+            -- Books table for library management
             CREATE TABLE IF NOT EXISTS books (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              TEXT PRIMARY KEY,
                 title           TEXT NOT NULL,
-                author          TEXT NOT NULL DEFAULT '',
-                file_path       TEXT,
+                author          TEXT NOT NULL,
                 cover_path      TEXT,
-                total_pages     INTEGER,
-                converted_pages INTEGER DEFAULT 0,
                 pages_captured  INTEGER DEFAULT 0,
-                last_read_pos   REAL DEFAULT 0.0,
+                total_pages     INTEGER,
                 last_opened_at  INTEGER,
-                created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+                created_at      INTEGER NOT NULL
             );
             
             CREATE INDEX IF NOT EXISTS idx_books_title ON books(title);
+            
+            -- Enable WAL mode for concurrent reads
+            PRAGMA journal_mode=WAL;
             
             -- Book pages table
             CREATE TABLE IF NOT EXISTS book_pages (
@@ -107,7 +106,6 @@ impl Database {
             -- Indexes for better query performance
             CREATE INDEX IF NOT EXISTS idx_sticky_notes_book ON sticky_notes(book_title);
             CREATE INDEX IF NOT EXISTS idx_sticky_notes_created ON sticky_notes(created_at DESC);
-            CREATE INDEX IF NOT EXISTS idx_books_updated ON books(updated_at DESC);
             CREATE INDEX IF NOT EXISTS idx_vocab_word ON vocabulary(word);
             "#,
         )?;
@@ -125,7 +123,7 @@ impl Database {
             INSERT INTO sticky_notes (
                 image_path, ocr_markdown, voice_transcript, book_title,
                 page_number, user_memo, tags, ocr_text_plain
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
             "#,
             params![
                 note.image_path,
@@ -237,7 +235,7 @@ impl Database {
     /// 3. Returns the stored path
     pub fn save_cover_photo(
         &self,
-        book_id: i64,
+        book_id: &str,
         image_data: &[u8],
         storage: &StorageService,
     ) -> Result<String> {
@@ -246,7 +244,7 @@ impl Database {
 
         // Update database with cover_path
         self.conn.execute(
-            "UPDATE books SET cover_path = ?1, updated_at = datetime('now') WHERE id = ?2",
+            "UPDATE books SET cover_path = ?1 WHERE id = ?2",
             params![relative_path.clone(), book_id],
         )?;
 
@@ -258,7 +256,7 @@ impl Database {
     /// This method:
     /// 1. Deletes the image file from filesystem
     /// 2. Clears the cover_path in the database
-    pub fn remove_cover_photo(&self, book_id: i64, storage: &StorageService) -> Result<()> {
+    pub fn remove_cover_photo(&self, book_id: &str, storage: &StorageService) -> Result<()> {
         // Get current cover_path
         let cover_path = self.conn.query_row(
             "SELECT cover_path FROM books WHERE id = ?1",
@@ -273,7 +271,7 @@ impl Database {
 
         // Clear database field
         self.conn.execute(
-            "UPDATE books SET cover_path = NULL, updated_at = datetime('now') WHERE id = ?1",
+            "UPDATE books SET cover_path = NULL WHERE id = ?1",
             params![book_id],
         )?;
 
@@ -281,7 +279,7 @@ impl Database {
     }
 
     /// Get a book by ID
-    pub fn get_book(&self, id: i64) -> Result<Option<Book>> {
+    pub fn get_book(&self, id: &str) -> Result<Option<Book>> {
         let mut stmt = self.conn.prepare("SELECT * FROM books WHERE id = ?1")?;
 
         let book = stmt
@@ -291,50 +289,96 @@ impl Database {
         Ok(book)
     }
 
-    /// Create a new book
-    pub fn create_book(&self, book: &NewBook) -> Result<i64> {
-        let result = self.conn.execute(
-            r#"
-            INSERT INTO books (title, author, file_path, cover_path, total_pages, pages_captured)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
-            "#,
-            params![
-                book.title,
-                book.author,
-                book.file_path,
-                book.cover_path,
-                book.total_pages,
-                book.pages_captured,
-            ],
-        )?;
+    /// Get all books sorted by title
+    pub fn get_all_books(&self) -> Result<Vec<Book>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM books ORDER BY title ASC")?;
 
-        Ok(self.conn.last_insert_rowid())
+        let books = stmt
+            .query_map([], |row| Book::from_row(row))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(books)
     }
 
-    /// Update a book
-    pub fn update_book(&self, id: i64, book: &UpdateBook) -> Result<bool> {
-        let result = self.conn.execute(
+    /// Create a new book
+    pub fn create_book(&self, book: &NewBook) -> Result<String> {
+        let id = book.id.clone().unwrap_or_else(|| {
+            use std::collections::hash_map::RandomState;
+            use std::hash::{BuildHasher, Hasher};
+            use std::time::{SystemTime, UNIX_EPOCH};
+
+            let hasher = RandomState::new().build_hasher();
+            let hash = hasher.finish();
+            format!(
+                "{:016x}-{}",
+                hash,
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis()
+            )
+        });
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        self.conn.execute(
             r#"
-            UPDATE books SET
-                title = COALESCE(?2, title),
-                author = COALESCE(?3, author),
-                file_path = COALESCE(?4, file_path),
-                cover_path = COALESCE(?5, cover_path),
-                total_pages = COALESCE(?6, total_pages),
-                pages_captured = COALESCE(?7, pages_captured),
-                updated_at = datetime('now')
-            WHERE id = ?1
+            INSERT INTO books (id, title, author, cover_path, pages_captured, total_pages, last_opened_at, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
             "#,
             params![
                 id,
                 book.title,
                 book.author,
-                book.file_path,
                 book.cover_path,
-                book.total_pages,
                 book.pages_captured,
+                book.total_pages,
+                book.last_opened_at,
+                now, // created_at
+                now, // updated_at
             ],
         )?;
+
+        Ok(id)
+    }
+
+    /// Update a book
+    pub fn update_book(&self, book: &Book) -> Result<bool> {
+        let result = self.conn.execute(
+            r#"
+            UPDATE books SET
+                title = ?2,
+                author = ?3,
+                cover_path = ?4,
+                pages_captured = ?5,
+                total_pages = ?6,
+                last_opened_at = ?7
+            WHERE id = ?1
+            "#,
+            params![
+                book.id,
+                book.title,
+                book.author,
+                book.cover_path,
+                book.pages_captured,
+                book.total_pages,
+                book.last_opened_at,
+            ],
+        )?;
+
+        Ok(result > 0)
+    }
+
+    /// Delete a book by ID
+    pub fn delete_book(&self, id: &str) -> Result<bool> {
+        let result = self
+            .conn
+            .execute("DELETE FROM books WHERE id = ?1", params![id])?;
 
         Ok(result > 0)
     }
@@ -405,18 +449,14 @@ pub struct UpdateStickyNote {
 /// Book model
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Book {
-    pub id: i64,
+    pub id: String,
     pub title: String,
     pub author: String,
-    pub file_path: Option<String>,
     pub cover_path: Option<String>,
-    pub total_pages: Option<i32>,
-    pub converted_pages: i32,
     pub pages_captured: i32,
-    pub last_read_pos: f64,
+    pub total_pages: Option<i32>,
     pub last_opened_at: Option<i64>,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: i64,
 }
 
 impl Book {
@@ -425,15 +465,11 @@ impl Book {
             id: row.get(0)?,
             title: row.get(1)?,
             author: row.get(2)?,
-            file_path: row.get(3)?,
-            cover_path: row.get(4)?,
+            cover_path: row.get(3)?,
+            pages_captured: row.get(4)?,
             total_pages: row.get(5)?,
-            converted_pages: row.get(6)?,
-            pages_captured: row.get(7)?,
-            last_read_pos: row.get(8)?,
-            last_opened_at: row.get(9)?,
-            created_at: row.get(10)?,
-            updated_at: row.get(11)?,
+            last_opened_at: row.get(6)?,
+            created_at: row.get(7)?,
         })
     }
 }
@@ -441,12 +477,13 @@ impl Book {
 /// New book (for creation)
 #[derive(Debug, Clone, Default)]
 pub struct NewBook {
+    pub id: Option<String>,
     pub title: String,
     pub author: String,
-    pub file_path: Option<String>,
     pub cover_path: Option<String>,
-    pub total_pages: Option<i32>,
     pub pages_captured: i32,
+    pub total_pages: Option<i32>,
+    pub last_opened_at: Option<i64>,
 }
 
 /// Update book (for partial updates)
@@ -454,10 +491,10 @@ pub struct NewBook {
 pub struct UpdateBook {
     pub title: Option<String>,
     pub author: Option<String>,
-    pub file_path: Option<String>,
     pub cover_path: Option<String>,
-    pub total_pages: Option<i32>,
     pub pages_captured: Option<i32>,
+    pub total_pages: Option<i32>,
+    pub last_opened_at: Option<i64>,
 }
 
 #[cfg(test)]
@@ -534,7 +571,14 @@ mod tests {
                 params!["test-id", "Test Book", "Test Author", 0, 1234567890]
             );
 
-            assert!(result.is_ok(), "Should insert valid book");
+            if let Err(e) = &result {
+                eprintln!("Insert error: {:?}", e);
+            }
+            assert!(
+                result.is_ok(),
+                "Should insert valid book: {:?}",
+                result.err()
+            );
         }
 
         #[test]
@@ -587,11 +631,11 @@ mod tests {
 
             // Save cover photo
             let image_data = b"fake image data";
-            let result = db.save_cover_photo(book_id, image_data, &storage);
+            let result = db.save_cover_photo(&book_id, image_data, &storage);
             assert!(result.is_ok());
 
             // Verify database was updated
-            let book = db.get_book(book_id).unwrap().unwrap();
+            let book = db.get_book(&book_id).unwrap().unwrap();
             assert!(book.cover_path.is_some());
 
             // Verify file exists
@@ -612,7 +656,7 @@ mod tests {
             let book_id = db.create_book(&new_book).unwrap();
 
             let image_data = b"fake image data";
-            let path = db.save_cover_photo(book_id, image_data, &storage).unwrap();
+            let path = db.save_cover_photo(&book_id, image_data, &storage).unwrap();
 
             assert!(path.starts_with("images/"));
         }
@@ -630,13 +674,13 @@ mod tests {
             let book_id = db.create_book(&new_book).unwrap();
 
             let image_data = b"fake image data";
-            let cover_path = db.save_cover_photo(book_id, image_data, &storage).unwrap();
+            let cover_path = db.save_cover_photo(&book_id, image_data, &storage).unwrap();
 
             // Remove cover photo
-            db.remove_cover_photo(book_id, &storage).unwrap();
+            db.remove_cover_photo(&book_id, &storage).unwrap();
 
             // Verify database field cleared
-            let book = db.get_book(book_id).unwrap().unwrap();
+            let book = db.get_book(&book_id).unwrap().unwrap();
             assert!(book.cover_path.is_none());
 
             // Verify file deleted
@@ -656,9 +700,9 @@ mod tests {
             let book_id = db.create_book(&new_book).unwrap();
 
             let image_data = b"fake image data";
-            db.save_cover_photo(book_id, image_data, &storage).unwrap();
+            db.save_cover_photo(&book_id, image_data, &storage).unwrap();
 
-            let book = db.get_book(book_id).unwrap().unwrap();
+            let book = db.get_book(&book_id).unwrap().unwrap();
             assert!(book.cover_path.is_some());
             assert_eq!(book.title, "Test Book");
             assert_eq!(book.author, "Test Author");
