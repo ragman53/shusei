@@ -36,7 +36,7 @@
 
 **Research Flags:** None - standard Dioxus + SQLite patterns well-documented
 
-**Plans:** 4 plans
+**Plans:** 3/4 plans executed
 
 Plans:
 - [x] 01-01-PLAN.md — Database foundation (models + schema + CRUD)
@@ -172,8 +172,7 @@ Plans:
 
 | Category | Requirements | Phase | Status |
 |----------|---------------|-------|--------|
-| Core Infrastructure | 5 | 1 | In progress (2/5) |
-| Paper Book Capture | 5 | 2 | Pending |
+| Core Infrastructure | 5 | 1 | 3/4 | In Progress|  | 5 | 2 | Pending |
 | PDF Support | 4 | 3 | Pending |
 | Annotation | 4 | 4 | Pending |
 | Voice Memos | 4 | 5 | Pending |
