@@ -71,7 +71,8 @@ impl Database {
                 pages_captured  INTEGER DEFAULT 0,
                 total_pages     INTEGER,
                 last_opened_at  INTEGER,
-                created_at      INTEGER NOT NULL
+                created_at      INTEGER NOT NULL,
+                updated_at      INTEGER NOT NULL
             );
             
             CREATE INDEX IF NOT EXISTS idx_books_title ON books(title);
@@ -706,6 +707,133 @@ mod tests {
             assert!(book.cover_path.is_some());
             assert_eq!(book.title, "Test Book");
             assert_eq!(book.author, "Test Author");
+        }
+    }
+
+    mod books_crud {
+        use super::*;
+
+        #[test]
+        fn create_book_inserts_and_returns_id() {
+            let db = Database::in_memory().unwrap();
+
+            let new_book = NewBook {
+                title: "Test Book".to_string(),
+                author: "Test Author".to_string(),
+                ..Default::default()
+            };
+
+            let id = db.create_book(&new_book).unwrap();
+            assert!(id.len() > 0);
+
+            // Verify book was inserted
+            let book = db.get_book(&id).unwrap().unwrap();
+            assert_eq!(book.title, "Test Book");
+            assert_eq!(book.author, "Test Author");
+        }
+
+        #[test]
+        fn get_book_retrieves_by_id() {
+            let db = Database::in_memory().unwrap();
+
+            let new_book = NewBook {
+                title: "Retrieve Test".to_string(),
+                author: "Author".to_string(),
+                ..Default::default()
+            };
+            let id = db.create_book(&new_book).unwrap();
+
+            let book = db.get_book(&id).unwrap().unwrap();
+            assert_eq!(book.id, id);
+            assert_eq!(book.title, "Retrieve Test");
+        }
+
+        #[test]
+        fn get_book_returns_none_for_non_existent() {
+            let db = Database::in_memory().unwrap();
+
+            let result = db.get_book("non-existent-id").unwrap();
+            assert!(result.is_none());
+        }
+
+        #[test]
+        fn get_all_books_returns_all_sorted_by_title() {
+            let db = Database::in_memory().unwrap();
+
+            // Create books in non-alphabetical order
+            db.create_book(&NewBook {
+                title: "Zebra Book".to_string(),
+                author: "Author".to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+
+            db.create_book(&NewBook {
+                title: "Alpha Book".to_string(),
+                author: "Author".to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+
+            db.create_book(&NewBook {
+                title: "Middle Book".to_string(),
+                author: "Author".to_string(),
+                ..Default::default()
+            })
+            .unwrap();
+
+            let books = db.get_all_books().unwrap();
+            assert_eq!(books.len(), 3);
+            assert_eq!(books[0].title, "Alpha Book");
+            assert_eq!(books[1].title, "Middle Book");
+            assert_eq!(books[2].title, "Zebra Book");
+        }
+
+        #[test]
+        fn update_book_modifies_existing() {
+            let db = Database::in_memory().unwrap();
+
+            let new_book = NewBook {
+                title: "Original Title".to_string(),
+                author: "Original Author".to_string(),
+                ..Default::default()
+            };
+            let id = db.create_book(&new_book).unwrap();
+
+            let mut book = db.get_book(&id).unwrap().unwrap();
+            book.title = "Updated Title".to_string();
+            book.author = "Updated Author".to_string();
+            book.pages_captured = 50;
+
+            let result = db.update_book(&book).unwrap();
+            assert!(result);
+
+            let updated = db.get_book(&id).unwrap().unwrap();
+            assert_eq!(updated.title, "Updated Title");
+            assert_eq!(updated.author, "Updated Author");
+            assert_eq!(updated.pages_captured, 50);
+        }
+
+        #[test]
+        fn delete_book_removes_book() {
+            let db = Database::in_memory().unwrap();
+
+            let new_book = NewBook {
+                title: "To Delete".to_string(),
+                author: "Author".to_string(),
+                ..Default::default()
+            };
+            let id = db.create_book(&new_book).unwrap();
+
+            // Verify book exists
+            assert!(db.get_book(&id).unwrap().is_some());
+
+            // Delete it
+            let result = db.delete_book(&id).unwrap();
+            assert!(result);
+
+            // Verify book is gone
+            assert!(db.get_book(&id).unwrap().is_none());
         }
     }
 }
