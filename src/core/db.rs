@@ -124,7 +124,7 @@ impl Database {
             INSERT INTO sticky_notes (
                 image_path, ocr_markdown, voice_transcript, book_title,
                 page_number, user_memo, tags, ocr_text_plain
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
             "#,
             params![
                 note.image_path,
@@ -568,8 +568,8 @@ mod tests {
             let db = Database::in_memory().unwrap();
 
             let result = db.conn.execute(
-                "INSERT INTO books (id, title, author, pages_captured, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params!["test-id", "Test Book", "Test Author", 0, 1234567890]
+                "INSERT INTO books (id, title, author, pages_captured, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params!["test-id", "Test Book", "Test Author", 0, 1234567890, 1234567890]
             );
 
             if let Err(e) = &result {
