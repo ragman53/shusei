@@ -64,7 +64,12 @@ Plans:
 - NDLOCR-Lite Rust integration with ort needs validation
 - Complex ONNX model loading on Android requires testing
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — OCR engine and image preprocessing
+- [ ] 02-02-PLAN.md — Camera UI integration with database persistence
+- [ ] 02-03-PLAN.md — Quality feedback, parallel processing, auto-retry
 
 ---
 
