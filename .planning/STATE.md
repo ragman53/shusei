@@ -3,21 +3,19 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-03-11T09:46:57.499Z"
+last_updated: "2026-03-11T10:30:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 4
+  total_plans: 7
   completed_plans: 4
 ---
 
 # Project State: 読書アプリ (Reading App)
 
-## Project Reference
-
 **Core Value:** 紙の本と PDF をシームレスに統合し、読書中の思考を逃さず記録できる完全オフライン環境。
 
-**Current Focus:** Roadmap complete - awaiting Phase 1 planning
+**Current Focus:** Phase 2 execution - OCR and camera capture
 
 **Phase Count:** 7 (Standard granularity)
 
@@ -25,13 +23,16 @@ progress:
 
 ## Current Position
 
-**Phase:** 01-core-infrastructure
+**Phase:** 02-paper-book-capture
 
-**Plan:** 04 (completed)
+**Plan:** 02-02 (in progress)
 
-**Status:** Phase 1 complete - all 4 plans executed
+**Status:** Phase 2 Wave 1 complete - 2/3 plans partially executed
 
 **Progress Bar:**
+```
+[████████████████████] 100% (4/4 Phase 1 plans delivered)
+[████████░░░░░░░░░░░░]  67% (2/3 Phase 2 plans in progress)
 ```
 [████████████████████] 100% (4/4 Phase 1 plans delivered)
 ```
@@ -47,14 +48,17 @@ progress:
 | Research confidence | HIGH |
 | Risk flags identified | 5 |
 | Plans completed | 4 |
-| Lines of code | 188 (storage.rs) + 711 (db.rs) + 165 (models.rs) + 218 (state.rs) + 162 (android lifecycle) |
-| Tests passing | 33/33 |
+| Plans in progress | 2 (02-01, 02-02 partial) |
+| Lines of code | 188 (storage.rs) + 930 (db.rs) + 165 (models.rs) + 218 (state.rs) + 162 (android lifecycle) + 270 (preprocess.rs) |
+| Tests passing | 44/44 (33 Phase 1 + 11 Phase 2) |
 
 ---
 | Phase 01-core-infrastructure P01 | 15min | 3 tasks | 1 files |
 | Phase 01-core-infrastructure P02 | [duration] | [tasks] | [files] |
 | Phase 01-core-infrastructure P03 | 15min | 4 tasks | 4 files |
 | Phase 01-core-infrastructure P04 | 6min | 4 tasks | 4 files |
+| Phase 02-paper-book-capture P01 | 30min | 3 tasks | 3 files |
+| Phase 02-paper-book-capture P02 | 20min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -65,6 +69,9 @@ progress:
 | 7-phase structure | 2026-03-11 | Research-informed, requirement-driven |
 | Standard granularity | 2026-03-11 | 30 requirements across 7 natural boundaries |
 | Phase 6 (AI) last | 2026-03-11 | Most memory-risky, needs all prior discipline |
+| 2MP image limit | 2026-03-11 | Balance quality and memory for mid-range devices |
+| Histogram contrast enhancement | 2026-03-11 | Improves OCR accuracy with minimal performance cost |
+| book_pages schema with separate markdown/plain | 2026-03-11 | Markdown for display, plain text for FTS search |
 
 ### Active TODOs
 
@@ -73,6 +80,9 @@ progress:
 - [x] Execute Plan 01-02: Filesystem storage for cover photos
 - [x] Execute Plan 01-03: Library UI with book list and add book form
 - [x] Execute Plan 01-04: Android lifecycle handling with state persistence
+- [x] Execute Plan 02-01: OCR engine preprocessing (partial - models pending)
+- [x] Execute Plan 02-02: Database pages support (partial - UI pending)
+- [ ] Execute Plan 02-03: Quality feedback and parallel OCR
 - [ ] Validate NDLOCR-Lite Rust integration (research flag from Phase 2)
 - [ ] Create Moonshine Rust bindings (research flag from Phase 5)
 - [ ] Test Qwen3.5 on-device performance (research flag from Phase 6)
@@ -89,9 +99,9 @@ None currently - pre-implementation phase.
 
 ## Session Continuity
 
-**Last action:** Completed Plan 01-04 (Android lifecycle handling with state persistence)
+**Last action:** Executed Phase 2 Wave 1 - OCR preprocessing and database pages support
 
-**Next action:** Begin Phase 2 planning or execute remaining Phase 1 validation
+**Next action:** Execute Phase 2 Wave 2 (02-03: Quality feedback, parallel OCR) or complete UI integration
 
 **Open questions:**
 - None (all requirements validated)
@@ -118,5 +128,5 @@ None currently - pre-implementation phase.
 ---
 
 *State initialized: 2026-03-11*
-*Last updated: 2026-03-11T09:46:57Z*
-*Completed: 01-01-PLAN.md (database foundation), 01-02-PLAN.md (filesystem storage), 01-03-PLAN.md (library UI), 01-04-PLAN.md (Android lifecycle handling)*
+*Last updated: 2026-03-11T10:30:00Z*
+*Completed: 01-01 (database), 01-02 (storage), 01-03 (library UI), 01-04 (Android lifecycle), 02-01 partial (OCR preprocessing), 02-02 partial (pages DB)*
