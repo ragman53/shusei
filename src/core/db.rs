@@ -5,10 +5,11 @@
 
 use std::path::Path;
 
-use rusqlite::{Connection, params, Row, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 
-use crate::core::error::{ShuseiError, Result};
+use crate::core::error::{Result, ShuseiError};
+use crate::core::storage::StorageService;
 
 /// Database connection wrapper
 pub struct Database {
@@ -19,23 +20,23 @@ impl Database {
     /// Open or create database at the specified path
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let conn = Connection::open(path.as_ref())?;
-        
+
         let db = Self { conn };
         db.initialize_schema()?;
-        
+
         Ok(db)
     }
-    
+
     /// Create an in-memory database (for testing)
     pub fn in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory()?;
-        
+
         let db = Self { conn };
         db.initialize_schema()?;
-        
+
         Ok(db)
     }
-    
+
     /// Initialize database schema
     fn initialize_schema(&self) -> Result<()> {
         self.conn.execute_batch(
@@ -61,17 +62,23 @@ impl Database {
                 content='sticky_notes', content_rowid='id'
             );
             
-            -- Books table for PDF reading
+            -- Books table for PDF reading and cover photos
             CREATE TABLE IF NOT EXISTS books (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 title           TEXT NOT NULL,
+                author          TEXT NOT NULL DEFAULT '',
                 file_path       TEXT,
+                cover_path      TEXT,
                 total_pages     INTEGER,
                 converted_pages INTEGER DEFAULT 0,
+                pages_captured  INTEGER DEFAULT 0,
                 last_read_pos   REAL DEFAULT 0.0,
+                last_opened_at  INTEGER,
                 created_at      TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
             );
+            
+            CREATE INDEX IF NOT EXISTS idx_books_title ON books(title);
             
             -- Book pages table
             CREATE TABLE IF NOT EXISTS book_pages (
@@ -104,13 +111,13 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_vocab_word ON vocabulary(word);
             "#,
         )?;
-        
+
         log::info!("Database schema initialized");
         Ok(())
     }
-    
+
     // ==================== Sticky Notes ====================
-    
+
     /// Create a new sticky note
     pub fn create_sticky_note(&self, note: &NewStickyNote) -> Result<i64> {
         let result = self.conn.execute(
@@ -131,36 +138,36 @@ impl Database {
                 note.ocr_text_plain,
             ],
         )?;
-        
+
         Ok(self.conn.last_insert_rowid())
     }
-    
+
     /// Get a sticky note by ID
     pub fn get_sticky_note(&self, id: i64) -> Result<Option<StickyNote>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT * FROM sticky_notes WHERE id = ?1"
-        )?;
-        
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM sticky_notes WHERE id = ?1")?;
+
         let note = stmt
             .query_row(params![id], |row| StickyNote::from_row(row))
             .optional()?;
-        
+
         Ok(note)
     }
-    
+
     /// Get all sticky notes
     pub fn get_all_sticky_notes(&self) -> Result<Vec<StickyNote>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT * FROM sticky_notes ORDER BY created_at DESC"
-        )?;
-        
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM sticky_notes ORDER BY created_at DESC")?;
+
         let notes = stmt
             .query_map([], |row| StickyNote::from_row(row))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
-        
+
         Ok(notes)
     }
-    
+
     /// Search sticky notes using FTS
     pub fn search_sticky_notes(&self, query: &str) -> Result<Vec<StickyNote>> {
         let mut stmt = self.conn.prepare(
@@ -169,16 +176,16 @@ impl Database {
             JOIN sticky_notes_fts fts ON s.id = fts.rowid
             WHERE sticky_notes_fts MATCH ?1
             ORDER BY rank
-            "#
+            "#,
         )?;
-        
+
         let notes = stmt
             .query_map(params![query], |row| StickyNote::from_row(row))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
-        
+
         Ok(notes)
     }
-    
+
     /// Update a sticky note
     pub fn update_sticky_note(&self, id: i64, note: &UpdateStickyNote) -> Result<bool> {
         let result = self.conn.execute(
@@ -207,17 +214,128 @@ impl Database {
                 note.ocr_text_plain,
             ],
         )?;
-        
+
         Ok(result > 0)
     }
-    
+
     /// Delete a sticky note
     pub fn delete_sticky_note(&self, id: i64) -> Result<bool> {
-        let result = self.conn.execute(
-            "DELETE FROM sticky_notes WHERE id = ?1",
-            params![id],
+        let result = self
+            .conn
+            .execute("DELETE FROM sticky_notes WHERE id = ?1", params![id])?;
+
+        Ok(result > 0)
+    }
+
+    // ==================== Books ====================
+
+    /// Save cover photo for a book
+    ///
+    /// This method:
+    /// 1. Saves the image to filesystem using StorageService
+    /// 2. Updates the book's cover_path in the database
+    /// 3. Returns the stored path
+    pub fn save_cover_photo(
+        &self,
+        book_id: i64,
+        image_data: &[u8],
+        storage: &StorageService,
+    ) -> Result<String> {
+        // Save image to filesystem
+        let relative_path = storage.save_image(image_data, "cover")?;
+
+        // Update database with cover_path
+        self.conn.execute(
+            "UPDATE books SET cover_path = ?1, updated_at = datetime('now') WHERE id = ?2",
+            params![relative_path.clone(), book_id],
         )?;
-        
+
+        Ok(relative_path)
+    }
+
+    /// Remove cover photo from a book
+    ///
+    /// This method:
+    /// 1. Deletes the image file from filesystem
+    /// 2. Clears the cover_path in the database
+    pub fn remove_cover_photo(&self, book_id: i64, storage: &StorageService) -> Result<()> {
+        // Get current cover_path
+        let cover_path = self.conn.query_row(
+            "SELECT cover_path FROM books WHERE id = ?1",
+            params![book_id],
+            |row| row.get::<_, Option<String>>(0),
+        )?;
+
+        // Delete file if it exists
+        if let Some(path) = cover_path {
+            storage.delete_image(&path)?;
+        }
+
+        // Clear database field
+        self.conn.execute(
+            "UPDATE books SET cover_path = NULL, updated_at = datetime('now') WHERE id = ?1",
+            params![book_id],
+        )?;
+
+        Ok(())
+    }
+
+    /// Get a book by ID
+    pub fn get_book(&self, id: i64) -> Result<Option<Book>> {
+        let mut stmt = self.conn.prepare("SELECT * FROM books WHERE id = ?1")?;
+
+        let book = stmt
+            .query_row(params![id], |row| Book::from_row(row))
+            .optional()?;
+
+        Ok(book)
+    }
+
+    /// Create a new book
+    pub fn create_book(&self, book: &NewBook) -> Result<i64> {
+        let result = self.conn.execute(
+            r#"
+            INSERT INTO books (title, author, file_path, cover_path, total_pages, pages_captured)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "#,
+            params![
+                book.title,
+                book.author,
+                book.file_path,
+                book.cover_path,
+                book.total_pages,
+                book.pages_captured,
+            ],
+        )?;
+
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Update a book
+    pub fn update_book(&self, id: i64, book: &UpdateBook) -> Result<bool> {
+        let result = self.conn.execute(
+            r#"
+            UPDATE books SET
+                title = COALESCE(?2, title),
+                author = COALESCE(?3, author),
+                file_path = COALESCE(?4, file_path),
+                cover_path = COALESCE(?5, cover_path),
+                total_pages = COALESCE(?6, total_pages),
+                pages_captured = COALESCE(?7, pages_captured),
+                updated_at = datetime('now')
+            WHERE id = ?1
+            "#,
+            params![
+                id,
+                book.title,
+                book.author,
+                book.file_path,
+                book.cover_path,
+                book.total_pages,
+                book.pages_captured,
+            ],
+        )?;
+
         Ok(result > 0)
     }
 }
@@ -284,31 +402,266 @@ pub struct UpdateStickyNote {
     pub ocr_text_plain: Option<String>,
 }
 
+/// Book model
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Book {
+    pub id: i64,
+    pub title: String,
+    pub author: String,
+    pub file_path: Option<String>,
+    pub cover_path: Option<String>,
+    pub total_pages: Option<i32>,
+    pub converted_pages: i32,
+    pub pages_captured: i32,
+    pub last_read_pos: f64,
+    pub last_opened_at: Option<i64>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl Book {
+    fn from_row(row: &Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            title: row.get(1)?,
+            author: row.get(2)?,
+            file_path: row.get(3)?,
+            cover_path: row.get(4)?,
+            total_pages: row.get(5)?,
+            converted_pages: row.get(6)?,
+            pages_captured: row.get(7)?,
+            last_read_pos: row.get(8)?,
+            last_opened_at: row.get(9)?,
+            created_at: row.get(10)?,
+            updated_at: row.get(11)?,
+        })
+    }
+}
+
+/// New book (for creation)
+#[derive(Debug, Clone, Default)]
+pub struct NewBook {
+    pub title: String,
+    pub author: String,
+    pub file_path: Option<String>,
+    pub cover_path: Option<String>,
+    pub total_pages: Option<i32>,
+    pub pages_captured: i32,
+}
+
+/// Update book (for partial updates)
+#[derive(Debug, Clone, Default)]
+pub struct UpdateBook {
+    pub title: Option<String>,
+    pub author: Option<String>,
+    pub file_path: Option<String>,
+    pub cover_path: Option<String>,
+    pub total_pages: Option<i32>,
+    pub pages_captured: Option<i32>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_database_in_memory() {
         let db = Database::in_memory().unwrap();
         let note = db.get_sticky_note(1).unwrap();
         assert!(note.is_none());
     }
-    
+
     #[test]
     fn test_create_and_get_sticky_note() {
         let db = Database::in_memory().unwrap();
-        
+
         let new_note = NewStickyNote {
             ocr_markdown: Some("# Test\nHello world".to_string()),
             ocr_text_plain: Some("Test Hello world".to_string()),
             ..Default::default()
         };
-        
+
         let id = db.create_sticky_note(&new_note).unwrap();
         assert!(id > 0);
-        
+
         let note = db.get_sticky_note(id).unwrap().unwrap();
         assert_eq!(note.ocr_markdown, Some("# Test\nHello world".to_string()));
+    }
+
+    mod books_schema {
+        use super::*;
+
+        #[test]
+        fn table_exists() {
+            let db = Database::in_memory().unwrap();
+
+            let mut stmt = db
+                .conn
+                .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='books'")
+                .unwrap();
+            let exists = stmt.exists([]).unwrap();
+            assert!(exists, "books table should exist");
+        }
+
+        #[test]
+        fn index_exists() {
+            let db = Database::in_memory().unwrap();
+
+            let mut stmt = db
+                .conn
+                .prepare(
+                    "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_books_title'",
+                )
+                .unwrap();
+            let exists = stmt.exists([]).unwrap();
+            assert!(exists, "idx_books_title index should exist");
+        }
+
+        #[test]
+        fn wal_mode_supported() {
+            let db = Database::in_memory().unwrap();
+
+            let result = db.conn.pragma_update(None, "journal_mode", "WAL");
+            assert!(result.is_ok(), "WAL mode should be supported");
+        }
+
+        #[test]
+        fn insert_valid_book_succeeds() {
+            let db = Database::in_memory().unwrap();
+
+            let result = db.conn.execute(
+                "INSERT INTO books (id, title, author, pages_captured, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params!["test-id", "Test Book", "Test Author", 0, 1234567890]
+            );
+
+            assert!(result.is_ok(), "Should insert valid book");
+        }
+
+        #[test]
+        fn reject_missing_title() {
+            let db = Database::in_memory().unwrap();
+
+            let result = db.conn.execute(
+                "INSERT INTO books (id, author, pages_captured, created_at) VALUES (?1, ?2, ?3, ?4)",
+                params!["test-id", "Test Author", 0, 1234567890]
+            );
+
+            assert!(result.is_err(), "Should reject book without title");
+        }
+
+        #[test]
+        fn reject_missing_author() {
+            let db = Database::in_memory().unwrap();
+
+            let result = db.conn.execute(
+                "INSERT INTO books (id, title, pages_captured, created_at) VALUES (?1, ?2, ?3, ?4)",
+                params!["test-id", "Test Book", 0, 1234567890],
+            );
+
+            assert!(result.is_err(), "Should reject book without author");
+        }
+    }
+
+    mod cover_photo {
+        use super::*;
+        use tempfile::TempDir;
+
+        fn setup_db_and_storage() -> (Database, StorageService, TempDir) {
+            let db = Database::in_memory().unwrap();
+            let temp_dir = TempDir::new().unwrap();
+            let storage = StorageService::new(temp_dir.path().to_path_buf()).unwrap();
+            (db, storage, temp_dir)
+        }
+
+        #[test]
+        fn test_save_cover_photo_saves_file_and_updates_database() {
+            let (db, storage, _temp) = setup_db_and_storage();
+
+            // Create a book first
+            let new_book = NewBook {
+                title: "Test Book".to_string(),
+                author: "Test Author".to_string(),
+                ..Default::default()
+            };
+            let book_id = db.create_book(&new_book).unwrap();
+
+            // Save cover photo
+            let image_data = b"fake image data";
+            let result = db.save_cover_photo(book_id, image_data, &storage);
+            assert!(result.is_ok());
+
+            // Verify database was updated
+            let book = db.get_book(book_id).unwrap().unwrap();
+            assert!(book.cover_path.is_some());
+
+            // Verify file exists
+            let cover_path = book.cover_path.unwrap();
+            let full_path = storage.assets_dir.join(&cover_path);
+            assert!(full_path.exists());
+        }
+
+        #[test]
+        fn test_save_cover_photo_returns_stored_path() {
+            let (db, storage, _temp) = setup_db_and_storage();
+
+            let new_book = NewBook {
+                title: "Test Book".to_string(),
+                author: "Test Author".to_string(),
+                ..Default::default()
+            };
+            let book_id = db.create_book(&new_book).unwrap();
+
+            let image_data = b"fake image data";
+            let path = db.save_cover_photo(book_id, image_data, &storage).unwrap();
+
+            assert!(path.starts_with("images/"));
+        }
+
+        #[test]
+        fn test_remove_cover_photo_deletes_file_and_clears_database() {
+            let (db, storage, _temp) = setup_db_and_storage();
+
+            // Create book with cover
+            let new_book = NewBook {
+                title: "Test Book".to_string(),
+                author: "Test Author".to_string(),
+                ..Default::default()
+            };
+            let book_id = db.create_book(&new_book).unwrap();
+
+            let image_data = b"fake image data";
+            let cover_path = db.save_cover_photo(book_id, image_data, &storage).unwrap();
+
+            // Remove cover photo
+            db.remove_cover_photo(book_id, &storage).unwrap();
+
+            // Verify database field cleared
+            let book = db.get_book(book_id).unwrap().unwrap();
+            assert!(book.cover_path.is_none());
+
+            // Verify file deleted
+            let full_path = storage.assets_dir.join(&cover_path);
+            assert!(!full_path.exists());
+        }
+
+        #[test]
+        fn test_get_book_returns_book_with_cover_path_after_save() {
+            let (db, storage, _temp) = setup_db_and_storage();
+
+            let new_book = NewBook {
+                title: "Test Book".to_string(),
+                author: "Test Author".to_string(),
+                ..Default::default()
+            };
+            let book_id = db.create_book(&new_book).unwrap();
+
+            let image_data = b"fake image data";
+            db.save_cover_photo(book_id, image_data, &storage).unwrap();
+
+            let book = db.get_book(book_id).unwrap().unwrap();
+            assert!(book.cover_path.is_some());
+            assert_eq!(book.title, "Test Book");
+            assert_eq!(book.author, "Test Author");
+        }
     }
 }

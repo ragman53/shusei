@@ -33,6 +33,9 @@ pub enum ShuseiError {
 
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+
+    #[error("Storage error: {0}")]
+    Storage(#[from] anyhow::Error),
 }
 
 /// OCR-specific errors
