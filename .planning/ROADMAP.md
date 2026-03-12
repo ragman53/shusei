@@ -89,12 +89,14 @@ Plans:
 
 **Research Flags:** None - uses same OCR infrastructure as Phase 2
 
-**Plans:** 3 plans
+**Plans:** 5 plans (3 original + 2 gap closure)
 
 Plans:
-- [ ] 03-01-PLAN.md — PDF import with file picker, metadata extraction, library integration
-- [ ] 03-02-PLAN.md — Batch OCR processing with progress tracking and resume support
-- [ ] 03-03-PLAN.md — Reflow reading UI with font controls and page navigation
+- [x] 03-01-PLAN.md — PDF import with file picker, metadata extraction, library integration
+- [x] 03-02-PLAN.md — Batch OCR processing with progress tracking and resume support
+- [x] 03-03-PLAN.md — Reflow reading UI with font controls and page navigation
+- [ ] 03-04-PLAN.md — Wire PDF import to database, add conversion trigger and progress UI (gap closure)
+- [ ] 03-05-PLAN.md — Complete OCR pipeline with ONNX model loading and inference (gap closure)
 
 ---
 
