@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.8
 milestone_name: milestone
-status: Plan 03-04b complete - pdfium-render v0.8 API migration successful
-last_updated: "2026-03-12T07:30:00.000Z"
+status: completed
+last_updated: "2026-03-12T07:44:29.909Z"
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 14
-  completed_plans: 14
+  total_plans: 13
+  completed_plans: 13
 ---
 
 # Project State: 読書アプリ (Reading App)
@@ -25,15 +25,15 @@ progress:
 
 **Phase:** 03-pdf-support
 
-**Plan:** 03-04b (complete)
+**Plan:** 03-04 (complete)
 
-**Status:** Plan 03-04b complete - pdfium-render v0.8 API migration successful. pdf.rs now compiles cleanly with 18 API incompatibilities fixed. Original Plan 03-04 can now proceed.
+**Status:** Plan 03-04 complete - PDF import and conversion UI fully integrated. Users can import PDFs with metadata review, trigger OCR conversion via Convert buttons, and view real-time progress during processing.
 
 **Progress Bar:**
 ```
 [████████████████████] 100% (4/4 Phase 1 plans delivered)
 [████████████████████] 100% (3/3 Phase 2 plans - infrastructure complete)
-[████████████████████] 100% (2/2 Phase 3 plans delivered - P01 + P04b blocker fix)
+[████████████████████] 100% (3/3 Phase 3 plans delivered - P01 + P04 + P04b)
 ```
 
 ---
@@ -63,6 +63,7 @@ progress:
 | Phase 03-pdf-support P03 | 11min | 4 tasks | 3 files |
 | Phase 03-pdf-support P02 | 45min | 4 tasks | 4 files |
 | Phase 03-pdf-support P04b | 45min | 4 tasks | 1 file |
+| Phase 03-pdf-support P04 | 18min | 4 tasks | 3 files |
 
 ## Accumulated Context
 

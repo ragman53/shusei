@@ -89,7 +89,7 @@ Plans:
 
 **Research Flags:** None - uses same OCR infrastructure as Phase 2
 
-**Plans:** 5 plans (3 original + 2 gap closure)
+**Plans:** 5/6 plans executed
 
 Plans:
 - [x] 03-01-PLAN.md — PDF import with file picker, metadata extraction, library integration
@@ -185,8 +185,7 @@ Plans:
 | Category | Requirements | Phase | Status |
 |----------|---------------|-------|--------|
 | Core Infrastructure | 5 | 1 | 3/4 | In Progress|  | 5 | 2 | Pending |
-| PDF Support | 4 | 3 | Pending |
-| Annotation | 4 | 4 | Pending |
+| PDF Support | 4 | 3 | 5/6 | In Progress|  | 4 | 4 | Pending |
 | Voice Memos | 4 | 5 | Pending |
 | AI Enhancement | 4 | 6 | Pending |
 | Performance | 3 | 7 | Pending |
