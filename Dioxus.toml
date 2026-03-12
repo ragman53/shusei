@@ -11,7 +11,7 @@ title = "Shusei"
 base_path = "shusei"
 
 [web.watcher]
-watch_path = "src"
+watch_path = ["src"]
 index_on_404 = true
 
 [web.resource]

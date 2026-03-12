@@ -24,7 +24,7 @@ Before beginning the setup, ensure you have:
 - **Disk Space**: At least 10 GB free space
 - **RAM**: Minimum 8 GB (16 GB recommended)
 - **Git**: Installed and added to PATH
-- **Rust**: Installed via [rustup](https://rustup.rs/)
+- **Rust**: Installed via [rustup](https://rustup.rs/) - Current: rustc 1.93.0, cargo 1.93.0, rustup 1.28.2 - Current: rustc 1.93.0, cargo 1.93.0, rustup 1.28.2
 
 ---
 
@@ -36,8 +36,8 @@ Before beginning the setup, ensure you have:
    - **URL**: https://developer.android.com/studio
 
 2. Download the latest stable version for Windows:
-   - **Recommended**: Android Studio Ladybug (2024.2) or Meerkat (2024.3)
-   - **File**: `android-studio-2024.x.x.xx-windows.exe`
+   - **Recommended**: Android Studio Meerkat (2025.3.1) - AI-253.30387.90.2532.14935130
+   - **File**: `android-studio-2025.x.x.xx-windows.exe`
 
 ### Installation Steps
 
@@ -83,7 +83,7 @@ Before beginning the setup, ensure you have:
 ### Using SDK Manager
 
 1. **Open SDK Manager**:
-   - In Android Studio, go to `Tools` → `SDK Manager`
+   - In Android Studio, go to `Tools` ↁE`SDK Manager`
    - Or click the SDK Manager icon in the toolbar
 
 2. **SDK Platforms Tab**:
@@ -93,12 +93,12 @@ Before beginning the setup, ensure you have:
 
   3. **SDK Tools Tab**:
     - Check the following:
-      - ☑ Android SDK Build-Tools 35.0.0
-      - ☑ Android SDK Command-line Tools (latest)
-      - ☑ Android SDK Platform-Tools
-      - ☑ NDK (Side by side) - Version 25.2.9519653 (r25c) or 26.1.10909125 (r26)
-      - ☑ Android SDK Tools (Obsolete - if needed for legacy support)
-      - ☑ Google USB Driver (for Windows)
+      - ☁EAndroid SDK Build-Tools 36.0.2
+      - ☁EAndroid SDK Command-line Tools (latest)
+      - ☁EAndroid SDK Platform-Tools
+      - ☁ENDK (Side by side) - Version 25.2.9519653 (r25c) or 26.1.10909125 (r26)
+      - ☁EAndroid SDK Tools (Obsolete - if needed for legacy support)
+      - ☁EGoogle USB Driver (for Windows)
 
   4. **SDK Update Sites Tab**:
    - Ensure "https://dl.google.com/android/repository/addons_list-3.xml" is checked
@@ -109,16 +109,15 @@ Before beginning the setup, ensure you have:
 
 | Component | Recommended Version | Notes |
 |-----------|---------------------|-------|
-| Android Studio | Ladybug (2024.2) or Meerkat (2024.3) | Latest stable |
-| Compile SDK | API 35 (Android 15) | Primary recommendation for Android 15 devices |
-| Target SDK | API 35 | Required for Android 15 optimizations |
+| Android Studio | Meerkat (2025.3.1) | Installed: AI-253.30387.90.2532.14935130 |
+| Compile SDK | API 36.1 (Android 16) | Installed on this PC |
+| Target SDK | API 35+ | Android 15/16 support |
 | Min SDK | API 24 (Android 7.0) | Moto G66j 5G support |
-| Build Tools | 35.0.0 | Latest stable release |
+| Build Tools | 36.1.0 | Installed on this PC |
 | NDK | r25c or r26 | Compatible with tract-onnx |
 | CMake | 3.22.1 or later | For native builds |
 
-**フォールバックオプション**: API 34 (Android 14) は、必要に応じてより広い互換性のために使用できます。
-
+**フォールバックオプション**: API 34 (Android 14) は、忁E��に応じてより庁E��互換性のために使用できます、E
 ---
 
 ## Android NDK Installation
@@ -144,9 +143,9 @@ Before beginning the setup, ensure you have:
 
 | NDK Version | tract-onnx Compatibility | Rust Support |
 |-------------|-------------------------|--------------|
-| r25c | ✅ Full support | ✅ aarch64-linux-android |
-| r26 | ✅ Full support | ✅ aarch64-linux-android |
-| r24 | ⚠️ Limited | ✅ Compatible |
+| r25c | ✁EFull support | ✁Eaarch64-linux-android |
+| r26 | ✁EFull support | ✁Eaarch64-linux-android |
+| r24 | ⚠�E�ELimited | ✁ECompatible |
 
 ---
 
@@ -219,10 +218,12 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
 
    | Variable Name | Variable Value |
    |---------------|----------------|
-   | `ANDROID_HOME` | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk` |
-   | `ANDROID_SDK_ROOT` | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk` |
-   | `ANDROID_NDK_HOME` | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\ndk\25.2.9519653` |
-   | `NDK_HOME` | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\ndk\25.2.9519653` |
+    | Variable Name | Variable Value |
+    |---------------|----------------|
+    | `ANDROID_HOME` | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk` |
+    | `ANDROID_SDK_ROOT` | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk` |
+    | `ANDROID_NDK_HOME` | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\ndk\25.2.9519653` |
+    | `NDK_HOME` | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\ndk\25.2.9519653` |
 
    > **Note**: Replace `%USERNAME%` with your actual Windows username, or use the full path.
 
@@ -232,13 +233,13 @@ if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
    - Click "Edit..."
    - Click "New" and add the following entries:
 
-   ```
-    %ANDROID_HOME%\platform-tools
-    %ANDROID_HOME%\cmdline-tools\latest\bin
-    %ANDROID_HOME%\build-tools\35.0.0
-    %ANDROID_NDK_HOME%
-    %ANDROID_NDK_HOME%\toolchains\llvm\prebuilt\windows-x86_64\bin
-   ```
+    ```
+     %ANDROID_HOME%\platform-tools
+     %ANDROID_HOME%\cmdline-tools\latest\bin
+     %ANDROID_HOME%\build-tools\36.1.0
+     %ANDROID_NDK_HOME%
+     %ANDROID_NDK_HOME%\toolchains\llvm\prebuilt\windows-x86_64\bin
+    ```
 
    - Click "OK" to save
 
@@ -286,7 +287,14 @@ adb --version
 **Expected Output**:
 ```
 Android Debug Bridge version 1.0.41
-Version 34.0.5-xxxxxxx
+Version 37.0.0
+Installed as C:\Users\%USERNAME%\AppData\Local\Android\Sdk\platform-tools\adb.exe
+```
+
+**Expected Output**:
+```
+Android Debug Bridge version 1.0.41
+Version 37.0.0
 Installed as C:\Users\%USERNAME%\AppData\Local\Android\Sdk\platform-tools\adb.exe
 ```
 
@@ -317,12 +325,12 @@ x86_64-linux-android
 ### 5. Test Device Connection (USB Debugging)
 
 1. **Enable Developer Options on Moto G66j 5G**:
-   - Go to `Settings` → `About phone`
+   - Go to `Settings` ↁE`About phone`
    - Tap "Build number" 7 times
    - You'll see "You are now a developer!"
 
 2. **Enable USB Debugging**:
-   - Go to `Settings` → `System` → `Developer options`
+   - Go to `Settings` ↁE`System` ↁE`Developer options`
    - Enable "USB debugging"
 
 3. **Connect Device**:
@@ -361,12 +369,9 @@ rustup target add x86_64-linux-android
 rustup target list --installed
 ```
 
-**Expected Output**:
+**Expected Output** (Installed on this PC):
 ```
 aarch64-linux-android
-armv7-linux-androideabi
-i686-linux-android
-x86_64-linux-android
 ```
 
 ### Install Cargo NDK (Optional but Recommended)
@@ -453,11 +458,11 @@ This tool simplifies building Rust libraries for Android.
 **Solutions**:
 
 1. **Enable Developer Options**:
-   - `Settings` → `About phone`
+   - `Settings` ↁE`About phone`
    - Tap "Build number" 7 times
 
 2. **Enable USB Debugging**:
-   - `Settings` → `System` → `Developer options`
+   - `Settings` ↁE`System` ↁE`Developer options`
    - Toggle "USB debugging" ON
 
 3. **USB Configuration**:
@@ -484,10 +489,10 @@ This tool simplifies building Rust libraries for Android.
    ```
 
 7. **Check Device Manager** (Windows):
-   - Press `Win + X` → Device Manager
+   - Press `Win + X` ↁEDevice Manager
    - Look for "Android" or your device
    - If there's a yellow exclamation mark:
-     - Right-click → Update driver
+     - Right-click ↁEUpdate driver
      - Browse to: `%ANDROID_HOME%\extras\google\usb_driver`
 
 ### Build Tools Not Found
@@ -499,20 +504,22 @@ This tool simplifies building Rust libraries for Android.
 1. **Install via SDK Manager**:
    - Open SDK Manager
    - Go to SDK Tools tab
-   - Check "Android SDK Build-Tools 35.0.0" (or "34.0.0" for fallback)
+   - Check "Android SDK Build-Tools 36.1.0" (or "34.0.0" for fallback)
    - Click Apply
 
 2. **Update project configuration**:
-   In [`platform/android/app/build.gradle`](platform/android/app/build.gradle):
-   ```gradle
-   android {
-       compileSdkVersion 35
-       buildToolsVersion "35.0.0"
-       // For fallback compatibility, use:
-       // compileSdkVersion 34
-       // buildToolsVersion "34.0.0"
-   }
-   ```
+    In [`platform/android/app/build.gradle`](platform/android/app/build.gradle):
+    ```gradle
+    android {
+        compileSdkVersion 36
+        buildToolsVersion "36.1.0"
+        // For fallback compatibility, use:
+        // compileSdkVersion 36
+        // buildToolsVersion "36.1.0"
+        // compileSdkVersion 34
+        // buildToolsVersion "34.0.0"
+    }
+    ```
 
 ### Rust Target Installation Fails
 
@@ -557,15 +564,15 @@ This tool simplifies building Rust libraries for Android.
 | Android Studio | `C:\Program Files\Android\Android Studio` |
 | Android SDK | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk` |
 | NDK | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\ndk\25.2.9519653` |
-| Platform Tools | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\platform-tools` |
-| Build Tools | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\build-tools\35.0.0` |
+| Platform Tools | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\platform-tools` (37.0.0) |
+| Build Tools | `C:\Users\%USERNAME%\AppData\Local\Android\Sdk\build-tools\36.1.0` |
 
 ### Essential Commands
 
 ```cmd
 # SDK Management
 sdkmanager --list
-sdkmanager --install "platform-tools" "build-tools;35.0.0"
+sdkmanager --install "platform-tools" "build-tools;36.1.0"
 sdkmanager --update
 
 # For fallback compatibility:
@@ -598,7 +605,7 @@ After completing this setup:
 
 1. Open the Shusei project in Android Studio
 2. Sync Gradle files
-3. Build the project: `Build` → `Make Project`
-4. Run on device: `Run` → `Run 'app'` → Select your Moto G66j 5G
+3. Build the project: `Build` ↁE`Make Project`
+4. Run on device: `Run` ↁE`Run 'app'` ↁESelect your Moto G66j 5G
 
 For project-specific build instructions, see [`docs/shusei-implementation-plan.md`](docs/shusei-implementation-plan.md).

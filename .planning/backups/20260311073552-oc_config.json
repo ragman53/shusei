@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "presets": {
+      "genius": {
+        "planning": "alibaba-coding-plan/kimi-k2.5",
+        "execution": "alibaba-coding-plan/qwen3.5-plus",
+        "verification": "alibaba-coding-plan/glm-5"
+      }
+    }
+  },
+  "current_oc_profile": "genius"
+}

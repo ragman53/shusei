@@ -1,6 +1,6 @@
 # Shusei MVP 開発進捗状況
 
-**最終更新**: 2026-03-08 13:37 (JST)
+**最終更新**: 2026-03-10 (JST)
 
 ---
 
@@ -67,73 +67,77 @@ shusei/
         └── components.rs         # 共通コンポーネント
 ```
 
+### 3. Android 環境セットアップ完了
+
+- [x] Android Studio Meerkat (2025.3.1) インストール済み
+- [x] Android SDK 36.1 (API 36.1) インストール済み
+- [x] Build Tools 36.1.0 インストール済み
+- [x] Platform Tools 37.0.0 インストール済み
+- [x] Rust Android ターゲット (aarch64-linux-android) インストール済み
+- [x] cargo-ndk v4.1.2 インストール済み
+- [x] Dioxus CLI v0.7.3 インストール済み
+
+### 4. JNI カメラ実装状況
+
+- [x] Rust 側 JNI 実装完了 (src/platform/android.rs)
+- [x] Java 側 Camera2 API 実装完了 (MainActivity.java)
+- [x] AndroidManifest.xml 権限設定完了
+- [ ] 実機ビルド検証
+- [ ] カメラ動作検証
+
 ---
 
 ## 残タスク（次スレッドで継続）
 
 ### 即座に対応が必要
 
-1. **ビルドエラー修正**
-   - `dioxus-router::prelude` の import エラー
-   - `pdfium_render` の条件付きコンパイル設定
-   - `src/core/pdf.rs` に `#[cfg(feature = "pdf")]` 追加
-
-2. **cargo build 成功確認**
-
-### Week 1 PoC (最重要)
-
-3. **【最重要】Dioxus + JNI カメラ PoC**
-   - Java側のカメラ実装
-   - JNI ブリッジの完成
-   - Android 実機テスト
-
-4. **tract Android クロスコンパイル検証**
-
-5. **NDLOCR-Lite ONNX tract 互換性検証** - ✅ テスト作成完了、モデル取得待ち
-   - `tests/ndlocr_tract_test.rs` 作成
-   - tract-onnx が正常にロード可能であることを確認
-   - モデルファイルは `assets/models/ndlocr/` に配置が必要
-   - 詳細は `assets/models/ndlocr/README.md` 参照
-
-6. **Moonshine Tiny ONNX tract 互換性検証**
-
-7. **Go/No-Go 判定**
+1. **Week 1 PoC 実機検証**
+   - Android 実機ビルド検証
+   - JNI カメラ PoC 動作テスト
+   - tract Android クロスコンパイル検証
 
 ---
 
+
 ## 既知の問題
 
-### ビルドエラー
+### ビルド警告
 
-1. **dioxus-router import エラー**
-   ```
-   error[E0432]: unresolved import `dioxus_router::prelude`
-   ```
-   - 原因: dioxus-router 0.7 の API 変更の可能性
-   - 対応: dioxus-router のドキュメントを確認して import を修正
+ビルドは成功していますが、以下の警告があります：
 
-2. **pdfium-render リンクエラー**
-   ```
-   error LNK2019: unresolved external symbol FPDFPage_TransformAnnots
-   ```
-   - 原因: pdfium の静的リンク設定
-   - 対応: オプション機能として条件付きコンパイルに変更済み
+1. **未使用 import 警告**
+   - `OcrError`, `SttError`, `ShuseiError` などの未使用 import
+   - 対応：実装進行中に自然に解消される見込み
 
-3. **lindera-ipadic ダウンロードエラー**
-   ```
-   Error: Transport(Transport { kind: Dns... })
-   ```
-   - 原因: ネットワーク接続問題で辞書ダウンロード失敗
-   - 対応: オプション機能として条件付きコンパイルに変更済み
+2. **未使用変数・関数警告**
+   - 前処理・後処理関数、NMS 関数など
+   - 対応：OCR 実装時に使用される予定
+
+### 注意事項
+
+- pdfium-render と lindera は オプション機能 (`pdf`, `lindera` feature) として設定済み
+- 通常ビルドではこれらの依存関係は不要
 
 ---
 
 ## 次回の作業手順
 
-1. `src/core/pdf.rs` に `#[cfg(feature = "pdf")]` を追加
-2. `src/app.rs` の dioxus-router import を修正
-3. `cargo build` でビルド成功を確認
-4. JNI カメラ PoC の実装を継続
+1. **Android 実機ビルド検証**
+   ```bash
+   dx serve --platform android
+   ```
+   
+2. **JNI カメラ PoC 実機テスト**
+   - Moto G66j 5G でカメラ動作確認
+   - 画像取得～表示のフロー検証
+
+3. **tract Android クロスコンパイル検証**
+   ```bash
+   cargo build --target aarch64-linux-android
+   ```
+
+4. **Go/No-Go 判定**
+   - Week 1-2 マイルストーン達成評価
 
 ---
 

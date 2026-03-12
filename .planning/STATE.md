@@ -68,6 +68,10 @@ progress:
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 03.1 inserted after Phase 03: Change OCR onnx models (URGENT)
+
 ### Key Decisions Made
 
 | Decision | When | Rationale |
