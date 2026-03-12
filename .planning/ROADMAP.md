@@ -89,14 +89,16 @@ Plans:
 
 **Research Flags:** None - uses same OCR infrastructure as Phase 2
 
-**Plans:** 5/6 plans executed
+**Plans:** 7 plans
 
 Plans:
 - [x] 03-01-PLAN.md — PDF import with file picker, metadata extraction, library integration
 - [x] 03-02-PLAN.md — Batch OCR processing with progress tracking and resume support
 - [x] 03-03-PLAN.md — Reflow reading UI with font controls and page navigation
-- [!] 03-04-PLAN.md — Wire PDF import to database, add conversion trigger and progress UI (gap closure) - BLOCKED by pdfium-render v0.8 API
-- [ ] 03-05-PLAN.md — Complete OCR pipeline with ONNX model loading and inference (gap closure)
+- [x] 03-04-PLAN.md — Wire PDF import to database, add conversion trigger and progress UI (gap closure)
+- [x] 03-05-PLAN.md — Complete OCR pipeline with ONNX model loading and inference (gap closure)
+- [ ] 03-06-PLAN.md — Bundle ONNX models and implement postprocessing for text extraction (gap closure)
+- [ ] 03-07-PLAN.md — Human testing with 100+ page PDF for stability verification (gap closure)
 
 ---
 
