@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use ndarray::Array4;
 use image::DynamicImage;
 use ort::value::Tensor;
+use ort::value::Value;
 use parking_lot::Mutex;
 
 use crate::core::error::{OcrError, Result};
@@ -306,45 +307,57 @@ impl NdlocrEngine {
         // Get recognition output (logits)
         if let Some(output) = outputs.get("output") {
             if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
-                log::debug!("Recognition output shape: {:?}", shape);
+                let shape_vec: Vec<i64> = shape.iter().map(|&x| x as i64).collect();
+                return self.decode_recognition_output_from_tensor(&shape_vec, data);
+            }
+        }
+        
+        Ok((String::new(), 0.0))
+    }
+    
+    /// Decode recognition output from extracted tensor data
+    fn decode_recognition_output_from_tensor(&self, shape: &[i64], data: &[f32]) -> Result<(String, f32)> {
+        if self.dictionary.is_empty() {
+            return Ok((String::new(), 0.0));
+        }
+        
+        log::debug!("Recognition output shape: {:?}", shape);
+        
+        // Shape: [1, seq_len, vocab_size]
+        if shape.len() == 3 && shape[0] == 1 {
+            let seq_len = shape[1] as usize;
+            let vocab_size = shape[2] as usize;
+            
+            let mut result = String::new();
+            let mut total_confidence = 0.0f32;
+            let mut prev_char_idx = -1isize;
+            
+            for t in 0..seq_len {
+                let mut max_prob = 0.0f32;
+                let mut max_idx = 0usize;
                 
-                // Shape: [1, seq_len, vocab_size]
-                if shape.len() == 3 && shape[0] == 1 {
-                    let seq_len = shape[1] as usize;
-                    let vocab_size = shape[2] as usize;
-                    
-                    let mut result = String::new();
-                    let mut total_confidence = 0.0f32;
-                    let mut prev_char_idx = -1isize;
-                    
-                    for t in 0..seq_len {
-                        let mut max_prob = 0.0f32;
-                        let mut max_idx = 0usize;
-                        
-                        // Argmax over vocab
-                        for c in 0..vocab_size {
-                            let idx = t * vocab_size + c;
-                            if idx < data.len() {
-                                let prob = data[idx];
-                                if prob > max_prob {
-                                    max_prob = prob;
-                                    max_idx = c;
-                                }
-                            }
-                        }
-                        
-                        // CTC decoding: skip blank (idx 0) and duplicates
-                        if max_idx > 0 && max_idx as isize != prev_char_idx && max_idx < self.dictionary.len() {
-                            result.push_str(&self.dictionary[max_idx]);
-                            total_confidence += max_prob;
-                            prev_char_idx = max_idx as isize;
+                // Argmax over vocab
+                for c in 0..vocab_size {
+                    let idx = t * vocab_size + c;
+                    if idx < data.len() {
+                        let prob = data[idx];
+                        if prob > max_prob {
+                            max_prob = prob;
+                            max_idx = c;
                         }
                     }
-                    
-                    let avg_confidence = if result.is_empty() { 0.0 } else { total_confidence / seq_len as f32 };
-                    return Ok((result, avg_confidence));
+                }
+                
+                // CTC decoding: skip blank (idx 0) and duplicates
+                if max_idx > 0 && max_idx as isize != prev_char_idx && max_idx < self.dictionary.len() {
+                    result.push_str(&self.dictionary[max_idx]);
+                    total_confidence += max_prob;
+                    prev_char_idx = max_idx as isize;
                 }
             }
+            
+            let avg_confidence = if result.is_empty() { 0.0 } else { total_confidence / seq_len as f32 };
+            return Ok((result, avg_confidence));
         }
         
         Ok((String::new(), 0.0))
@@ -437,17 +450,61 @@ impl NdlocrEngine {
         }
         
         // Step 3: Run recognition on each detected region
-        // TODO: Implement recognition inference - currently returns placeholder results
         let mut text_lines = Vec::new();
         let mut confidences = Vec::new();
         
-        // Placeholder: Return box coordinates as text for testing
+        // Get original image dimensions for scaling
+        let img = image::load_from_memory(image_bytes)
+            .map_err(|e| OcrError::Preprocessing(format!("Failed to decode image: {}", e)))?;
+        let original_width = img.width();
+        let original_height = img.height();
+        
+        // Run recognition on each detected box
         for box_ in &boxes {
-            text_lines.push(format!("[{:.0},{:.0},{:.0},{:.0}]", box_.x1, box_.y1, box_.x2, box_.y2));
-            confidences.push(box_.confidence);
+            // Extract text region from image
+            let region_tensor = self.extract_text_region(image_bytes, box_, original_width, original_height)?;
+            
+            // Run recognition inference
+            if let Some(rec_session_arc) = &self.recognition_session {
+                let rec_input = Value::from_array(([1usize, 1, 32, region_tensor.shape()[3]], region_tensor.as_slice().unwrap().to_vec()))
+                    .map_err(|e| OcrError::Inference(format!("Failed to create recognition input: {}", e)))?;
+                
+                // Lock session, run inference, and extract outputs immediately
+                let rec_result = {
+                    let mut rec_session = rec_session_arc.lock();
+                    rec_session.run(ort::inputs![rec_input])
+                        .map(|outputs| {
+                            // Extract tensor data while session is still alive
+                            if let Some(output) = outputs.get("output") {
+                                output.try_extract_tensor::<f32>()
+                                    .map(|(shape, data)| (shape.to_vec(), data.to_vec()))
+                                    .map_err(|e| OcrError::Inference(format!("Failed to extract tensor: {}", e)))
+                            } else {
+                                Err(OcrError::Inference("No output tensor".into()))
+                            }
+                        })
+                        .map_err(|e| OcrError::Inference(format!("Recognition inference failed: {}", e)))
+                };
+                
+                // Process extracted data outside the lock scope
+                match rec_result {
+                    Ok(Ok((shape, data))) => {
+                        // Decode recognition output from extracted tensor
+                        let (text, confidence) = self.decode_recognition_output_from_tensor(&shape, &data)?;
+                        if !text.is_empty() {
+                            text_lines.push(text);
+                            confidences.push(confidence);
+                        }
+                    }
+                    Ok(Err(e)) | Err(e) => {
+                        log::warn!("Recognition failed: {}", e);
+                        // Continue with next box
+                    }
+                }
+            }
         }
         
-        log::info!("Detected {} text regions", text_lines.len());
+        log::info!("Recognized {} text lines", text_lines.len());
         Ok((text_lines, confidences))
     }
 }
