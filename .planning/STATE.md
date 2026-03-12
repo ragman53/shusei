@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v0.8
 milestone_name: milestone
 status: completed
-last_updated: "2026-03-12T07:44:29.909Z"
+last_updated: "2026-03-12T08:16:31Z"
 progress:
   total_phases: 7
   completed_phases: 2
@@ -25,15 +25,15 @@ progress:
 
 **Phase:** 03-pdf-support
 
-**Plan:** 03-04 (complete)
+**Plan:** 03-05 (complete)
 
-**Status:** Plan 03-04 complete - PDF import and conversion UI fully integrated. Users can import PDFs with metadata review, trigger OCR conversion via Convert buttons, and view real-time progress during processing.
+**Status:** Plan 03-05 complete - OCR inference pipeline implemented with ONNX Runtime. Image preprocessing converts PDF pages to 960x960 tensors, ONNX sessions wrapped in Mutex for thread-safe inference. Awaits NDLOCR-Lite model files for actual text extraction.
 
 **Progress Bar:**
 ```
 [████████████████████] 100% (4/4 Phase 1 plans delivered)
 [████████████████████] 100% (3/3 Phase 2 plans - infrastructure complete)
-[████████████████████] 100% (3/3 Phase 3 plans delivered - P01 + P04 + P04b)
+[████████████████████] 100% (4/4 Phase 3 plans delivered - P01 + P04 + P04b + P05)
 ```
 
 ---
@@ -64,6 +64,7 @@ progress:
 | Phase 03-pdf-support P02 | 45min | 4 tasks | 4 files |
 | Phase 03-pdf-support P04b | 45min | 4 tasks | 1 file |
 | Phase 03-pdf-support P04 | 18min | 4 tasks | 3 files |
+| Phase 03-pdf-support P05 | 27min | 4 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -89,9 +90,9 @@ progress:
 - [x] Execute Plan 02-02: Database pages support (partial - UI pending)
 - [x] Execute Plan 02-03: Quality detection algorithms (partial - UI pending)
 - [x] Execute Plan 03-01: PDF import flow (Book model, PDF processor, library UI)
+- [x] Validate NDLOCR-Lite Rust integration (research flag from Phase 2) - Plan 03-05
 - [ ] Complete Phase 2 UI integration (camera → OCR → save flow)
 - [ ] Update pdfium-render integration for v0.8 API changes
-- [ ] Validate NDLOCR-Lite Rust integration (research flag from Phase 2)
 - [ ] Create Moonshine Rust bindings (research flag from Phase 5)
 - [ ] Test Qwen3.5 on-device performance (research flag from Phase 6)
 
@@ -107,9 +108,9 @@ None currently - pre-implementation phase.
 
 ## Session Continuity
 
-**Last action:** Completed Plan 03-04b - pdfium-render v0.8 API migration successful
+**Last action:** Completed Plan 03-05 - OCR inference pipeline with ONNX Runtime
 
-**Next action:** Re-execute original Plan 03-04 (PDF import UI integration) now that pdf.rs compiles
+**Next action:** Download/bundle NDLOCR-Lite ONNX models for actual text extraction
 
 **Open questions:**
 - None (all requirements validated)
