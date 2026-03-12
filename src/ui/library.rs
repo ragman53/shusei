@@ -5,14 +5,17 @@
 
 use dioxus::prelude::*;
 use dioxus_router::use_navigator;
+use std::path::Path;
 
 use crate::app::Route;
-use crate::core::db::Book;
+use crate::core::db::{Book, Database, NewBook};
 
 /// Library screen component that displays book list
 #[component]
 pub fn LibraryScreen() -> Element {
     let mut books = use_signal(|| vec![]);
+    let mut importing = use_signal(|| false);
+    let mut error_message = use_signal(|| Option::<String>::None);
     let navigator = use_navigator();
 
     // Load books on mount
@@ -24,6 +27,37 @@ pub fn LibraryScreen() -> Element {
         });
     });
 
+    let handle_import_pdf = move |_| {
+        spawn(async move {
+            importing.set(true);
+            error_message.set(None);
+            
+            // Open file picker
+            let file = rfd::AsyncFileDialog::new()
+                .add_filter("PDF", &["pdf"])
+                .pick_file()
+                .await;
+            
+            if let Some(file) = file {
+                let path = file.path().to_path_buf();
+                
+                // Extract filename as title
+                let title = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("Unknown")
+                    .to_string();
+                
+                // TODO: Implement actual PDF metadata extraction and database integration
+                // For now, just log the import attempt
+                log::info!("PDF selected for import: {} -> {}", title, path.display());
+                error_message.set(Some(format!("PDF selected: {} (integration pending)", title)));
+            }
+            
+            importing.set(false);
+        });
+    };
+
     rsx! {
         div { class: "flex flex-col h-full p-4",
             // Header
@@ -31,14 +65,36 @@ pub fn LibraryScreen() -> Element {
                 h1 { class: "text-2xl font-bold", "My Library" }
             }
 
-            // Add book button
-            button {
-                class: "bg-blue-600 text-white px-4 py-2 rounded-lg mb-4",
-                onclick: move |_| {
-                    navigator.push(Route::AddBook);
-                    ()
-                },
-                "Add Book"
+            // Button container
+            div { class: "flex gap-2 mb-4",
+                // Add book button
+                button {
+                    class: "bg-blue-600 text-white px-4 py-2 rounded-lg",
+                    onclick: move |_| {
+                        navigator.push(Route::AddBook);
+                        ()
+                    },
+                    "Add Book"
+                }
+
+                // Import PDF button
+                button {
+                    class: "bg-green-600 text-white px-4 py-2 rounded-lg",
+                    onclick: handle_import_pdf,
+                    disabled: importing(),
+                    if importing() {
+                        "Importing..."
+                    } else {
+                        "Import PDF"
+                    }
+                }
+            }
+
+            // Error message
+            if let Some(error) = error_message() {
+                div { class: "bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4",
+                    "{error}"
+                }
             }
 
             // Book list or empty state
