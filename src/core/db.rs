@@ -72,7 +72,8 @@ impl Database {
                 total_pages     INTEGER,
                 last_opened_at  INTEGER,
                 created_at      INTEGER NOT NULL,
-                updated_at      INTEGER NOT NULL
+                updated_at      INTEGER NOT NULL,
+                is_pdf          BOOLEAN DEFAULT FALSE
             );
             
             CREATE INDEX IF NOT EXISTS idx_books_title ON books(title);
@@ -335,8 +336,8 @@ impl Database {
 
         self.conn.execute(
             r#"
-            INSERT INTO books (id, title, author, cover_path, pages_captured, total_pages, last_opened_at, created_at, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            INSERT INTO books (id, title, author, cover_path, pages_captured, total_pages, last_opened_at, created_at, updated_at, is_pdf)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
             "#,
             params![
                 id,
@@ -348,6 +349,7 @@ impl Database {
                 book.last_opened_at,
                 now, // created_at
                 now, // updated_at
+                book.is_pdf,
             ],
         )?;
 
@@ -364,7 +366,8 @@ impl Database {
                 cover_path = ?4,
                 pages_captured = ?5,
                 total_pages = ?6,
-                last_opened_at = ?7
+                last_opened_at = ?7,
+                is_pdf = ?8
             WHERE id = ?1
             "#,
             params![
@@ -375,6 +378,7 @@ impl Database {
                 book.pages_captured,
                 book.total_pages,
                 book.last_opened_at,
+                book.is_pdf,
             ],
         )?;
 
@@ -514,6 +518,8 @@ pub struct Book {
     pub total_pages: Option<i32>,
     pub last_opened_at: Option<i64>,
     pub created_at: i64,
+    pub updated_at: i64,
+    pub is_pdf: bool,
 }
 
 impl Book {
@@ -527,6 +533,8 @@ impl Book {
             total_pages: row.get(5)?,
             last_opened_at: row.get(6)?,
             created_at: row.get(7)?,
+            updated_at: row.get(8)?,
+            is_pdf: row.get(9)?,
         })
     }
 }
@@ -541,6 +549,7 @@ pub struct NewBook {
     pub pages_captured: i32,
     pub total_pages: Option<i32>,
     pub last_opened_at: Option<i64>,
+    pub is_pdf: bool,
 }
 
 /// Update book (for partial updates)
@@ -552,6 +561,7 @@ pub struct UpdateBook {
     pub pages_captured: Option<i32>,
     pub total_pages: Option<i32>,
     pub last_opened_at: Option<i64>,
+    pub is_pdf: Option<bool>,
 }
 
 // ==================== Book Pages ====================
@@ -809,6 +819,89 @@ mod tests {
 
     mod books_crud {
         use super::*;
+
+        #[test]
+        fn test_book_with_is_pdf_true() {
+            let db = Database::in_memory().unwrap();
+
+            let new_book = NewBook {
+                title: "PDF Book".to_string(),
+                author: "PDF Author".to_string(),
+                is_pdf: true,
+                ..Default::default()
+            };
+
+            let id = db.create_book(&new_book).unwrap();
+            let book = db.get_book(&id).unwrap().unwrap();
+            assert!(book.is_pdf, "Book should have is_pdf=true");
+        }
+
+        #[test]
+        fn test_book_with_is_pdf_false() {
+            let db = Database::in_memory().unwrap();
+
+            let new_book = NewBook {
+                title: "Physical Book".to_string(),
+                author: "Physical Author".to_string(),
+                is_pdf: false,
+                ..Default::default()
+            };
+
+            let id = db.create_book(&new_book).unwrap();
+            let book = db.get_book(&id).unwrap().unwrap();
+            assert!(!book.is_pdf, "Book should have is_pdf=false");
+        }
+
+        #[test]
+        fn test_get_all_books_returns_is_pdf_field() {
+            let db = Database::in_memory().unwrap();
+
+            // Create a PDF book
+            db.create_book(&NewBook {
+                title: "PDF Book".to_string(),
+                author: "Author".to_string(),
+                is_pdf: true,
+                ..Default::default()
+            })
+            .unwrap();
+
+            // Create a physical book
+            db.create_book(&NewBook {
+                title: "Physical Book".to_string(),
+                author: "Author".to_string(),
+                is_pdf: false,
+                ..Default::default()
+            })
+            .unwrap();
+
+            let books = db.get_all_books().unwrap();
+            assert_eq!(books.len(), 2);
+
+            // Find and verify PDF book
+            let pdf_book = books.iter().find(|b| b.title == "PDF Book").unwrap();
+            assert!(pdf_book.is_pdf);
+
+            // Find and verify physical book
+            let physical_book = books.iter().find(|b| b.title == "Physical Book").unwrap();
+            assert!(!physical_book.is_pdf);
+        }
+
+        #[test]
+        fn test_database_schema_has_is_pdf_column() {
+            let db = Database::in_memory().unwrap();
+
+            // Try to insert a book with is_pdf field
+            let result = db.conn.execute(
+                "INSERT INTO books (id, title, author, is_pdf, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params!["test-pdf", "PDF Test", "Author", true, 1234567890, 1234567890]
+            );
+
+            assert!(
+                result.is_ok(),
+                "Database should have is_pdf column: {:?}",
+                result.err()
+            );
+        }
 
         #[test]
         fn create_book_inserts_and_returns_id() {

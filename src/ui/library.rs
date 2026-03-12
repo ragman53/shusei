@@ -93,6 +93,8 @@ mod tests {
                 total_pages: None,
                 last_opened_at: None,
                 created_at: 1234567890,
+                updated_at: 1234567890,
+                is_pdf: false,
             },
         ];
         assert_eq!(books.len(), 1);
@@ -112,6 +114,8 @@ mod tests {
                 total_pages: None,
                 last_opened_at: None,
                 created_at: 1234567890,
+                updated_at: 1234567890,
+                is_pdf: false,
             },
             Book {
                 id: "2".to_string(),
@@ -122,6 +126,8 @@ mod tests {
                 total_pages: None,
                 last_opened_at: None,
                 created_at: 1234567890,
+                updated_at: 1234567890,
+                is_pdf: false,
             },
         ];
         
@@ -152,6 +158,8 @@ mod tests {
             total_pages: None,
             last_opened_at: None,
             created_at: 1234567890,
+            updated_at: 1234567890,
+            is_pdf: false,
         };
         
         assert_eq!(book.title, "Test Book");

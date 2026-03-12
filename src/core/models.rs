@@ -35,6 +35,8 @@ pub struct Book {
     pub total_pages: Option<i32>,
     pub last_opened_at: Option<i64>,
     pub created_at: i64,
+    pub updated_at: i64,
+    pub is_pdf: bool,
 }
 
 impl Default for Book {
@@ -48,6 +50,8 @@ impl Default for Book {
             total_pages: None,
             last_opened_at: None,
             created_at: current_timestamp(),
+            updated_at: current_timestamp(),
+            is_pdf: false,
         }
     }
 }
@@ -73,6 +77,8 @@ impl Book {
         total_pages: Option<i32>,
         last_opened_at: Option<i64>,
         created_at: i64,
+        updated_at: i64,
+        is_pdf: bool,
     ) -> Self {
         Self {
             id,
@@ -83,6 +89,8 @@ impl Book {
             total_pages,
             last_opened_at,
             created_at,
+            updated_at,
+            is_pdf,
         }
     }
 }
@@ -103,6 +111,8 @@ mod tests {
             Some(200),
             Some(1234567890),
             1234567890,
+            1234567890,
+            false,
         );
 
         // Serialize to JSON
@@ -137,6 +147,8 @@ mod tests {
             Some(100),
             Some(9876543210),
             1111111111,
+            1111111111,
+            false,
         );
 
         assert_eq!(book.id, "full-id");
