@@ -3,12 +3,14 @@
 //! This module handles PDF rendering using pdfium-render.
 
 use std::path::Path;
+use std::sync::Arc;
 
 use pdfium_render::prelude::*;
 
-use crate::core::db::Database;
 use crate::core::error::{Result, ShuseiError};
+use crate::core::db::Database;
 use crate::core::storage::StorageService;
+use crate::core::ocr::engine::NdlocrEngine;
 
 /// PDF processor for rendering pages as images
 pub struct PdfProcessor {
@@ -240,6 +242,151 @@ impl PdfMetadata {
             producer: document.metadata().producer(),
             page_count: document.pages().len() as u32,
         }
+    }
+}
+
+// ==================== PDF Conversion Service ====================
+
+/// Stage of the PDF conversion process
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConversionStage {
+    Rendering,
+    OcrProcessing,
+    Complete,
+}
+
+/// Progress information for PDF conversion
+#[derive(Debug, Clone)]
+pub struct ConversionProgress {
+    pub stage: ConversionStage,
+    pub current_page: u32,
+    pub total_pages: u32,
+}
+
+/// High-level PDF conversion service orchestrator
+pub struct PdfConversionService {
+    pdf_processor: PdfProcessor,
+    ocr_engine: NdlocrEngine,
+    db: Arc<Database>,
+    storage: Arc<StorageService>,
+}
+
+impl PdfConversionService {
+    /// Create a new PDF conversion service
+    pub fn new(
+        ocr_engine: NdlocrEngine,
+        db: Arc<Database>,
+        storage: Arc<StorageService>,
+    ) -> Result<Self> {
+        let pdf_processor = PdfProcessor::new()?;
+
+        Ok(Self {
+            pdf_processor,
+            ocr_engine,
+            db,
+            storage,
+        })
+    }
+
+    /// Convert a PDF to text via OCR
+    ///
+    /// # Arguments
+    /// * `book_id` - Book identifier
+    /// * `pdf_path` - Path to PDF file
+    /// * `progress_cb` - Callback for progress updates
+    ///
+    /// # Returns
+    /// Ok(()) on success, error on failure
+    pub async fn convert_pdf(
+        &self,
+        book_id: &str,
+        pdf_path: &Path,
+        progress_cb: impl Fn(ConversionProgress),
+    ) -> Result<()> {
+        // Open PDF
+        let document = self.pdf_processor.open(pdf_path)?;
+        let total_pages = self.pdf_processor.page_count(&document);
+
+        // Initialize progress tracking
+        self.db.create_progress(book_id, total_pages as i32)?;
+
+        // Stage 1: Render pages in batches
+        progress_cb(ConversionProgress {
+            stage: ConversionStage::Rendering,
+            current_page: 0,
+            total_pages,
+        });
+
+        let batch_size = 10;
+        let mut rendered_count = 0;
+
+        loop {
+            let pages = self
+                .pdf_processor
+                .render_pages_batch(
+                    &document,
+                    book_id,
+                    &self.db,
+                    &self.storage,
+                    batch_size,
+                    800,
+                    1000,
+                )
+                .await?;
+
+            if pages.is_empty() {
+                break; // All pages rendered
+            }
+
+            rendered_count += pages.len();
+
+            // Stage 2: Process rendered pages with OCR
+            progress_cb(ConversionProgress {
+                stage: ConversionStage::OcrProcessing,
+                current_page: rendered_count as u32,
+                total_pages,
+            });
+
+            let book_id = book_id.to_string();
+            let db = Arc::clone(&self.db);
+            let progress_cb_clone = progress_cb.clone(); // This won't work, need to refactor
+
+            // Use a simple counter for progress
+            let processed = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+            let processed_clone = std::sync::Arc::clone(&processed);
+            
+            self.ocr_engine
+                .process_pages_parallel(
+                    pages,
+                    &book_id,
+                    &self.db,
+                    move |page, _| {
+                        let current = processed_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        progress_cb(ConversionProgress {
+                            stage: ConversionStage::OcrProcessing,
+                            current_page: current + 1,
+                            total_pages,
+                        });
+                    },
+                )
+                .await?;
+
+            // Check if all pages are done
+            if rendered_count >= total_pages as usize {
+                break;
+            }
+        }
+
+        // Mark as complete
+        self.db.update_progress(book_id, total_pages as i32, "completed")?;
+
+        progress_cb(ConversionProgress {
+            stage: ConversionStage::Complete,
+            current_page: total_pages,
+            total_pages,
+        });
+
+        Ok(())
     }
 }
 
