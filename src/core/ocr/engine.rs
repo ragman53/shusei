@@ -372,6 +372,76 @@ mod tests {
     use super::*;
     use crate::core::db::{Database, NewBook};
     use tempfile::TempDir;
+    use image::{ImageBuffer, Rgb};
+
+    #[test]
+    fn test_engine_creation() {
+        // Test engine creation without models
+        let temp_dir = TempDir::new().unwrap();
+        let engine = NdlocrEngine::new(temp_dir.path(), "en");
+        
+        assert!(!engine.is_ready());
+        assert_eq!(engine.name(), "NDLOCR-Lite");
+    }
+
+    #[tokio::test]
+    async fn test_preprocessing_produces_valid_tensor() {
+        // Create a test image
+        let img = ImageBuffer::<Rgb<u8>, Vec<u8>>::from_fn(100, 100, |x, y| {
+            Rgb([x as u8, y as u8, 128])
+        });
+        
+        // Encode to JPEG
+        let mut image_data = Vec::new();
+        img.write_to(
+            &mut std::io::Cursor::new(&mut image_data),
+            image::ImageFormat::Jpeg,
+        ).unwrap();
+        
+        // Create engine (won't be initialized, but preprocessing doesn't need initialization)
+        let temp_dir = TempDir::new().unwrap();
+        let engine = NdlocrEngine::new(temp_dir.path(), "en");
+        
+        // Preprocessing should work even without models
+        let tensor = engine.preprocess_image_for_inference(&image_data);
+        
+        assert!(tensor.is_ok());
+        let tensor = tensor.unwrap();
+        
+        // Check tensor shape: [1, 1, 960, 960]
+        assert_eq!(tensor.shape(), &[1, 1, 960, 960]);
+        
+        // Check values are normalized to [0, 1]
+        for &val in tensor.iter() {
+            assert!(val >= 0.0 && val <= 1.0, "Tensor values should be normalized");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_process_image_returns_result_structure() {
+        // Create a test image
+        let img = ImageBuffer::<Rgb<u8>, Vec<u8>>::from_fn(100, 100, |_, _| {
+            Rgb([128, 128, 128])
+        });
+        
+        let mut image_data = Vec::new();
+        img.write_to(
+            &mut std::io::Cursor::new(&mut image_data),
+            image::ImageFormat::Jpeg,
+        ).unwrap();
+        
+        // Create engine without models (will fail initialization, but process_image should handle gracefully)
+        let temp_dir = TempDir::new().unwrap();
+        let mut engine = NdlocrEngine::new(temp_dir.path(), "en");
+        
+        // Initialize will fail without models
+        let init_result = engine.initialize().await;
+        assert!(init_result.is_err(), "Initialization should fail without models");
+        
+        // Process image should return error when not initialized
+        let result = engine.process_image(&image_data).await;
+        assert!(result.is_err());
+    }
 
     mod parallel_processing {
         use super::*;
