@@ -5,6 +5,8 @@ use ort::session::Session;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::path::PathBuf;
+use ndarray::Array4;
+use image::{GenericImageView, DynamicImage};
 
 use crate::core::error::{OcrError, Result};
 use crate::core::db::{Database, NewBookPage};
@@ -168,6 +170,49 @@ impl NdlocrEngine {
     pub fn recognition_session(&self) -> Option<&Session> {
         self.recognition_session.as_ref().map(|s| s.as_ref())
     }
+    
+    /// Preprocess image for ONNX inference
+    /// Converts image bytes to normalized tensor in NCHW format [1, 1, H, W]
+    fn preprocess_image_for_inference(&self, image_data: &[u8]) -> Result<Array4<f32>> {
+        // Decode image
+        let img = image::load_from_memory(image_data)
+            .map_err(|e| OcrError::Preprocessing(format!("Failed to decode image: {}", e)))?;
+        
+        // Convert to grayscale using DynamicImage
+        let gray: DynamicImage = img.to_luma8().into();
+        
+        // Resize to model input size (960x960 for NDLOCR-Lite)
+        let target_size = 960u32;
+        let resized = gray.resize(target_size, target_size, image::imageops::FilterType::Lanczos3);
+        let resized_gray = resized.to_luma8();
+        
+        // Convert to ndarray and normalize to [0, 1]
+        let mut tensor = Array4::<f32>::zeros((1, 1, target_size as usize, target_size as usize));
+        
+        for y in 0..target_size as usize {
+            for x in 0..target_size as usize {
+                let pixel = resized_gray.get_pixel(x as u32, y as u32);
+                tensor[[0, 0, y, x]] = pixel[0] as f32 / 255.0;
+            }
+        }
+        
+        Ok(tensor)
+    }
+    
+    /// Postprocess ONNX output to extract text regions
+    /// Returns (text_lines, confidence_scores)
+    fn postprocess_onnx_output(&self, _outputs: &ort::session::SessionOutputs) -> Result<(Vec<String>, Vec<f32>)> {
+        // Extract text and confidence from model output
+        // This is a simplified implementation - real implementation would parse
+        // the specific output format of NDLOCR-Lite model
+        let mut text_lines = Vec::new();
+        let mut confidences = Vec::new();
+        
+        // For now, return placeholder - will be implemented when we have actual models
+        log::debug!("Postprocessing ONNX outputs");
+        
+        Ok((text_lines, confidences))
+    }
 }
 
 #[async_trait]
@@ -179,26 +224,56 @@ impl OcrEngine for NdlocrEngine {
         
         let start = std::time::Instant::now();
         
-        // Step 1: Preprocess image (downscale to 2MP, enhance contrast)
-        let processed_data = super::preprocess::preprocess_image(image_data)?;
+        // Step 1: Preprocess image to tensor
+        let tensor = self.preprocess_image_for_inference(image_data)?;
         
-        // TODO: Implement full OCR pipeline with tract-onnx
-        // 2. Detect text regions using text_detection.onnx
-        // 3. Classify direction using direction_classifier.onnx  
-        // 4. Recognize text using text_recognition.onnx
-        // 5. Sort by reading order
-        // 6. Generate markdown
-        
-        // For now, return placeholder with preprocessing completed
-        let result = OcrResult {
-            markdown: String::new(),
-            plain_text: String::new(),
-            regions: Vec::new(),
-            confidence: 0.0,
-            processing_time_ms: start.elapsed().as_millis() as u64,
+        // Step 2: Run detection inference (if session available)
+        let detection_results = if let Some(session) = &self.detection_session {
+            // Create input from tensor data
+            let input_data = tensor.as_slice().unwrap();
+            
+            // Note: ort 2.0 API requires specific tensor types
+            // This is a placeholder - will be updated when models are available
+            match self.run_inference(session, input_data) {
+                Ok(outputs) => Some(outputs),
+                Err(e) => {
+                    log::warn!("Detection inference failed: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
         };
         
-        log::info!("OCR preprocessing completed in {}ms", result.processing_time_ms);
+        // Step 3: Postprocess detection results
+        let (text_lines, confidences) = if let Some(outputs) = &detection_results {
+            self.postprocess_onnx_output(outputs)?
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        
+        // Step 4: Calculate average confidence
+        let avg_confidence = if confidences.is_empty() {
+            0.0
+        } else {
+            confidences.iter().sum::<f32>() / confidences.len() as f32
+        };
+        
+        // Step 5: Generate markdown output
+        let markdown = text_lines.join("\n");
+        let plain_text = text_lines.join(" ");
+        
+        let processing_time_ms = start.elapsed().as_millis() as u64;
+        
+        let result = OcrResult {
+            markdown,
+            plain_text,
+            regions: Vec::new(), // Will be populated with actual regions in Task 3
+            confidence: avg_confidence,
+            processing_time_ms,
+        };
+        
+        log::info!("OCR completed in {}ms, confidence: {:.2}", result.processing_time_ms, result.confidence);
         
         Ok(result)
     }
@@ -209,6 +284,15 @@ impl OcrEngine for NdlocrEngine {
     
     fn name(&self) -> &'static str {
         "NDLOCR-Lite"
+    }
+}
+
+impl NdlocrEngine {
+    /// Run ONNX inference with the given session and input data
+    fn run_inference(&self, _session: &Session, _input_data: &[f32]) -> Result<ort::session::SessionOutputs> {
+        // Placeholder - will be implemented with proper tensor conversion when models are available
+        // For now, return an error to indicate inference is not yet fully implemented
+        Err(OcrError::Inference("Inference not yet implemented - awaiting model files".into()).into())
     }
 }
 
