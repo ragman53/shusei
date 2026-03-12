@@ -20,6 +20,9 @@ futures = "0.3"
 # Inference Runtime (Pure Rust - OCR + STT)
 tract-onnx = "0.21"
 
+# ONNX Runtime (alternative runtime for OCR)
+ort = "2.0.0-rc.12"
+
 # Image Processing
 image = "0.25"
 ndarray = "0.16"

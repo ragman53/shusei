@@ -1,9 +1,10 @@
 //! OCR Engine trait and implementation
 
 use async_trait::async_trait;
+use ort::session::Session;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Semaphore;
 use std::sync::Arc;
+use std::path::PathBuf;
 
 use crate::core::error::{OcrError, Result};
 use crate::core::db::{Database, NewBookPage};
@@ -59,30 +60,43 @@ pub struct TextRegion {
     pub is_vertical: bool,
 }
 
-/// NDLOCR-Lite engine implementation using tract
+/// NDLOCR-Lite engine implementation using ONNX Runtime
 #[derive(Clone, Debug)]
 pub struct NdlocrEngine {
     /// Model directory path
-    model_dir: std::path::PathBuf,
+    model_dir: PathBuf,
+    
+    /// ONNX session for text detection
+    detection_session: Option<Arc<Session>>,
+    
+    /// ONNX session for text recognition  
+    recognition_session: Option<Arc<Session>>,
+    
+    /// ONNX session for direction classification
+    direction_session: Option<Arc<Session>>,
     
     /// Whether the engine is initialized
     initialized: bool,
+    
+    /// Language setting (ja/en)
+    language: String,
 }
 
 impl NdlocrEngine {
     /// Create a new NDLOCR engine
-    pub fn new(model_dir: impl Into<std::path::PathBuf>) -> Self {
+    pub fn new(model_dir: impl Into<PathBuf>, language: &str) -> Self {
         Self {
             model_dir: model_dir.into(),
+            detection_session: None,
+            recognition_session: None,
+            direction_session: None,
             initialized: false,
+            language: language.to_string(),
         }
     }
     
-    /// Initialize the engine (load models)
+    /// Initialize the engine (load ONNX models)
     pub async fn initialize(&mut self) -> Result<()> {
-        // TODO: Load ONNX models using tract
-        // This will be implemented in Week 3-5
-        
         log::info!("Initializing NDLOCR engine from {:?}", self.model_dir);
         
         // Check if model files exist
@@ -90,34 +104,69 @@ impl NdlocrEngine {
         let recognition_model = self.model_dir.join("text_recognition.onnx");
         let direction_model = self.model_dir.join("direction_classifier.onnx");
         
-        if !detection_model.exists() {
-            return Err(OcrError::ModelLoading(format!(
-                "Detection model not found: {:?}",
-                detection_model
-            )).into());
+        // Load detection model
+        if detection_model.exists() {
+            let session = Session::builder()
+                .map_err(|e| OcrError::ModelLoading(format!("Failed to create session builder: {}", e)))?
+                .commit_from_file(&detection_model)
+                .map_err(|e| OcrError::ModelLoading(format!("Failed to load detection model: {}", e)))?;
+            self.detection_session = Some(Arc::new(session));
+            log::info!("Detection model loaded: {:?}", detection_model);
+        } else {
+            log::warn!("Detection model not found: {:?}", detection_model);
         }
         
-        if !recognition_model.exists() {
-            return Err(OcrError::ModelLoading(format!(
-                "Recognition model not found: {:?}",
-                recognition_model
-            )).into());
+        // Load recognition model
+        if recognition_model.exists() {
+            let session = Session::builder()
+                .map_err(|e| OcrError::ModelLoading(format!("Failed to create session builder: {}", e)))?
+                .commit_from_file(&recognition_model)
+                .map_err(|e| OcrError::ModelLoading(format!("Failed to load recognition model: {}", e)))?;
+            self.recognition_session = Some(Arc::new(session));
+            log::info!("Recognition model loaded: {:?}", recognition_model);
+        } else {
+            log::warn!("Recognition model not found: {:?}", recognition_model);
         }
         
-        if !direction_model.exists() {
+        // Load direction model (optional)
+        if direction_model.exists() {
+            let session = Session::builder()
+                .map_err(|e| OcrError::ModelLoading(format!("Failed to create session builder: {}", e)))?
+                .commit_from_file(&direction_model)
+                .map_err(|e| OcrError::ModelLoading(format!("Failed to load direction model: {}", e)))?;
+            self.direction_session = Some(Arc::new(session));
+            log::info!("Direction model loaded: {:?}", direction_model);
+        } else {
             log::warn!("Direction classifier model not found, direction classification will be disabled");
         }
         
-        self.initialized = true;
-        log::info!("NDLOCR engine initialized successfully");
-        
-        Ok(())
+        // Engine is initialized if at least detection and recognition models are loaded
+        if self.detection_session.is_some() && self.recognition_session.is_some() {
+            self.initialized = true;
+            log::info!("NDLOCR engine initialized successfully with language: {}", self.language);
+            Ok(())
+        } else {
+            Err(OcrError::ModelLoading("Failed to load required OCR models".into()).into())
+        }
     }
     
     /// Shutdown the engine (unload models)
     pub fn shutdown(&mut self) {
+        self.detection_session = None;
+        self.recognition_session = None;
+        self.direction_session = None;
         self.initialized = false;
         log::info!("NDLOCR engine shutdown");
+    }
+    
+    /// Get the detection session
+    pub fn detection_session(&self) -> Option<&Session> {
+        self.detection_session.as_ref().map(|s| s.as_ref())
+    }
+    
+    /// Get the recognition session
+    pub fn recognition_session(&self) -> Option<&Session> {
+        self.recognition_session.as_ref().map(|s| s.as_ref())
     }
 }
 
@@ -249,7 +298,7 @@ mod tests {
         async fn test_process_pages_parallel_processes_pages() {
             // Create engine (will fail initialization without models, but that's ok for this test)
             let temp_dir = TempDir::new().unwrap();
-            let mut engine = NdlocrEngine::new(temp_dir.path());
+            let mut engine = NdlocrEngine::new(temp_dir.path(), "en");
             
             // Initialize will fail without models, skip test
             if engine.initialize().await.is_err() {
@@ -287,7 +336,7 @@ mod tests {
         #[tokio::test]
         async fn test_process_pages_parallel_calls_progress_callback() {
             let temp_dir = TempDir::new().unwrap();
-            let mut engine = NdlocrEngine::new(temp_dir.path());
+            let mut engine = NdlocrEngine::new(temp_dir.path(), "en");
 
             if engine.initialize().await.is_err() {
                 println!("Skipping test - models not available");
@@ -321,7 +370,7 @@ mod tests {
         #[tokio::test]
         async fn test_process_pages_parallel_saves_to_database() {
             let temp_dir = TempDir::new().unwrap();
-            let mut engine = NdlocrEngine::new(temp_dir.path());
+            let mut engine = NdlocrEngine::new(temp_dir.path(), "en");
 
             if engine.initialize().await.is_err() {
                 println!("Skipping test - models not available");
@@ -353,7 +402,7 @@ mod tests {
         #[tokio::test]
         async fn test_process_pages_parallel_handles_failures_gracefully() {
             let temp_dir = TempDir::new().unwrap();
-            let mut engine = NdlocrEngine::new(temp_dir.path());
+            let mut engine = NdlocrEngine::new(temp_dir.path(), "en");
 
             if engine.initialize().await.is_err() {
                 println!("Skipping test - models not available");

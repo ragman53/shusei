@@ -201,7 +201,7 @@ pub fn ReaderBookView(book_id: i64) -> Element {
                                             }
                                             
                                             // Initialize conversion service
-                                            let ocr = NdlocrEngine::new(&app_data_dir);
+                                            let ocr = NdlocrEngine::new(&app_data_dir, "en");
                                             match (Database::open("shusei.db"), StorageService::new(app_data_dir.clone())) {
                                                 (Ok(db), Ok(storage)) => {
                                                     let service = PdfConversionService::new(
