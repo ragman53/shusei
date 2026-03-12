@@ -7,6 +7,8 @@ use std::sync::Arc;
 use std::path::PathBuf;
 use ndarray::Array4;
 use image::{GenericImageView, DynamicImage};
+use ort::value::Tensor;
+use parking_lot::Mutex;
 
 use crate::core::error::{OcrError, Result};
 use crate::core::db::{Database, NewBookPage};
@@ -68,14 +70,14 @@ pub struct NdlocrEngine {
     /// Model directory path
     model_dir: PathBuf,
     
-    /// ONNX session for text detection
-    detection_session: Option<Arc<Session>>,
+    /// ONNX session for text detection (wrapped in Mutex for mutable access)
+    detection_session: Option<Arc<Mutex<Session>>>,
     
     /// ONNX session for text recognition  
-    recognition_session: Option<Arc<Session>>,
+    recognition_session: Option<Arc<Mutex<Session>>>,
     
     /// ONNX session for direction classification
-    direction_session: Option<Arc<Session>>,
+    direction_session: Option<Arc<Mutex<Session>>>,
     
     /// Whether the engine is initialized
     initialized: bool,
@@ -112,7 +114,7 @@ impl NdlocrEngine {
                 .map_err(|e| OcrError::ModelLoading(format!("Failed to create session builder: {}", e)))?
                 .commit_from_file(&detection_model)
                 .map_err(|e| OcrError::ModelLoading(format!("Failed to load detection model: {}", e)))?;
-            self.detection_session = Some(Arc::new(session));
+            self.detection_session = Some(Arc::new(Mutex::new(session)));
             log::info!("Detection model loaded: {:?}", detection_model);
         } else {
             log::warn!("Detection model not found: {:?}", detection_model);
@@ -124,7 +126,7 @@ impl NdlocrEngine {
                 .map_err(|e| OcrError::ModelLoading(format!("Failed to create session builder: {}", e)))?
                 .commit_from_file(&recognition_model)
                 .map_err(|e| OcrError::ModelLoading(format!("Failed to load recognition model: {}", e)))?;
-            self.recognition_session = Some(Arc::new(session));
+            self.recognition_session = Some(Arc::new(Mutex::new(session)));
             log::info!("Recognition model loaded: {:?}", recognition_model);
         } else {
             log::warn!("Recognition model not found: {:?}", recognition_model);
@@ -136,7 +138,7 @@ impl NdlocrEngine {
                 .map_err(|e| OcrError::ModelLoading(format!("Failed to create session builder: {}", e)))?
                 .commit_from_file(&direction_model)
                 .map_err(|e| OcrError::ModelLoading(format!("Failed to load direction model: {}", e)))?;
-            self.direction_session = Some(Arc::new(session));
+            self.direction_session = Some(Arc::new(Mutex::new(session)));
             log::info!("Direction model loaded: {:?}", direction_model);
         } else {
             log::warn!("Direction classifier model not found, direction classification will be disabled");
@@ -159,16 +161,6 @@ impl NdlocrEngine {
         self.direction_session = None;
         self.initialized = false;
         log::info!("NDLOCR engine shutdown");
-    }
-    
-    /// Get the detection session
-    pub fn detection_session(&self) -> Option<&Session> {
-        self.detection_session.as_ref().map(|s| s.as_ref())
-    }
-    
-    /// Get the recognition session
-    pub fn recognition_session(&self) -> Option<&Session> {
-        self.recognition_session.as_ref().map(|s| s.as_ref())
     }
     
     /// Preprocess image for ONNX inference
@@ -228,26 +220,21 @@ impl OcrEngine for NdlocrEngine {
         let tensor = self.preprocess_image_for_inference(image_data)?;
         
         // Step 2: Run detection inference (if session available)
-        let detection_results = if let Some(session) = &self.detection_session {
+        let (text_lines, confidences) = if let Some(session_arc) = &self.detection_session {
+            // Lock session for mutable access
+            let mut session = session_arc.lock();
+            
             // Create input from tensor data
             let input_data = tensor.as_slice().unwrap();
             
-            // Note: ort 2.0 API requires specific tensor types
-            // This is a placeholder - will be updated when models are available
-            match self.run_inference(session, input_data) {
-                Ok(outputs) => Some(outputs),
+            // Run inference and extract results within the lock scope
+            match self.run_inference_and_extract(&mut session, input_data) {
+                Ok(results) => results,
                 Err(e) => {
                     log::warn!("Detection inference failed: {}", e);
-                    None
+                    (Vec::new(), Vec::new())
                 }
             }
-        } else {
-            None
-        };
-        
-        // Step 3: Postprocess detection results
-        let (text_lines, confidences) = if let Some(outputs) = &detection_results {
-            self.postprocess_onnx_output(outputs)?
         } else {
             (Vec::new(), Vec::new())
         };
@@ -288,11 +275,23 @@ impl OcrEngine for NdlocrEngine {
 }
 
 impl NdlocrEngine {
-    /// Run ONNX inference with the given session and input data
-    fn run_inference(&self, _session: &Session, _input_data: &[f32]) -> Result<ort::session::SessionOutputs> {
-        // Placeholder - will be implemented with proper tensor conversion when models are available
-        // For now, return an error to indicate inference is not yet fully implemented
-        Err(OcrError::Inference("Inference not yet implemented - awaiting model files".into()).into())
+    /// Run ONNX inference and extract text results
+    fn run_inference_and_extract(&self, session: &mut Session, input_data: &[f32]) -> Result<(Vec<String>, Vec<f32>)> {
+        // Create tensor from input data (shape: [1, 1, 960, 960])
+        let tensor = Tensor::from_array(([1usize, 1, 960, 960], input_data.to_vec()))
+            .map_err(|e| OcrError::Inference(format!("Failed to create input tensor: {}", e)))?;
+        
+        // Run inference
+        let outputs = session.run(ort::inputs![tensor])
+            .map_err(|e| OcrError::Inference(format!("Inference failed: {}", e)))?;
+        
+        // Extract results - this is a placeholder, will be implemented with actual model output parsing
+        let text_lines = Vec::new();
+        let confidences = Vec::new();
+        
+        log::debug!("Inference completed, got {} outputs", outputs.len());
+        
+        Ok((text_lines, confidences))
     }
 }
 
