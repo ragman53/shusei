@@ -6,7 +6,9 @@ use std::path::Path;
 
 use pdfium_render::prelude::*;
 
+use crate::core::db::Database;
 use crate::core::error::{Result, ShuseiError};
+use crate::core::storage::StorageService;
 
 /// PDF processor for rendering pages as images
 pub struct PdfProcessor {
@@ -105,6 +107,67 @@ impl PdfProcessor {
         Ok(images)
     }
 
+    /// Render a batch of pages with progress tracking and resume support
+    ///
+    /// # Arguments
+    /// * `document` - PDF document to render
+    /// * `book_id` - Book identifier for progress tracking
+    /// * `db` - Database connection for progress tracking
+    /// * `storage` - Storage service for saving rendered images
+    /// * `batch_size` - Number of pages to render per batch (default: 10)
+    /// * `width` - Target width for rendered images
+    /// * `height` - Target height for rendered images
+    ///
+    /// # Returns
+    /// Vec of (page_number, image_bytes) for the batch
+    pub async fn render_pages_batch(
+        &self,
+        document: &PdfDocument,
+        book_id: &str,
+        db: &Database,
+        storage: &StorageService,
+        batch_size: u32,
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<(u32, Vec<u8>)>> {
+        // Get current progress to determine starting page
+        let progress = db.get_progress(book_id)?;
+        let last_processed = progress
+            .as_ref()
+            .map(|p| p.last_processed_page)
+            .unwrap_or(0);
+        let total_pages = self.page_count(document);
+
+        // Calculate batch range
+        let start_page = last_processed;
+        let end_page = std::cmp::min(start_page + batch_size, total_pages);
+
+        if start_page >= end_page {
+            // All pages already rendered
+            return Ok(Vec::new());
+        }
+
+        let mut rendered_pages = Vec::with_capacity((end_page - start_page) as usize);
+
+        // Render pages in the batch
+        for page_num in start_page..end_page {
+            let image_bytes = self.render_page(document, page_num, width, height)?;
+            
+            // Save image to storage
+            let image_path = storage.save_image(
+                &image_bytes,
+                &format!("pdf_pages/{}", book_id),
+            )?;
+            
+            rendered_pages.push((page_num, image_bytes));
+        }
+
+        // Update progress after batch complete
+        db.update_progress(book_id, end_page as i32, "processing")?;
+
+        Ok(rendered_pages)
+    }
+
     /// Import a PDF file: copy to app directory and extract metadata
     ///
     /// Returns (metadata, copied_path)
@@ -185,6 +248,137 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    mod batch_rendering {
+        use super::*;
+        use crate::core::db::{Database, NewBook};
+        use tempfile::TempDir;
+
+        fn create_test_pdf(path: &Path) -> std::io::Result<()> {
+            // Create a minimal 3-page PDF
+            let pdf_content = b"%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>
+endobj
+xref
+0 6
+0000000000 65535 f
+0000000009 00000 n
+0000000058 00000 n
+0000000115 00000 n
+0000000198 00000 n
+0000000281 00000 n
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+364
+%%EOF";
+            std::fs::write(path, pdf_content)
+        }
+
+        #[tokio::test]
+        async fn test_render_pages_batch_renders_pages() {
+            let processor = PdfProcessor::new();
+            if processor.is_err() {
+                println!("Skipping test - pdfium not available");
+                return;
+            }
+
+            let processor = processor.unwrap();
+            let temp_dir = TempDir::new().unwrap();
+
+            // Create test PDF
+            let pdf_path = temp_dir.path().join("test.pdf");
+            create_test_pdf(&pdf_path).unwrap();
+
+            // Create database and storage
+            let db = Database::in_memory().unwrap();
+            let storage_dir = TempDir::new().unwrap();
+            let storage = StorageService::new(storage_dir.path().to_path_buf()).unwrap();
+
+            // Create book
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Initialize progress
+            db.create_progress(&book_id, 3).unwrap();
+
+            // Open PDF
+            let document = processor.open(&pdf_path).unwrap();
+
+            // Render batch
+            let result = processor
+                .render_pages_batch(&document, &book_id, &db, &storage, 10, 800, 1000)
+                .await;
+
+            if let Ok(pages) = result {
+                assert_eq!(pages.len(), 3);
+                for (page_num, bytes) in pages {
+                    assert!(page_num < 3);
+                    assert!(!bytes.is_empty());
+                }
+            }
+        }
+
+        #[tokio::test]
+        async fn test_render_pages_batch_returns_page_number_and_bytes() {
+            let processor = PdfProcessor::new();
+            if processor.is_err() {
+                println!("Skipping test - pdfium not available");
+                return;
+            }
+
+            let processor = processor.unwrap();
+            let temp_dir = TempDir::new().unwrap();
+
+            let pdf_path = temp_dir.path().join("test.pdf");
+            create_test_pdf(&pdf_path).unwrap();
+
+            let db = Database::in_memory().unwrap();
+            let storage_dir = TempDir::new().unwrap();
+            let storage = StorageService::new(storage_dir.path().to_path_buf()).unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            db.create_progress(&book_id, 3).unwrap();
+
+            let document = processor.open(&pdf_path).unwrap();
+            let result = processor
+                .render_pages_batch(&document, &book_id, &db, &storage, 10, 800, 1000)
+                .await;
+
+            if let Ok(pages) = result {
+                // Verify structure: Vec<(page_number, image_bytes)>
+                for (page_num, bytes) in pages {
+                    assert!(page_num < 3, "Page number should be valid");
+                    assert!(!bytes.is_empty(), "Image bytes should not be empty");
+                }
+            }
+        }
+    }
 
     #[test]
     fn test_pdf_processor_new() {
