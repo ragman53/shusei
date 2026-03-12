@@ -6,9 +6,12 @@
 use dioxus::prelude::*;
 use dioxus_router::use_navigator;
 use std::path::Path;
+use std::sync::Arc;
 
 use crate::app::Route;
 use crate::core::db::{Book, Database, NewBook};
+use crate::core::pdf::{PdfMetadata, PdfProcessor};
+use crate::core::storage::StorageService;
 
 /// Filter type for library
 #[derive(Clone, PartialEq)]
@@ -18,6 +21,73 @@ pub enum LibraryFilter {
     PhysicalOnly,
 }
 
+/// Metadata review dialog props
+#[derive(Props, Clone, PartialEq)]
+pub struct MetadataReviewProps {
+    pub show: bool,
+    pub title: String,
+    pub author: String,
+    pub page_count: u32,
+    pub on_close: EventHandler<()>,
+    pub on_confirm: EventHandler<(String, String)>,
+}
+
+/// Metadata review dialog component
+#[component]
+pub fn MetadataReviewDialog(props: MetadataReviewProps) -> Element {
+    let mut title = use_signal(|| props.title.clone());
+    let mut author = use_signal(|| props.author.clone());
+
+    if !props.show {
+        return rsx! {};
+    }
+
+    rsx! {
+        div {
+            class: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+            onclick: move |_| props.on_close.call(()),
+            div {
+                class: "bg-white rounded-lg p-6 w-full max-w-md",
+                onclick: move |e| e.stop_propagation(),
+                h2 { class: "text-lg font-bold mb-4", "Review PDF Metadata" }
+                p { class: "text-sm text-gray-600 mb-4", "Page count: {props.page_count}" }
+                div { class: "mb-4",
+                    label { class: "block text-sm font-medium text-gray-700 mb-1", "Title" }
+                    input {
+                        r#type: "text",
+                        value: "{title()}",
+                        oninput: move |e| title.set(e.value()),
+                        class: "w-full border rounded-lg px-3 py-2"
+                    }
+                }
+                div { class: "mb-4",
+                    label { class: "block text-sm font-medium text-gray-700 mb-1", "Author" }
+                    input {
+                        r#type: "text",
+                        value: "{author()}",
+                        oninput: move |e| author.set(e.value()),
+                        class: "w-full border rounded-lg px-3 py-2"
+                    }
+                }
+                div { class: "flex space-x-2",
+                    button {
+                        class: "flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg",
+                        onclick: move |_| props.on_close.call(()),
+                        "Cancel"
+                    }
+                    button {
+                        class: "flex-1 bg-green-600 text-white py-2 rounded-lg",
+                        onclick: move |_| {
+                            props.on_confirm.call((title(), author()));
+                        },
+                        "Import"
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Library screen component that displays book list
 #[component]
 pub fn LibraryScreen() -> Element {
@@ -25,13 +95,22 @@ pub fn LibraryScreen() -> Element {
     let mut importing = use_signal(|| false);
     let mut error_message = use_signal(|| Option::<String>::None);
     let mut filter = use_signal(|| LibraryFilter::All);
+    let mut show_metadata_dialog = use_signal(|| false);
+    let mut pending_metadata = use_signal(|| Option::<(PdfMetadata, String)>::None);
+    let mut review_title = use_signal(|| String::new());
+    let mut review_author = use_signal(|| String::new());
+    let mut review_pages = use_signal(|| 0u32);
     let navigator = use_navigator();
 
     // Load books on mount
     use_effect(move || {
         spawn(async move {
-            // TODO: Load from actual database
-            books.set(vec![]);
+            // Load from actual database
+            if let Ok(db) = Database::open("shusei.db") {
+                if let Ok(all_books) = db.get_all_books() {
+                    books.set(all_books);
+                }
+            }
         });
     });
 
@@ -47,22 +126,92 @@ pub fn LibraryScreen() -> Element {
                 .await;
             
             if let Some(file) = file {
-                let path = file.path().to_path_buf();
+                let source_path = file.path().to_path_buf();
                 
-                // Extract filename as title
-                let title = path
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("Unknown")
-                    .to_string();
+                // Get app data directory
+                let app_data_dir = match std::env::current_exe() {
+                    Ok(exe) => exe.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from(".")),
+                    Err(_) => std::path::PathBuf::from("."),
+                };
                 
-                // TODO: Implement actual PDF metadata extraction and database integration
-                // For now, just log the import attempt
-                log::info!("PDF selected for import: {} -> {}", title, path.display());
-                error_message.set(Some(format!("PDF selected: {} (integration pending)", title)));
+                // Import PDF using PdfProcessor
+                match PdfProcessor::new() {
+                    Ok(processor) => {
+                        match processor.import_pdf(&source_path, &app_data_dir) {
+                            Ok((metadata, copied_path)) => {
+                                log::info!("PDF imported: {:?} -> {}", metadata, copied_path);
+                                
+                                // Show metadata review dialog
+                                review_title.set(metadata.title.clone().unwrap_or_else(|| {
+                                    source_path.file_stem()
+                                        .and_then(|s| s.to_str())
+                                        .unwrap_or("Unknown")
+                                        .to_string()
+                                }));
+                                review_author.set(metadata.author.clone().unwrap_or_default());
+                                review_pages.set(metadata.page_count);
+                                pending_metadata.set(Some((metadata, copied_path)));
+                                show_metadata_dialog.set(true);
+                            }
+                            Err(e) => {
+                                log::error!("Failed to import PDF: {:?}", e);
+                                error_message.set(Some(format!("Failed to import PDF: {}", e)));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Failed to create PdfProcessor: {:?}", e);
+                        error_message.set(Some(format!("Failed to initialize PDF processor: {}", e)));
+                    }
+                }
             }
             
             importing.set(false);
+        });
+    };
+    
+    // Handle metadata confirmation
+    let handle_metadata_confirm = move |(title, author): (String, String)| {
+        spawn(async move {
+            if let Some((metadata, copied_path)) = pending_metadata.take() {
+                // Create book record in database
+                match Database::open("shusei.db") {
+                    Ok(db) => {
+                        let new_book = NewBook {
+                            id: Some(uuid::Uuid::new_v4().to_string()),
+                            title,
+                            author,
+                            cover_path: None,
+                            pages_captured: 0,
+                            total_pages: Some(metadata.page_count as i32),
+                            last_opened_at: None,
+                            is_pdf: true,
+                        };
+                        
+                        match db.create_book(&new_book) {
+                            Ok(book_id) => {
+                                log::info!("Book created with ID: {}", book_id);
+                                // Refresh book list
+                                if let Ok(all_books) = db.get_all_books() {
+                                    books.set(all_books);
+                                }
+                                error_message.set(Some(format!("✓ PDF imported successfully")));
+                            }
+                            Err(e) => {
+                                log::error!("Failed to create book: {:?}", e);
+                                error_message.set(Some(format!("Failed to save book: {}", e)));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Failed to open database: {:?}", e);
+                        error_message.set(Some(format!("Database error: {}", e)));
+                    }
+                }
+                
+                show_metadata_dialog.set(false);
+                pending_metadata.set(None);
+            }
         });
     };
     
@@ -139,9 +288,14 @@ pub fn LibraryScreen() -> Element {
                 }
             }
 
-            // Error message
+            // Success/error message
             if let Some(error) = error_message() {
-                div { class: "bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4",
+                div { 
+                    class: if error.starts_with("✓") {
+                        "bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded mb-4"
+                    } else {
+                        "bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4"
+                    },
                     "{error}"
                 }
             }
@@ -164,6 +318,19 @@ pub fn LibraryScreen() -> Element {
                     }
                 }
             }
+        }
+        
+        // Metadata review dialog
+        MetadataReviewDialog {
+            show: show_metadata_dialog(),
+            title: review_title(),
+            author: review_author(),
+            page_count: review_pages(),
+            on_close: move |_| {
+                show_metadata_dialog.set(false);
+                pending_metadata.set(None);
+            },
+            on_confirm: handle_metadata_confirm,
         }
     }
 }
