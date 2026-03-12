@@ -10,7 +10,7 @@ use pdfium_render::prelude::*;
 use crate::core::error::{Result, ShuseiError};
 use crate::core::db::Database;
 use crate::core::storage::StorageService;
-use crate::core::ocr::engine::NdlocrEngine;
+use crate::core::ocr::NdlocrEngine;
 
 /// PDF processor for rendering pages as images
 pub struct PdfProcessor {
@@ -21,12 +21,14 @@ pub struct PdfProcessor {
 impl PdfProcessor {
     /// Create a new PDF processor
     pub fn new() -> Result<Self> {
-        let pdfium = Pdfium::new(Pdfium::bind_to_system_library().map_err(|e| {
+        // Use static bindings (pdfium-render v0.8 with "static" feature)
+        let bindings = Pdfium::bind_to_statically_linked_library().map_err(|e| {
             ShuseiError::Io(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 e.to_string(),
             ))
-        })?);
+        })?;
+        let pdfium = Pdfium::new(bindings);
 
         log::info!("PDF processor initialized");
 
@@ -34,7 +36,7 @@ impl PdfProcessor {
     }
 
     /// Open a PDF file
-    pub fn open(&self, path: impl AsRef<Path>) -> Result<PdfDocument> {
+    pub fn open<'a>(&'a self, path: impl AsRef<Path>) -> Result<PdfDocument<'a>> {
         let document = self
             .pdfium
             .load_pdf_from_file(path.as_ref(), None)
@@ -61,20 +63,22 @@ impl PdfProcessor {
         width: u32,
         height: u32,
     ) -> Result<Vec<u8>> {
-        let page = document.pages().get(page_index as usize).map_err(|e| {
+        // v0.8 uses u16 for page indexing
+        let page_index = page_index as u16;
+        let page = document.pages().get(page_index).map_err(|e| {
             ShuseiError::Io(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 e.to_string(),
             ))
         })?;
 
-        // Render to bitmap
+        // Render to bitmap - v0.8 uses builder pattern for render config
         let bitmap = page
             .render_with_config(
                 &PdfRenderConfig::new()
                     .set_target_width(width as i32)
                     .set_target_height(height as i32)
-                    .set_render_flags(PdfBitmapRenderFlags::RENDER_ANNOTATIONS),
+                    .render_annotations(true),
             )
             .map_err(|e| {
                 ShuseiError::Io(std::io::Error::new(
@@ -122,7 +126,7 @@ impl PdfProcessor {
     ///
     /// # Returns
     /// Vec of (page_number, image_bytes) for the batch
-    pub async fn render_pages_batch(
+    pub fn render_pages_batch(
         &self,
         document: &PdfDocument,
         book_id: &str,
@@ -136,11 +140,11 @@ impl PdfProcessor {
         let progress = db.get_progress(book_id)?;
         let last_processed = progress
             .as_ref()
-            .map(|p| p.last_processed_page)
+            .map(|p| p.last_processed_page as u32)
             .unwrap_or(0);
         let total_pages = self.page_count(document);
 
-        // Calculate batch range
+        // Calculate batch range - ensure consistent u32 types
         let start_page = last_processed;
         let end_page = std::cmp::min(start_page + batch_size, total_pages);
 
@@ -156,7 +160,7 @@ impl PdfProcessor {
             let image_bytes = self.render_page(document, page_num, width, height)?;
             
             // Save image to storage
-            let image_path = storage.save_image(
+            let _image_path = storage.save_image(
                 &image_bytes,
                 &format!("pdf_pages/{}", book_id),
             )?;
@@ -234,12 +238,14 @@ pub struct PdfMetadata {
 impl PdfMetadata {
     /// Extract metadata from a PDF document
     pub fn from_document(document: &PdfDocument) -> Self {
+        let metadata = document.metadata();
+        // v0.8 uses get() method with PdfDocumentMetadataTagType enum
         Self {
-            title: document.metadata().title(),
-            author: document.metadata().author(),
-            subject: document.metadata().subject(),
-            creator: document.metadata().creator(),
-            producer: document.metadata().producer(),
+            title: metadata.get(PdfDocumentMetadataTagType::Title).map(|t| t.value().to_string()),
+            author: metadata.get(PdfDocumentMetadataTagType::Author).map(|t| t.value().to_string()),
+            subject: metadata.get(PdfDocumentMetadataTagType::Subject).map(|t| t.value().to_string()),
+            creator: metadata.get(PdfDocumentMetadataTagType::Creator).map(|t| t.value().to_string()),
+            producer: metadata.get(PdfDocumentMetadataTagType::Producer).map(|t| t.value().to_string()),
             page_count: document.pages().len() as u32,
         }
     }
@@ -301,29 +307,33 @@ impl PdfConversionService {
         &self,
         book_id: &str,
         pdf_path: &Path,
-        progress_cb: impl Fn(ConversionProgress),
+        progress_cb: impl Fn(ConversionProgress) + Send + Sync + 'static,
     ) -> Result<()> {
-        // Open PDF
-        let document = self.pdf_processor.open(pdf_path)?;
-        let total_pages = self.pdf_processor.page_count(&document);
+        // Wrap callback in Arc for sharing across async closures
+        let progress_cb = Arc::new(progress_cb);
 
-        // Initialize progress tracking
-        self.db.create_progress(book_id, total_pages as i32)?;
+        // Open PDF, get page count, and render all pages synchronously
+        let (total_pages_u32, all_pages) = {
+            let document = self.pdf_processor.open(pdf_path)?;
+            let total_pages = self.pdf_processor.page_count(&document);
+            
+            // Initialize progress tracking
+            self.db.create_progress(book_id, total_pages as i32)?;
 
-        // Stage 1: Render pages in batches
-        progress_cb(ConversionProgress {
-            stage: ConversionStage::Rendering,
-            current_page: 0,
-            total_pages,
-        });
+            // Stage 1: Render pages
+            progress_cb(ConversionProgress {
+                stage: ConversionStage::Rendering,
+                current_page: 0,
+                total_pages,
+            });
 
-        let batch_size = 10;
-        let mut rendered_count = 0;
-
-        loop {
-            let pages = self
-                .pdf_processor
-                .render_pages_batch(
+            // Render all pages (document borrowed here but released at end of block)
+            let batch_size = 10;
+            let mut rendered_count: u32 = 0;
+            let mut all_pages: Vec<(u32, Vec<u8>)> = Vec::new();
+            
+            loop {
+                let pages = self.pdf_processor.render_pages_batch(
                     &document,
                     book_id,
                     &self.db,
@@ -331,59 +341,63 @@ impl PdfConversionService {
                     batch_size,
                     800,
                     1000,
-                )
-                .await?;
+                )?;
 
-            if pages.is_empty() {
-                break; // All pages rendered
+                if pages.is_empty() {
+                    break; // All pages rendered
+                }
+
+                rendered_count += pages.len() as u32;
+                all_pages.extend(pages);
+
+                // Check if all pages are done
+                if rendered_count >= total_pages {
+                    break;
+                }
             }
-
-            rendered_count += pages.len();
-
-            // Stage 2: Process rendered pages with OCR
-            progress_cb(ConversionProgress {
-                stage: ConversionStage::OcrProcessing,
-                current_page: rendered_count as u32,
-                total_pages,
-            });
-
-            let book_id = book_id.to_string();
-            let db = Arc::clone(&self.db);
-            let progress_cb_clone = progress_cb.clone(); // This won't work, need to refactor
-
-            // Use a simple counter for progress
-            let processed = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
-            let processed_clone = std::sync::Arc::clone(&processed);
             
-            self.ocr_engine
-                .process_pages_parallel(
-                    pages,
-                    &book_id,
-                    &self.db,
-                    move |page, _| {
-                        let current = processed_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                        progress_cb(ConversionProgress {
-                            stage: ConversionStage::OcrProcessing,
-                            current_page: current + 1,
-                            total_pages,
-                        });
-                    },
-                )
-                .await?;
+            (total_pages, all_pages)
+            // document dropped here
+        };
 
-            // Check if all pages are done
-            if rendered_count >= total_pages as usize {
-                break;
-            }
-        }
+        // Stage 2: Process all rendered pages with OCR (no document borrow)
+        progress_cb(ConversionProgress {
+            stage: ConversionStage::OcrProcessing,
+            current_page: 0,
+            total_pages: total_pages_u32,
+        });
+
+        let book_id = book_id.to_string();
+        
+        // Use a simple counter for progress
+        let processed = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let processed_clone = std::sync::Arc::clone(&processed);
+        
+        // Clone Arc for the async closure
+        let progress_cb_clone = Arc::clone(&progress_cb);
+        self.ocr_engine
+            .process_pages_parallel(
+                all_pages,
+                &book_id,
+                &self.db,
+                move |_, _| {
+                    let current = processed_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    progress_cb_clone(ConversionProgress {
+                        stage: ConversionStage::OcrProcessing,
+                        current_page: current + 1,
+                        total_pages: total_pages_u32,
+                    });
+                },
+            )
+            .await?;
 
         // Mark as complete
-        self.db.update_progress(book_id, total_pages as i32, "completed")?;
+        self.db.update_progress(&book_id, total_pages_u32 as i32, "completed")?;
 
         progress_cb(ConversionProgress {
             stage: ConversionStage::Complete,
-            current_page: total_pages,
-            total_pages,
+            current_page: total_pages_u32,
+            total_pages: total_pages_u32,
         });
 
         Ok(())
