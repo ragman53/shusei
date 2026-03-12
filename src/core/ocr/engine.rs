@@ -64,6 +64,16 @@ pub struct TextRegion {
     pub is_vertical: bool,
 }
 
+/// Bounding box from detection
+#[derive(Debug, Clone)]
+struct DetectionBox {
+    x1: f32,
+    y1: f32,
+    x2: f32,
+    y2: f32,
+    confidence: f32,
+}
+
 /// NDLOCR-Lite engine implementation using ONNX Runtime
 #[derive(Clone, Debug)]
 pub struct NdlocrEngine {
@@ -78,6 +88,9 @@ pub struct NdlocrEngine {
     
     /// ONNX session for direction classification
     direction_session: Option<Arc<Mutex<Session>>>,
+    
+    /// Character dictionary for recognition decoding
+    dictionary: Vec<String>,
     
     /// Whether the engine is initialized
     initialized: bool,
@@ -94,6 +107,7 @@ impl NdlocrEngine {
             detection_session: None,
             recognition_session: None,
             direction_session: None,
+            dictionary: Vec::new(),
             initialized: false,
             language: language.to_string(),
         }
@@ -144,6 +158,20 @@ impl NdlocrEngine {
             log::warn!("Direction classifier model not found, direction classification will be disabled");
         }
         
+        // Load dictionary
+        let dict_path = self.model_dir.join("dict.txt");
+        if dict_path.exists() {
+            let dict_content = std::fs::read_to_string(&dict_path)
+                .map_err(|e| OcrError::ModelLoading(format!("Failed to read dictionary: {}", e)))?;
+            self.dictionary = dict_content
+                .lines()
+                .map(|line| line.to_string())
+                .collect();
+            log::info!("Dictionary loaded: {} characters", self.dictionary.len());
+        } else {
+            log::warn!("Dictionary not found, recognition will fail");
+        }
+        
         // Engine is initialized if at least detection and recognition models are loaded
         if self.detection_session.is_some() && self.recognition_session.is_some() {
             self.initialized = true;
@@ -191,19 +219,135 @@ impl NdlocrEngine {
         Ok(tensor)
     }
     
-    /// Postprocess ONNX output to extract text regions
-    /// Returns (text_lines, confidence_scores)
-    fn postprocess_onnx_output(&self, _outputs: &ort::session::SessionOutputs) -> Result<(Vec<String>, Vec<f32>)> {
-        // Extract text and confidence from model output
-        // This is a simplified implementation - real implementation would parse
-        // the specific output format of NDLOCR-Lite model
-        let mut text_lines = Vec::new();
-        let mut confidences = Vec::new();
+    /// Postprocess detection output to extract bounding boxes
+    /// PaddleOCR detection output shape: [1, num_boxes, 4] or [1, num_boxes, 5] with confidence
+    fn parse_detection_output(&self, outputs: &ort::session::SessionOutputs, confidence_threshold: f32) -> Result<Vec<DetectionBox>> {
+        let mut boxes = Vec::new();
         
-        // For now, return placeholder - will be implemented when we have actual models
-        log::debug!("Postprocessing ONNX outputs");
+        // Get first output (detection boxes)
+        if let Some(output) = outputs.get("output") {
+            // Try to extract as tensor - returns (shape, data)
+            if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
+                log::debug!("Detection output shape: {:?}", shape);
+                
+                // Shape should be [1, num_boxes, 4] or [1, num_boxes, 5]
+                if shape.len() == 3 && shape[0] == 1 {
+                    let num_boxes = shape[1] as usize;
+                    let dims = shape[2] as usize; // 4 or 5
+                    
+                    for i in 0..num_boxes {
+                        let base_idx = i * dims;
+                        if base_idx + 3 < data.len() {
+                            let x1 = data[base_idx];
+                            let y1 = data[base_idx + 1];
+                            let x2 = data[base_idx + 2];
+                            let y2 = data[base_idx + 3];
+                            let conf = if dims >= 5 && base_idx + 4 < data.len() { data[base_idx + 4] } else { 1.0 };
+                            
+                            if conf > confidence_threshold {
+                                boxes.push(DetectionBox { x1, y1, x2, y2, confidence: conf });
+                            }
+                        }
+                    }
+                }
+            }
+        }
         
-        Ok((text_lines, confidences))
+        log::info!("Detected {} text regions", boxes.len());
+        Ok(boxes)
+    }
+    
+    /// Extract text region from image based on bounding box
+    fn extract_text_region(&self, image_data: &[u8], box_: &DetectionBox, original_width: u32, original_height: u32) -> Result<Array4<f32>> {
+        // Decode original image
+        let img = image::load_from_memory(image_data)
+            .map_err(|e| OcrError::Preprocessing(format!("Failed to decode image: {}", e)))?;
+        
+        // Scale box coordinates to original image size
+        let scale_x = original_width as f32 / 960.0;
+        let scale_y = original_height as f32 / 960.0;
+        
+        let x1 = (box_.x1 * scale_x).max(0.0) as u32;
+        let y1 = (box_.y1 * scale_y).max(0.0) as u32;
+        let x2 = (box_.x2 * scale_x).min(original_width as f32 - 1.0) as u32;
+        let y2 = (box_.y2 * scale_y).min(original_height as f32 - 1.0) as u32;
+        
+        // Crop to region
+        let width = (x2 - x1 + 1).max(1);
+        let height = (y2 - y1 + 1).max(1);
+        let region = img.crop_imm(x1, y1, width, height);
+        
+        // Resize to recognition model input size (typically 32px height)
+        let target_height = 32u32;
+        let aspect_ratio = width as f32 / height as f32;
+        let target_width = (target_height as f32 * aspect_ratio).max(1.0) as u32;
+        
+        let resized = region.resize(target_width, target_height, image::imageops::FilterType::Lanczos3);
+        let gray = resized.to_luma8();
+        
+        // Convert to tensor [1, 1, H, W]
+        let mut tensor = Array4::<f32>::zeros((1, 1, target_height as usize, target_width as usize));
+        for y in 0..target_height as usize {
+            for x in 0..target_width as usize {
+                let pixel = gray.get_pixel(x as u32, y as u32);
+                tensor[[0, 0, y, x]] = pixel[0] as f32 / 255.0;
+            }
+        }
+        
+        Ok(tensor)
+    }
+    
+    /// Decode recognition output using CTC and dictionary
+    fn decode_recognition_output(&self, outputs: &ort::session::SessionOutputs) -> Result<(String, f32)> {
+        if self.dictionary.is_empty() {
+            return Ok((String::new(), 0.0));
+        }
+        
+        // Get recognition output (logits)
+        if let Some(output) = outputs.get("output") {
+            if let Ok((shape, data)) = output.try_extract_tensor::<f32>() {
+                log::debug!("Recognition output shape: {:?}", shape);
+                
+                // Shape: [1, seq_len, vocab_size]
+                if shape.len() == 3 && shape[0] == 1 {
+                    let seq_len = shape[1] as usize;
+                    let vocab_size = shape[2] as usize;
+                    
+                    let mut result = String::new();
+                    let mut total_confidence = 0.0f32;
+                    let mut prev_char_idx = -1isize;
+                    
+                    for t in 0..seq_len {
+                        let mut max_prob = 0.0f32;
+                        let mut max_idx = 0usize;
+                        
+                        // Argmax over vocab
+                        for c in 0..vocab_size {
+                            let idx = t * vocab_size + c;
+                            if idx < data.len() {
+                                let prob = data[idx];
+                                if prob > max_prob {
+                                    max_prob = prob;
+                                    max_idx = c;
+                                }
+                            }
+                        }
+                        
+                        // CTC decoding: skip blank (idx 0) and duplicates
+                        if max_idx > 0 && max_idx as isize != prev_char_idx && max_idx < self.dictionary.len() {
+                            result.push_str(&self.dictionary[max_idx]);
+                            total_confidence += max_prob;
+                            prev_char_idx = max_idx as isize;
+                        }
+                    }
+                    
+                    let avg_confidence = if result.is_empty() { 0.0 } else { total_confidence / seq_len as f32 };
+                    return Ok((result, avg_confidence));
+                }
+            }
+        }
+        
+        Ok((String::new(), 0.0))
     }
 }
 
@@ -228,7 +372,7 @@ impl OcrEngine for NdlocrEngine {
             let input_data = tensor.as_slice().unwrap();
             
             // Run inference and extract results within the lock scope
-            match self.run_inference_and_extract(&mut session, input_data) {
+            match self.run_inference_and_extract(&mut session, input_data, image_data) {
                 Ok(results) => results,
                 Err(e) => {
                     log::warn!("Detection inference failed: {}", e);
@@ -275,22 +419,69 @@ impl OcrEngine for NdlocrEngine {
 }
 
 impl NdlocrEngine {
-    /// Run ONNX inference and extract text results
-    fn run_inference_and_extract(&self, session: &mut Session, input_data: &[f32]) -> Result<(Vec<String>, Vec<f32>)> {
-        // Create tensor from input data (shape: [1, 1, 960, 960])
-        let tensor = Tensor::from_array(([1usize, 1, 960, 960], input_data.to_vec()))
+    /// Run detection and recognition inference to extract text
+    fn run_inference_and_extract(&self, detection_session: &mut Session, input_data: &[f32], image_bytes: &[u8]) -> Result<(Vec<String>, Vec<f32>)> {
+        // Step 1: Run detection
+        let tensor = Tensor::from_array(([1usize, 3, 960, 960], input_data.to_vec()))
             .map_err(|e| OcrError::Inference(format!("Failed to create input tensor: {}", e)))?;
         
-        // Run inference
-        let outputs = session.run(ort::inputs![tensor])
-            .map_err(|e| OcrError::Inference(format!("Inference failed: {}", e)))?;
+        let det_outputs = detection_session.run(ort::inputs![tensor])
+            .map_err(|e| OcrError::Inference(format!("Detection inference failed: {}", e)))?;
         
-        // Extract results - this is a placeholder, will be implemented with actual model output parsing
-        let text_lines = Vec::new();
-        let confidences = Vec::new();
+        // Step 2: Parse detection boxes
+        let boxes = self.parse_detection_output(&det_outputs, 0.5)?;
         
-        log::debug!("Inference completed, got {} outputs", outputs.len());
+        if boxes.is_empty() {
+            log::warn!("No text regions detected");
+            return Ok((Vec::new(), Vec::new()));
+        }
         
+        // Step 3: Run recognition on each detected region
+        let mut text_lines = Vec::new();
+        let mut confidences = Vec::new();
+        
+        // Get recognition session
+        let rec_session_arc = self.recognition_session.as_ref()
+            .ok_or_else(|| OcrError::Inference("Recognition session not initialized".into()))?;
+        
+        for box_ in &boxes {
+            // Extract region and run recognition
+            if let Ok(region_tensor) = self.extract_text_region(image_bytes, box_, 960, 960) {
+                let region_slice = region_tensor.as_slice().unwrap();
+                let shape = region_tensor.shape().to_vec();
+                
+                // Lock session and run inference
+                {
+                    let mut rec_session = rec_session_arc.lock();
+                    
+                    // Create tensor inside lock scope
+                    let rec_tensor = Tensor::from_array((shape.clone(), region_slice.to_vec()))
+                        .map_err(|e| OcrError::Inference(format!("Failed to create recognition tensor: {}", e)))?;
+                    
+                    let inputs = ort::inputs![rec_tensor];
+                    
+                    match rec_session.run(inputs) {
+                        Ok(rec_outputs) => {
+                            match self.decode_recognition_output(&rec_outputs) {
+                                Ok((text, conf)) => {
+                                    if !text.is_empty() {
+                                        text_lines.push(text);
+                                        confidences.push(conf);
+                                    }
+                                }
+                                Err(e) => log::warn!("Recognition decode failed: {}", e),
+                            }
+                        }
+                        Err(e) => log::warn!("Recognition inference failed: {}", e),
+                    }
+                    // Lock guard dropped here
+                }
+            } else {
+                log::warn!("Failed to extract text region");
+            }
+        }
+        
+        log::info!("Recognized {} text lines", text_lines.len());
         Ok((text_lines, confidences))
     }
 }
