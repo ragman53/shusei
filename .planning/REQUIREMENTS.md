@@ -26,9 +26,9 @@ Requirements for initial release. Each maps to roadmap phases.
 ### PDF Support
 
 - [ ] **PDF-01**: ファイルピッカーで PDF をインポート
-- [ ] **PDF-02**: PDF をページ単位で NDLOCR-Lite 処理、Markdown 変換
+- [x] **PDF-02**: PDF をページ単位で NDLOCR-Lite 処理、Markdown 変換
 - [x] **PDF-03**: 変換 Markdown をリフロー表示（フォントサイズ変更可能）
-- [ ] **PDF-04**: PDF 進捗表示（ページ単位のストリーミング処理）
+- [x] **PDF-04**: PDF 進捗表示（ページ単位のストリーミング処理）
 
 ### Annotation
 
@@ -103,9 +103,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PAPER-04 | Phase 2 | Pending |
 | PAPER-05 | Phase 2 | Pending |
 | PDF-01 | Phase 3 | Pending |
-| PDF-02 | Phase 3 | Pending |
+| PDF-02 | Phase 3 | Complete |
 | PDF-03 | Phase 3 | Complete |
-| PDF-04 | Phase 3 | Pending |
+| PDF-04 | Phase 3 | Complete |
 | ANNO-01 | Phase 4 | Pending |
 | ANNO-02 | Phase 4 | Pending |
 | ANNO-03 | Phase 4 | Pending |
