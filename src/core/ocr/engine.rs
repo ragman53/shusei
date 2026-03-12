@@ -530,6 +530,10 @@ impl NdlocrEngine {
         use futures::stream::{self, StreamExt};
         
         let total = pages.len() as u32;
+        let parallel_start = std::time::Instant::now();
+        
+        log::info!("Starting parallel OCR processing for {} pages (book: {})", total, book_id);
+        log::info!("Concurrency limit: 3 parallel operations");
         
         // Process pages with concurrency limit of 3
         stream::iter(pages)
@@ -573,6 +577,14 @@ impl NdlocrEngine {
             .buffer_unordered(3) // Max 3 concurrent
             .collect::<Vec<_>>()
             .await;
+
+        let parallel_time = parallel_start.elapsed();
+        log::info!(
+            "Parallel OCR complete: {} pages processed in {:.2?} ({:.2} pages/sec)",
+            total,
+            parallel_time,
+            total as f64 / parallel_time.as_secs_f64()
+        );
 
         // Report final progress
         progress_cb(total, total);

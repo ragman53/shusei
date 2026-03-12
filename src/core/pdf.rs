@@ -6,6 +6,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pdfium_render::prelude::*;
+use log::{info, debug, warn};
 
 use crate::core::error::{Result, ShuseiError};
 use crate::core::db::Database;
@@ -309,6 +310,9 @@ impl PdfConversionService {
         pdf_path: &Path,
         progress_cb: impl Fn(ConversionProgress) + Send + Sync + 'static,
     ) -> Result<()> {
+        let conversion_start = std::time::Instant::now();
+        info!("Starting PDF conversion for book {}: {:?}", book_id, pdf_path);
+        
         // Wrap callback in Arc for sharing across async closures
         let progress_cb = Arc::new(progress_cb);
 
@@ -316,6 +320,8 @@ impl PdfConversionService {
         let (total_pages_u32, all_pages) = {
             let document = self.pdf_processor.open(pdf_path)?;
             let total_pages = self.pdf_processor.page_count(&document);
+            
+            info!("PDF opened: {} pages", total_pages);
             
             // Initialize progress tracking
             self.db.create_progress(book_id, total_pages as i32)?;
@@ -331,8 +337,12 @@ impl PdfConversionService {
             let batch_size = 10;
             let mut rendered_count: u32 = 0;
             let mut all_pages: Vec<(u32, Vec<u8>)> = Vec::new();
+            let mut batch_num = 0;
             
             loop {
+                batch_num += 1;
+                let batch_start = std::time::Instant::now();
+                
                 let pages = self.pdf_processor.render_pages_batch(
                     &document,
                     book_id,
@@ -344,11 +354,22 @@ impl PdfConversionService {
                 )?;
 
                 if pages.is_empty() {
+                    debug!("Batch {}: No more pages to render", batch_num);
                     break; // All pages rendered
                 }
 
+                let batch_time = batch_start.elapsed();
                 rendered_count += pages.len() as u32;
                 all_pages.extend(pages);
+                
+                info!(
+                    "Batch {} complete: rendered {} pages (total: {}/{}), time: {:.2?}",
+                    batch_num,
+                    pages.len(),
+                    rendered_count,
+                    total_pages,
+                    batch_time
+                );
 
                 // Check if all pages are done
                 if rendered_count >= total_pages {
@@ -361,6 +382,9 @@ impl PdfConversionService {
         };
 
         // Stage 2: Process all rendered pages with OCR (no document borrow)
+        info!("Starting OCR processing for {} pages", total_pages_u32);
+        let ocr_start = std::time::Instant::now();
+        
         progress_cb(ConversionProgress {
             stage: ConversionStage::OcrProcessing,
             current_page: 0,
@@ -380,8 +404,11 @@ impl PdfConversionService {
                 all_pages,
                 &book_id,
                 &self.db,
-                move |_, _| {
+                move |page_num, _| {
                     let current = processed_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    if current % 10 == 0 || current == total_pages_u32 - 1 {
+                        info!("OCR progress: page {}/{}", current + 1, total_pages_u32);
+                    }
                     progress_cb_clone(ConversionProgress {
                         stage: ConversionStage::OcrProcessing,
                         current_page: current + 1,
@@ -391,6 +418,9 @@ impl PdfConversionService {
             )
             .await?;
 
+        let ocr_time = ocr_start.elapsed();
+        info!("OCR processing complete: {} pages in {:.2?}", total_pages_u32, ocr_time);
+
         // Mark as complete
         self.db.update_progress(&book_id, total_pages_u32 as i32, "completed")?;
 
@@ -399,6 +429,12 @@ impl PdfConversionService {
             current_page: total_pages_u32,
             total_pages: total_pages_u32,
         });
+
+        let total_time = conversion_start.elapsed();
+        info!(
+            "PDF conversion complete for book {}: {} pages, total time: {:.2?}",
+            book_id, total_pages_u32, total_time
+        );
 
         Ok(())
     }
