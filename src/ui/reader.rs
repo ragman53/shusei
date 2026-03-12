@@ -3,8 +3,12 @@
 //! This component provides the PDF reading experience with reflow support.
 
 use dioxus::prelude::*;
+use std::sync::Arc;
 use crate::app::Route;
 use crate::core::db::{Book, BookPage, Database};
+use crate::core::pdf::{PdfConversionService, ConversionProgress, ConversionStage};
+use crate::core::ocr::NdlocrEngine;
+use crate::core::storage::StorageService;
 use crate::ui::components::PageJumpModal;
 
 /// Reader page component - shows library of PDF books
@@ -48,6 +52,9 @@ pub fn ReaderBookView(book_id: i64) -> Element {
     let mut font_size = use_signal(|| 18); // Default 18px, range 12-32px
     let mut show_page_jump = use_signal(|| false);
     let mut current_page = use_signal(|| 1);
+    let mut is_converting = use_signal(|| false);
+    let mut conversion_progress = use_signal(|| Option::<ConversionProgress>::None);
+    let mut conversion_error = use_signal(|| Option::<String>::None);
     
     // Load book and pages on mount
     use_effect(move || {
@@ -151,14 +158,103 @@ pub fn ReaderBookView(book_id: i64) -> Element {
                     div { class: "flex items-center justify-center h-full p-4",
                         div { class: "text-center max-w-md",
                             p { class: "text-4xl mb-4", "📄" }
-                            p { class: "text-gray-600 text-lg mb-2", "No pages converted yet" }
+                            p { class: "text-gray-600 text-lg mb-2", "This PDF hasn't been converted yet" }
                             p { class: "text-gray-500 text-sm mb-4", 
-                                "This book hasn't been processed. Convert pages to start reading."
+                                "Convert pages to start reading."
                             }
-                            Link {
-                                to: Route::BookList,
-                                class: "inline-block bg-purple-600 text-white px-6 py-2 rounded-lg",
-                                "Go to Library"
+                            if is_converting() {
+                                div { class: "mb-4",
+                                    div { class: "animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-2" }
+                                    if let Some(progress) = conversion_progress() {
+                                        p { class: "text-sm text-gray-600",
+                                            {
+                                                match progress.stage {
+                                                    ConversionStage::Rendering => format!("📄 Rendering page {} of {}...", progress.current_page, progress.total_pages),
+                                                    ConversionStage::OcrProcessing => format!("🔍 Processing OCR page {} of {}...", progress.current_page, progress.total_pages),
+                                                    ConversionStage::Complete => "✓ Conversion complete!".to_string(),
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        p { class: "text-sm text-gray-600", "Starting conversion..." }
+                                    }
+                                }
+                            } else {
+                                button {
+                                    class: "bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700",
+                                    onclick: move |_| {
+                                        spawn(async move {
+                                            is_converting.set(true);
+                                            conversion_error.set(None);
+                                            
+                                            // Get app data directory
+                                            let app_data_dir = std::env::current_exe()
+                                                .ok()
+                                                .and_then(|exe| exe.parent().map(|p| p.to_path_buf()))
+                                                .unwrap_or_else(|| std::path::PathBuf::from("."));
+                                            
+                                            // Construct PDF path from book ID (assuming stored as pdfs/{id}.pdf)
+                                            let pdf_path = app_data_dir.join("pdfs").join(format!("{}.pdf", book_id));
+                                            
+                                            if !pdf_path.exists() {
+                                                conversion_error.set(Some("PDF file not found".to_string()));
+                                                is_converting.set(false);
+                                                return;
+                                            }
+                                            
+                                            // Initialize conversion service
+                                            let ocr = NdlocrEngine::new(&app_data_dir);
+                                            match (Database::open("shusei.db"), StorageService::new(app_data_dir.clone())) {
+                                                (Ok(db), Ok(storage)) => {
+                                                    let service = PdfConversionService::new(
+                                                        ocr,
+                                                        Arc::new(db),
+                                                        Arc::new(storage),
+                                                    );
+                                                    
+                                                    match service {
+                                                        Ok(conv_service) => {
+                                                            let book_id_str = book_id.to_string();
+                                                            
+                                                            // Simple conversion without progress callback (progress shown via is_converting state)
+                                                            // Progress callback requires Send+Sync which conflicts with Dioxus signals
+                                                            match conv_service.convert_pdf(&book_id_str, &pdf_path, |_| {
+                                                                // No-op progress callback - UI shows generic "converting" state
+                                                            }).await {
+                                                                Ok(_) => {
+                                                                    log::info!("Conversion complete");
+                                                                    // Reload pages
+                                                                    if let Ok(db) = Database::open("shusei.db") {
+                                                                        if let Ok(loaded_pages) = db.get_pages_by_book(&book_id_str) {
+                                                                            pages.set(loaded_pages);
+                                                                        }
+                                                                    }
+                                                                }
+                                                                Err(e) => {
+                                                                    log::error!("Conversion failed: {:?}", e);
+                                                                    conversion_error.set(Some(format!("Conversion failed: {}", e)));
+                                                                }
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            log::error!("Failed to create conversion service: {:?}", e);
+                                                            conversion_error.set(Some(format!("Failed to initialize: {}", e)));
+                                                        }
+                                                    }
+                                                }
+                                                _ => {
+                                                    conversion_error.set(Some("Failed to initialize conversion services".to_string()));
+                                                }
+                                            }
+                                            
+                                            is_converting.set(false);
+                                        });
+                                    },
+                                    "Convert"
+                                }
+                            }
+                            if let Some(err) = conversion_error() {
+                                p { class: "text-red-600 text-sm mt-2", "{err}" }
                             }
                         }
                     }

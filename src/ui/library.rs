@@ -351,6 +351,10 @@ pub fn BookCard(book: Book) -> Element {
         0
     };
     
+    // Check if conversion is needed
+    let needs_conversion = book.is_pdf && book.total_pages.map(|t| t > 0).unwrap_or(false) && book.pages_captured < book.total_pages.unwrap_or(0);
+    let convert_book_id = book.id.clone();
+    
     rsx! {
         div {
             class: "block bg-white border rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer",
@@ -382,6 +386,24 @@ pub fn BookCard(book: Book) -> Element {
                         div {
                             class: "bg-purple-600 h-full transition-all duration-300",
                             style: "width: {progress}%"
+                        }
+                    }
+                    // Convert button for incomplete PDFs
+                    if needs_conversion {
+                        button {
+                            class: "mt-2 w-full bg-purple-600 text-white text-sm px-3 py-1 rounded hover:bg-purple-700",
+                            onclick: move |e| {
+                                e.stop_propagation();
+                                // Navigate to reader where conversion can be triggered
+                                if let Ok(id) = convert_book_id.parse::<i64>() {
+                                    navigator.push(Route::ReaderBook { book_id: id });
+                                }
+                            },
+                            if book.pages_captured > 0 {
+                                "Resume Conversion"
+                            } else {
+                                "Convert"
+                            }
                         }
                     }
                 }
