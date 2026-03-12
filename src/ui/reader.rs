@@ -9,7 +9,7 @@ use crate::core::db::{Book, BookPage, Database};
 use crate::core::pdf::{PdfConversionService, ConversionProgress, ConversionStage};
 use crate::core::ocr::NdlocrEngine;
 use crate::core::storage::StorageService;
-use crate::ui::components::PageJumpModal;
+use crate::ui::components::{PageJumpModal, ConversionProgressDisplay};
 
 /// Reader page component - shows library of PDF books
 #[component]
@@ -163,20 +163,18 @@ pub fn ReaderBookView(book_id: i64) -> Element {
                                 "Convert pages to start reading."
                             }
                             if is_converting() {
-                                div { class: "mb-4",
-                                    div { class: "animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-2" }
+                                div { class: "mb-4 max-w-sm",
                                     if let Some(progress) = conversion_progress() {
-                                        p { class: "text-sm text-gray-600",
-                                            {
-                                                match progress.stage {
-                                                    ConversionStage::Rendering => format!("📄 Rendering page {} of {}...", progress.current_page, progress.total_pages),
-                                                    ConversionStage::OcrProcessing => format!("🔍 Processing OCR page {} of {}...", progress.current_page, progress.total_pages),
-                                                    ConversionStage::Complete => "✓ Conversion complete!".to_string(),
-                                                }
-                                            }
+                                        ConversionProgressDisplay {
+                                            stage: progress.stage,
+                                            current_page: progress.current_page,
+                                            total_pages: progress.total_pages,
                                         }
                                     } else {
-                                        p { class: "text-sm text-gray-600", "Starting conversion..." }
+                                        div { class: "text-center",
+                                            div { class: "animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-2" }
+                                            p { class: "text-sm text-gray-600", "Starting conversion..." }
+                                        }
                                     }
                                 }
                             } else {

@@ -6,6 +6,10 @@ use dioxus::prelude::*;
 use dioxus_router::Link;
 
 use crate::app::Route;
+use crate::core::pdf::ConversionStage as PdfConversionStage;
+
+// Re-export ConversionStage for convenience
+pub use crate::core::pdf::ConversionStage;
 
 /// Loading spinner component
 #[component]
@@ -82,6 +86,66 @@ pub fn PageHeader(title: String, back_to: Option<Route>) -> Element {
                     }
                 }
                 h1 { class: "text-xl font-bold", "{title}" }
+            }
+        }
+    }
+}
+
+/// Conversion progress display component
+/// Shows stage-based progress with visual indicators
+#[component]
+pub fn ConversionProgressDisplay(
+    stage: ConversionStage,
+    current_page: u32,
+    total_pages: u32,
+) -> Element {
+    // Calculate percentage
+    let percentage = if total_pages > 0 {
+        (current_page as f32 / total_pages as f32 * 100.0) as u32
+    } else {
+        0
+    };
+
+    // Stage-specific styling
+    let (icon, color, message) = match stage {
+        ConversionStage::Rendering => (
+            "📄",
+            "text-blue-600",
+            format!("Rendering page {} of {}...", current_page, total_pages),
+        ),
+        ConversionStage::OcrProcessing => (
+            "🔍",
+            "text-purple-600",
+            format!("Processing OCR page {} of {}...", current_page, total_pages),
+        ),
+        ConversionStage::Complete => ("✓", "text-green-600", "Conversion complete!".to_string()),
+    };
+
+    rsx! {
+        div { class: "w-full",
+            // Stage indicator
+            div { class: "flex items-center justify-center mb-3",
+                span { class: "text-2xl mr-2", "{icon}" }
+                span { class: "font-semibold {color}", "{message}" }
+            }
+
+            // Progress bar
+            div { class: "bg-gray-200 h-3 rounded-full overflow-hidden",
+                div {
+                    class: if stage == ConversionStage::Complete {
+                        "bg-green-600 h-full transition-all duration-300"
+                    } else if stage == ConversionStage::OcrProcessing {
+                        "bg-purple-600 h-full transition-all duration-300"
+                    } else {
+                        "bg-blue-600 h-full transition-all duration-300"
+                    },
+                    style: "width: {percentage}%"
+                }
+            }
+
+            // Page count
+            p { class: "text-xs text-gray-500 mt-1 text-center",
+                "Page {current_page} of {total_pages}"
             }
         }
     }
