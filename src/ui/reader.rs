@@ -5,6 +5,7 @@
 use dioxus::prelude::*;
 use crate::app::Route;
 use crate::core::db::{Book, BookPage, Database};
+use crate::ui::components::PageJumpModal;
 
 /// Reader page component - shows library of PDF books
 #[component]
@@ -45,6 +46,8 @@ pub fn ReaderBookView(book_id: i64) -> Element {
     let mut is_loading = use_signal(|| true);
     let mut error = use_signal(|| Option::<String>::None);
     let mut font_size = use_signal(|| 18); // Default 18px, range 12-32px
+    let mut show_page_jump = use_signal(|| false);
+    let mut current_page = use_signal(|| 1);
     
     // Load book and pages on mount
     use_effect(move || {
@@ -85,30 +88,46 @@ pub fn ReaderBookView(book_id: i64) -> Element {
             // Header
             header { class: "bg-purple-600 text-white p-4 shadow-md",
                 div { class: "flex items-center justify-between",
-                    div { class: "flex items-center",
+                    div { class: "flex items-center space-x-3",
                         Link {
                             to: Route::Reader,
-                            class: "mr-4 text-white hover:text-purple-200",
+                            class: "text-white hover:text-purple-200",
                             "←"
                         }
                         if let Some(b) = book() {
                             h1 { class: "text-xl font-bold", "{b.title}" }
                         }
+                        // Page jump button
+                        if !pages().is_empty() {
+                            button {
+                                class: "bg-purple-500 hover:bg-purple-400 px-3 py-1 rounded text-sm",
+                                onclick: move |_| show_page_jump.set(true),
+                                "#{current_page()}"
+                            }
+                        }
                     }
-                    // Font size control
-                    div { class: "flex items-center space-x-2",
-                        span { class: "text-sm", "{font_size()}px" }
-                        input {
-                            r#type: "range",
-                            min: "12",
-                            max: "32",
-                            value: "{font_size()}",
-                            oninput: move |e| {
-                                if let Ok(size) = e.value().parse::<i32>() {
-                                    font_size.set(size);
-                                }
-                            },
-                            class: "w-32 h-2 bg-purple-300 rounded-lg appearance-none cursor-pointer"
+                    div { class: "flex items-center space-x-4",
+                        // Progress indicator
+                        if !pages().is_empty() {
+                            span { class: "text-sm", 
+                                "Page {current_page()} of {pages().len()}"
+                            }
+                        }
+                        // Font size control
+                        div { class: "flex items-center space-x-2",
+                            span { class: "text-sm", "{font_size()}px" }
+                            input {
+                                r#type: "range",
+                                min: "12",
+                                max: "32",
+                                value: "{font_size()}",
+                                oninput: move |e| {
+                                    if let Ok(size) = e.value().parse::<i32>() {
+                                        font_size.set(size);
+                                    }
+                                },
+                                class: "w-32 h-2 bg-purple-300 rounded-lg appearance-none cursor-pointer"
+                            }
                         }
                     }
                 }
@@ -148,9 +167,23 @@ pub fn ReaderBookView(book_id: i64) -> Element {
                     div { 
                         class: "max-w-2xl mx-auto p-4 space-y-6",
                         style: "font-size: {font_size()}px",
-                        for page in pages() {
-                            // Page content
-                            div { class: "bg-white rounded-lg shadow-sm p-6",
+                        onscroll: move |e| {
+                            // Update current page based on scroll position
+                            let scroll_y = e.scroll_top() as f32;
+                            let pages_len = pages().len();
+                            if pages_len > 0 {
+                                // Simple heuristic: estimate current page based on scroll position
+                                let total_height = e.scroll_height() as f32;
+                                let page_height = total_height / pages_len as f32;
+                                let estimated_page = ((scroll_y / page_height) + 1.0) as i32;
+                                current_page.set(estimated_page.min(pages_len as i32).max(1));
+                            }
+                        },
+                        for (idx, page) in pages().into_iter().enumerate() {
+                            // Page content with id for scrolling
+                            div { 
+                                class: "bg-white rounded-lg shadow-sm p-6",
+                                id: "page-{page.page_number}",
                                 div { class: "prose max-w-none",
                                     // Render OCR markdown as HTML
                                     div { dangerous_inner_html: render_markdown(&page.ocr_markdown) }
@@ -169,6 +202,17 @@ pub fn ReaderBookView(book_id: i64) -> Element {
                             }
                         }
                     }
+                }
+            }
+            
+            // Page jump modal
+            PageJumpModal {
+                show: show_page_jump(),
+                total_pages: pages().len() as i32,
+                on_close: move |_| show_page_jump.set(false),
+                on_submit: move |page_num| {
+                    // Update current page (scroll handled by re-render)
+                    current_page.set(page_num);
                 }
             }
         }

@@ -41,13 +41,13 @@ pub fn Button(
         Some("danger") => "bg-red-600 text-white",
         _ => "bg-blue-600 text-white",
     };
-    
+
     let disabled_class = if disabled.unwrap_or(false) {
         "opacity-50 cursor-not-allowed"
     } else {
         ""
     };
-    
+
     rsx! {
         button {
             class: "px-4 py-2 rounded-lg {variant_class} {disabled_class}",
@@ -100,11 +100,11 @@ pub fn EmptyState(
         div { class: "text-center py-8",
             p { class: "text-4xl mb-4", "{icon}" }
             p { class: "text-gray-500", "{message}" }
-            
+
             if let Some(hint) = hint {
                 p { class: "text-sm text-gray-400 mt-2", "{hint}" }
             }
-            
+
             if let Some(label) = action_label {
                 if let Some(handler) = on_action {
                     button {
@@ -161,4 +161,65 @@ pub fn TabBar(tabs: Vec<TabItem>, active_tab: usize, on_select: EventHandler<usi
 pub struct TabItem {
     pub label: String,
     pub icon: Option<String>,
+}
+
+/// Page jump modal component
+#[component]
+pub fn PageJumpModal(
+    show: bool,
+    total_pages: i32,
+    on_close: EventHandler<()>,
+    on_submit: EventHandler<i32>,
+) -> Element {
+    let mut input_value = use_signal(|| String::new());
+
+    if !show {
+        return rsx! {};
+    }
+
+    rsx! {
+        // Modal backdrop
+        div {
+            class: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50",
+            onclick: move |_| on_close.call(()),
+
+            // Modal content
+            div {
+                class: "bg-white rounded-lg p-6 w-full max-w-xs",
+                onclick: move |e| e.stop_propagation(),
+
+                h2 { class: "text-lg font-bold mb-4", "Go to Page" }
+
+                input {
+                    r#type: "number",
+                    min: "1",
+                    max: "{total_pages}",
+                    value: "{input_value()}",
+                    oninput: move |e| input_value.set(e.value()),
+                    placeholder: format!("1 - {total_pages}"),
+                    class: "w-full border rounded-lg px-3 py-2 mb-4"
+                }
+
+                div { class: "flex space-x-2",
+                    button {
+                        class: "flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg",
+                        onclick: move |_| on_close.call(()),
+                        "Cancel"
+                    }
+                    button {
+                        class: "flex-1 bg-purple-600 text-white py-2 rounded-lg",
+                        onclick: move |_| {
+                            if let Ok(page) = input_value().parse::<i32>() {
+                                if page >= 1 && page <= total_pages {
+                                    on_submit.call(page);
+                                    on_close.call(());
+                                }
+                            }
+                        },
+                        "Go"
+                    }
+                }
+            }
+        }
+    }
 }
