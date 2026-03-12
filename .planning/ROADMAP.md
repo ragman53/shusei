@@ -89,7 +89,12 @@ Plans:
 
 **Research Flags:** None - uses same OCR infrastructure as Phase 2
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — PDF import with file picker, metadata extraction, library integration
+- [ ] 03-02-PLAN.md — Batch OCR processing with progress tracking and resume support
+- [ ] 03-03-PLAN.md — Reflow reading UI with font controls and page navigation
 
 ---
 
