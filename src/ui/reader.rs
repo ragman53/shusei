@@ -44,6 +44,7 @@ pub fn ReaderBookView(book_id: i64) -> Element {
     let mut pages = use_signal(|| Vec::<BookPage>::new());
     let mut is_loading = use_signal(|| true);
     let mut error = use_signal(|| Option::<String>::None);
+    let mut font_size = use_signal(|| 18); // Default 18px, range 12-32px
     
     // Load book and pages on mount
     use_effect(move || {
@@ -94,6 +95,22 @@ pub fn ReaderBookView(book_id: i64) -> Element {
                             h1 { class: "text-xl font-bold", "{b.title}" }
                         }
                     }
+                    // Font size control
+                    div { class: "flex items-center space-x-2",
+                        span { class: "text-sm", "{font_size()}px" }
+                        input {
+                            r#type: "range",
+                            min: "12",
+                            max: "32",
+                            value: "{font_size()}",
+                            oninput: move |e| {
+                                if let Ok(size) = e.value().parse::<i32>() {
+                                    font_size.set(size);
+                                }
+                            },
+                            class: "w-32 h-2 bg-purple-300 rounded-lg appearance-none cursor-pointer"
+                        }
+                    }
                 }
             }
             
@@ -128,7 +145,9 @@ pub fn ReaderBookView(book_id: i64) -> Element {
                     }
                 } else {
                     // Continuous scroll view with all pages
-                    div { class: "max-w-2xl mx-auto p-4 space-y-6",
+                    div { 
+                        class: "max-w-2xl mx-auto p-4 space-y-6",
+                        style: "font-size: {font_size()}px",
                         for page in pages() {
                             // Page content
                             div { class: "bg-white rounded-lg shadow-sm p-6",
