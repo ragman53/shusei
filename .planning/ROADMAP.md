@@ -102,6 +102,17 @@ Plans:
 
 ---
 
+### Phase 03.1: Change OCR onnx models (INSERTED)
+
+**Goal:** Switch from PaddleOCR to NDLOCR-Lite models for 63% size reduction and better Japanese OCR
+**Requirements**: PDF-02, PAPER-03
+**Depends on:** Phase 03
+**Plans:** 2 plans
+
+Plans:
+- [ ] 03.1-01-PLAN.md — Download NDLOCR-Lite models and update paths
+- [ ] 03.1-02-PLAN.md — Update preprocessing and test model inference
+
 ### Phase 4: Annotation Foundation
 **Goal:** Rich annotation system for captured content including notes, bookmarks, and word collection
 
