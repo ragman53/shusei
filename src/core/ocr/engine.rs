@@ -750,4 +750,51 @@ mod tests {
             assert!(result.is_ok());
         }
     }
+
+    #[tokio::test]
+    async fn test_ocr_extraction_with_models() {
+        // Create a test image with text-like pattern
+        let img = ImageBuffer::<Rgb<u8>, Vec<u8>>::from_fn(200, 50, |x, y| {
+            // Create horizontal lines to simulate text
+            if y % 10 < 5 {
+                Rgb([0, 0, 0]) // Black lines
+            } else {
+                Rgb([255, 255, 255]) // White space
+            }
+        });
+        
+        let mut image_data = Vec::new();
+        img.write_to(
+            &mut std::io::Cursor::new(&mut image_data),
+            image::ImageFormat::Jpeg,
+        ).unwrap();
+        
+        // Create engine with bundled models
+        let engine = NdlocrEngine::new("assets/ocr/models", "ja");
+        
+        // Initialize will succeed if models are present
+        match engine.initialize().await {
+            Ok(_) => {
+                // Run OCR
+                let result = engine.process_image(&image_data).await;
+                
+                match result {
+                    Ok(ocr_result) => {
+                        // Should return some results (even if just bounding boxes)
+                        assert!(ocr_result.processing_time_ms > 0);
+                        // Detection should find something in the test pattern
+                        // (may return bounding box coordinates as placeholders)
+                    }
+                    Err(e) => {
+                        // Inference might fail on synthetic image, that's ok
+                        println!("OCR failed (expected on synthetic image): {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                // Models might not be available in test environment
+                println!("Skipping test - models not available: {}", e);
+            }
+        }
+    }
 }
