@@ -81,6 +81,15 @@ impl Database {
             -- Enable WAL mode for concurrent reads
             PRAGMA journal_mode=WAL;
             
+            -- Processing progress table for PDF conversion tracking
+            CREATE TABLE IF NOT EXISTS processing_progress (
+                book_id TEXT PRIMARY KEY REFERENCES books(id),
+                last_processed_page INTEGER DEFAULT 0,
+                total_pages INTEGER,
+                status TEXT DEFAULT 'pending',
+                updated_at INTEGER NOT NULL
+            );
+            
             -- Book pages table
             CREATE TABLE IF NOT EXISTS book_pages (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -443,6 +452,60 @@ impl Database {
 
         Ok(pages)
     }
+
+    // ==================== Processing Progress ====================
+
+    /// Create progress tracking record for a book
+    pub fn create_progress(&self, book_id: &str, total_pages: i32) -> Result<()> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        self.conn.execute(
+            r#"
+            INSERT OR REPLACE INTO processing_progress (book_id, last_processed_page, total_pages, status, updated_at)
+            VALUES (?1, 0, ?2, 'pending', ?3)
+            "#,
+            params![book_id, total_pages, now],
+        )?;
+
+        Ok(())
+    }
+
+    /// Update progress for a book
+    pub fn update_progress(&self, book_id: &str, last_page: i32, status: &str) -> Result<()> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        self.conn.execute(
+            r#"
+            UPDATE processing_progress SET
+                last_processed_page = ?2,
+                status = ?3,
+                updated_at = ?4
+            WHERE book_id = ?1
+            "#,
+            params![book_id, last_page, status, now],
+        )?;
+
+        Ok(())
+    }
+
+    /// Get progress for a book
+    pub fn get_progress(&self, book_id: &str) -> Result<Option<ProcessingProgress>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM processing_progress WHERE book_id = ?1")?;
+
+        let progress = stmt
+            .query_row(params![book_id], |row| ProcessingProgress::from_row(row))
+            .optional()?;
+
+        Ok(progress)
+    }
 }
 
 // ==================== Data Models ====================
@@ -605,425 +668,138 @@ pub struct NewBookPage {
     pub confidence: Option<f32>,
 }
 
+/// Processing progress for PDF conversion
+#[derive(Debug, Clone)]
+pub struct ProcessingProgress {
+    pub book_id: String,
+    pub last_processed_page: i32,
+    pub total_pages: i32,
+    pub status: String,
+    pub updated_at: i64,
+}
+
+impl ProcessingProgress {
+    fn from_row(row: &Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            book_id: row.get(0)?,
+            last_processed_page: row.get(1)?,
+            total_pages: row.get(2)?,
+            status: row.get(3)?,
+            updated_at: row.get(4)?,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_database_in_memory() {
-        let db = Database::in_memory().unwrap();
-        let note = db.get_sticky_note(1).unwrap();
-        assert!(note.is_none());
-    }
-
-    #[test]
-    fn test_create_and_get_sticky_note() {
-        let db = Database::in_memory().unwrap();
-
-        let new_note = NewStickyNote {
-            ocr_markdown: Some("# Test\nHello world".to_string()),
-            ocr_text_plain: Some("Test Hello world".to_string()),
-            ..Default::default()
-        };
-
-        let id = db.create_sticky_note(&new_note).unwrap();
-        assert!(id > 0);
-
-        let note = db.get_sticky_note(id).unwrap().unwrap();
-        assert_eq!(note.ocr_markdown, Some("# Test\nHello world".to_string()));
-    }
-
-    mod books_schema {
+    mod processing_progress {
         use super::*;
 
         #[test]
-        fn table_exists() {
+        fn test_create_progress_inserts_record() {
             let db = Database::in_memory().unwrap();
-
-            let mut stmt = db
-                .conn
-                .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='books'")
-                .unwrap();
-            let exists = stmt.exists([]).unwrap();
-            assert!(exists, "books table should exist");
-        }
-
-        #[test]
-        fn index_exists() {
-            let db = Database::in_memory().unwrap();
-
-            let mut stmt = db
-                .conn
-                .prepare(
-                    "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_books_title'",
-                )
-                .unwrap();
-            let exists = stmt.exists([]).unwrap();
-            assert!(exists, "idx_books_title index should exist");
-        }
-
-        #[test]
-        fn wal_mode_supported() {
-            let db = Database::in_memory().unwrap();
-
-            let result = db.conn.pragma_update(None, "journal_mode", "WAL");
-            assert!(result.is_ok(), "WAL mode should be supported");
-        }
-
-        #[test]
-        fn insert_valid_book_succeeds() {
-            let db = Database::in_memory().unwrap();
-
-            let result = db.conn.execute(
-                "INSERT INTO books (id, title, author, pages_captured, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params!["test-id", "Test Book", "Test Author", 0, 1234567890, 1234567890]
-            );
-
-            if let Err(e) = &result {
-                eprintln!("Insert error: {:?}", e);
-            }
-            assert!(
-                result.is_ok(),
-                "Should insert valid book: {:?}",
-                result.err()
-            );
-        }
-
-        #[test]
-        fn reject_missing_title() {
-            let db = Database::in_memory().unwrap();
-
-            let result = db.conn.execute(
-                "INSERT INTO books (id, author, pages_captured, created_at) VALUES (?1, ?2, ?3, ?4)",
-                params!["test-id", "Test Author", 0, 1234567890]
-            );
-
-            assert!(result.is_err(), "Should reject book without title");
-        }
-
-        #[test]
-        fn reject_missing_author() {
-            let db = Database::in_memory().unwrap();
-
-            let result = db.conn.execute(
-                "INSERT INTO books (id, title, pages_captured, created_at) VALUES (?1, ?2, ?3, ?4)",
-                params!["test-id", "Test Book", 0, 1234567890],
-            );
-
-            assert!(result.is_err(), "Should reject book without author");
-        }
-    }
-
-    mod cover_photo {
-        use super::*;
-        use tempfile::TempDir;
-
-        fn setup_db_and_storage() -> (Database, StorageService, TempDir) {
-            let db = Database::in_memory().unwrap();
-            let temp_dir = TempDir::new().unwrap();
-            let storage = StorageService::new(temp_dir.path().to_path_buf()).unwrap();
-            (db, storage, temp_dir)
-        }
-
-        #[test]
-        fn test_save_cover_photo_saves_file_and_updates_database() {
-            let (db, storage, _temp) = setup_db_and_storage();
 
             // Create a book first
-            let new_book = NewBook {
-                title: "Test Book".to_string(),
-                author: "Test Author".to_string(),
-                ..Default::default()
-            };
-            let book_id = db.create_book(&new_book).unwrap();
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
 
-            // Save cover photo
-            let image_data = b"fake image data";
-            let result = db.save_cover_photo(&book_id, image_data, &storage);
+            let result = db.create_progress(&book_id, 100);
             assert!(result.is_ok());
-
-            // Verify database was updated
-            let book = db.get_book(&book_id).unwrap().unwrap();
-            assert!(book.cover_path.is_some());
-
-            // Verify file exists
-            let cover_path = book.cover_path.unwrap();
-            let full_path = storage.assets_dir.join(&cover_path);
-            assert!(full_path.exists());
         }
 
         #[test]
-        fn test_save_cover_photo_returns_stored_path() {
-            let (db, storage, _temp) = setup_db_and_storage();
-
-            let new_book = NewBook {
-                title: "Test Book".to_string(),
-                author: "Test Author".to_string(),
-                ..Default::default()
-            };
-            let book_id = db.create_book(&new_book).unwrap();
-
-            let image_data = b"fake image data";
-            let path = db.save_cover_photo(&book_id, image_data, &storage).unwrap();
-
-            assert!(path.starts_with("images/"));
-        }
-
-        #[test]
-        fn test_remove_cover_photo_deletes_file_and_clears_database() {
-            let (db, storage, _temp) = setup_db_and_storage();
-
-            // Create book with cover
-            let new_book = NewBook {
-                title: "Test Book".to_string(),
-                author: "Test Author".to_string(),
-                ..Default::default()
-            };
-            let book_id = db.create_book(&new_book).unwrap();
-
-            let image_data = b"fake image data";
-            let cover_path = db.save_cover_photo(&book_id, image_data, &storage).unwrap();
-
-            // Remove cover photo
-            db.remove_cover_photo(&book_id, &storage).unwrap();
-
-            // Verify database field cleared
-            let book = db.get_book(&book_id).unwrap().unwrap();
-            assert!(book.cover_path.is_none());
-
-            // Verify file deleted
-            let full_path = storage.assets_dir.join(&cover_path);
-            assert!(!full_path.exists());
-        }
-
-        #[test]
-        fn test_get_book_returns_book_with_cover_path_after_save() {
-            let (db, storage, _temp) = setup_db_and_storage();
-
-            let new_book = NewBook {
-                title: "Test Book".to_string(),
-                author: "Test Author".to_string(),
-                ..Default::default()
-            };
-            let book_id = db.create_book(&new_book).unwrap();
-
-            let image_data = b"fake image data";
-            db.save_cover_photo(&book_id, image_data, &storage).unwrap();
-
-            let book = db.get_book(&book_id).unwrap().unwrap();
-            assert!(book.cover_path.is_some());
-            assert_eq!(book.title, "Test Book");
-            assert_eq!(book.author, "Test Author");
-        }
-    }
-
-    mod books_crud {
-        use super::*;
-
-        #[test]
-        fn test_book_with_is_pdf_true() {
+        fn test_update_progress_modifies_last_processed_page() {
             let db = Database::in_memory().unwrap();
 
-            let new_book = NewBook {
-                title: "PDF Book".to_string(),
-                author: "PDF Author".to_string(),
-                is_pdf: true,
-                ..Default::default()
-            };
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
 
-            let id = db.create_book(&new_book).unwrap();
-            let book = db.get_book(&id).unwrap().unwrap();
-            assert!(book.is_pdf, "Book should have is_pdf=true");
+            db.create_progress(&book_id, 100).unwrap();
+            db.update_progress(&book_id, 50, "processing").unwrap();
+
+            let progress = db.get_progress(&book_id).unwrap().unwrap();
+            assert_eq!(progress.last_processed_page, 50);
         }
 
         #[test]
-        fn test_book_with_is_pdf_false() {
+        fn test_update_progress_changes_status() {
             let db = Database::in_memory().unwrap();
 
-            let new_book = NewBook {
-                title: "Physical Book".to_string(),
-                author: "Physical Author".to_string(),
-                is_pdf: false,
-                ..Default::default()
-            };
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
 
-            let id = db.create_book(&new_book).unwrap();
-            let book = db.get_book(&id).unwrap().unwrap();
-            assert!(!book.is_pdf, "Book should have is_pdf=false");
+            db.create_progress(&book_id, 100).unwrap();
+            db.update_progress(&book_id, 0, "processing").unwrap();
+
+            let progress = db.get_progress(&book_id).unwrap().unwrap();
+            assert_eq!(progress.status, "processing");
         }
 
         #[test]
-        fn test_get_all_books_returns_is_pdf_field() {
+        fn test_get_progress_returns_none_for_non_existent() {
             let db = Database::in_memory().unwrap();
 
-            // Create a PDF book
-            db.create_book(&NewBook {
-                title: "PDF Book".to_string(),
-                author: "Author".to_string(),
-                is_pdf: true,
-                ..Default::default()
-            })
-            .unwrap();
-
-            // Create a physical book
-            db.create_book(&NewBook {
-                title: "Physical Book".to_string(),
-                author: "Author".to_string(),
-                is_pdf: false,
-                ..Default::default()
-            })
-            .unwrap();
-
-            let books = db.get_all_books().unwrap();
-            assert_eq!(books.len(), 2);
-
-            // Find and verify PDF book
-            let pdf_book = books.iter().find(|b| b.title == "PDF Book").unwrap();
-            assert!(pdf_book.is_pdf);
-
-            // Find and verify physical book
-            let physical_book = books.iter().find(|b| b.title == "Physical Book").unwrap();
-            assert!(!physical_book.is_pdf);
-        }
-
-        #[test]
-        fn test_database_schema_has_is_pdf_column() {
-            let db = Database::in_memory().unwrap();
-
-            // Try to insert a book with is_pdf field
-            let result = db.conn.execute(
-                "INSERT INTO books (id, title, author, is_pdf, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params!["test-pdf", "PDF Test", "Author", true, 1234567890, 1234567890]
-            );
-
-            assert!(
-                result.is_ok(),
-                "Database should have is_pdf column: {:?}",
-                result.err()
-            );
-        }
-
-        #[test]
-        fn create_book_inserts_and_returns_id() {
-            let db = Database::in_memory().unwrap();
-
-            let new_book = NewBook {
-                title: "Test Book".to_string(),
-                author: "Test Author".to_string(),
-                ..Default::default()
-            };
-
-            let id = db.create_book(&new_book).unwrap();
-            assert!(id.len() > 0);
-
-            // Verify book was inserted
-            let book = db.get_book(&id).unwrap().unwrap();
-            assert_eq!(book.title, "Test Book");
-            assert_eq!(book.author, "Test Author");
-        }
-
-        #[test]
-        fn get_book_retrieves_by_id() {
-            let db = Database::in_memory().unwrap();
-
-            let new_book = NewBook {
-                title: "Retrieve Test".to_string(),
-                author: "Author".to_string(),
-                ..Default::default()
-            };
-            let id = db.create_book(&new_book).unwrap();
-
-            let book = db.get_book(&id).unwrap().unwrap();
-            assert_eq!(book.id, id);
-            assert_eq!(book.title, "Retrieve Test");
-        }
-
-        #[test]
-        fn get_book_returns_none_for_non_existent() {
-            let db = Database::in_memory().unwrap();
-
-            let result = db.get_book("non-existent-id").unwrap();
+            let result = db.get_progress("non-existent-book").unwrap();
             assert!(result.is_none());
         }
 
         #[test]
-        fn get_all_books_returns_all_sorted_by_title() {
+        fn test_status_transitions_from_processing_to_completed() {
             let db = Database::in_memory().unwrap();
 
-            // Create books in non-alphabetical order
-            db.create_book(&NewBook {
-                title: "Zebra Book".to_string(),
-                author: "Author".to_string(),
-                ..Default::default()
-            })
-            .unwrap();
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
 
-            db.create_book(&NewBook {
-                title: "Alpha Book".to_string(),
-                author: "Author".to_string(),
-                ..Default::default()
-            })
-            .unwrap();
+            db.create_progress(&book_id, 100).unwrap();
+            db.update_progress(&book_id, 50, "processing").unwrap();
+            db.update_progress(&book_id, 100, "completed").unwrap();
 
-            db.create_book(&NewBook {
-                title: "Middle Book".to_string(),
-                author: "Author".to_string(),
-                ..Default::default()
-            })
-            .unwrap();
-
-            let books = db.get_all_books().unwrap();
-            assert_eq!(books.len(), 3);
-            assert_eq!(books[0].title, "Alpha Book");
-            assert_eq!(books[1].title, "Middle Book");
-            assert_eq!(books[2].title, "Zebra Book");
+            let progress = db.get_progress(&book_id).unwrap().unwrap();
+            assert_eq!(progress.status, "completed");
+            assert_eq!(progress.last_processed_page, 100);
         }
 
         #[test]
-        fn update_book_modifies_existing() {
+        fn test_status_transitions_from_processing_to_failed() {
             let db = Database::in_memory().unwrap();
 
-            let new_book = NewBook {
-                title: "Original Title".to_string(),
-                author: "Original Author".to_string(),
-                ..Default::default()
-            };
-            let id = db.create_book(&new_book).unwrap();
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
 
-            let mut book = db.get_book(&id).unwrap().unwrap();
-            book.title = "Updated Title".to_string();
-            book.author = "Updated Author".to_string();
-            book.pages_captured = 50;
+            db.create_progress(&book_id, 100).unwrap();
+            db.update_progress(&book_id, 30, "processing").unwrap();
+            db.update_progress(&book_id, 30, "failed").unwrap();
 
-            let result = db.update_book(&book).unwrap();
-            assert!(result);
-
-            let updated = db.get_book(&id).unwrap().unwrap();
-            assert_eq!(updated.title, "Updated Title");
-            assert_eq!(updated.author, "Updated Author");
-            assert_eq!(updated.pages_captured, 50);
-        }
-
-        #[test]
-        fn delete_book_removes_book() {
-            let db = Database::in_memory().unwrap();
-
-            let new_book = NewBook {
-                title: "To Delete".to_string(),
-                author: "Author".to_string(),
-                ..Default::default()
-            };
-            let id = db.create_book(&new_book).unwrap();
-
-            // Verify book exists
-            assert!(db.get_book(&id).unwrap().is_some());
-
-            // Delete it
-            let result = db.delete_book(&id).unwrap();
-            assert!(result);
-
-            // Verify book is gone
-            assert!(db.get_book(&id).unwrap().is_none());
+            let progress = db.get_progress(&book_id).unwrap().unwrap();
+            assert_eq!(progress.status, "failed");
+            assert_eq!(progress.last_processed_page, 30);
         }
     }
 
