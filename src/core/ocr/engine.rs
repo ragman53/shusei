@@ -193,27 +193,30 @@ impl NdlocrEngine {
     }
     
     /// Preprocess image for ONNX inference
-    /// Converts image bytes to normalized tensor in NCHW format [1, 1, H, W]
+    /// Converts image bytes to normalized tensor in NCHW format [1, 3, 1024, 1024] for NDLOCR-Lite detection
     fn preprocess_image_for_inference(&self, image_data: &[u8]) -> Result<Array4<f32>> {
         // Decode image
         let img = image::load_from_memory(image_data)
             .map_err(|e| OcrError::Preprocessing(format!("Failed to decode image: {}", e)))?;
         
-        // Convert to grayscale using DynamicImage
-        let gray: DynamicImage = img.to_luma8().into();
+        // Convert to RGB and wrap in DynamicImage for resize (NDLOCR-Lite detection model expects 3 channels)
+        let rgb: DynamicImage = img.to_rgb8().into();
         
-        // Resize to model input size (960x960 for NDLOCR-Lite)
-        let target_size = 960u32;
-        let resized = gray.resize(target_size, target_size, image::imageops::FilterType::Lanczos3);
-        let resized_gray = resized.to_luma8();
+        // Resize to model input size (1024x1024 for NDLOCR-Lite detection)
+        let target_size = 1024u32;
+        let resized = rgb.resize(target_size, target_size, image::imageops::FilterType::Lanczos3);
+        let resized_rgb = resized.to_rgb8();
         
-        // Convert to ndarray and normalize to [0, 1]
-        let mut tensor = Array4::<f32>::zeros((1, 1, target_size as usize, target_size as usize));
+        // Convert to ndarray and normalize to [0, 1] in NCHW format [1, 3, H, W]
+        let mut tensor = Array4::<f32>::zeros((1, 3, target_size as usize, target_size as usize));
         
         for y in 0..target_size as usize {
             for x in 0..target_size as usize {
-                let pixel = resized_gray.get_pixel(x as u32, y as u32);
-                tensor[[0, 0, y, x]] = pixel[0] as f32 / 255.0;
+                let pixel = resized_rgb.get_pixel(x as u32, y as u32);
+                // Fill all 3 channels: R, G, B
+                tensor[[0, 0, y, x]] = pixel[0] as f32 / 255.0; // R channel
+                tensor[[0, 1, y, x]] = pixel[1] as f32 / 255.0; // G channel
+                tensor[[0, 2, y, x]] = pixel[2] as f32 / 255.0; // B channel
             }
         }
         
@@ -264,9 +267,9 @@ impl NdlocrEngine {
         let img = image::load_from_memory(image_data)
             .map_err(|e| OcrError::Preprocessing(format!("Failed to decode image: {}", e)))?;
         
-        // Scale box coordinates to original image size
-        let scale_x = original_width as f32 / 960.0;
-        let scale_y = original_height as f32 / 960.0;
+        // Scale box coordinates from detection model output (1024x1024) to original image size
+        let scale_x = original_width as f32 / 1024.0;
+        let scale_y = original_height as f32 / 1024.0;
         
         let x1 = (box_.x1 * scale_x).max(0.0) as u32;
         let y1 = (box_.y1 * scale_y).max(0.0) as u32;
@@ -435,7 +438,7 @@ impl NdlocrEngine {
     /// Run detection and recognition inference to extract text
     fn run_inference_and_extract(&self, detection_session: &mut Session, input_data: &[f32], image_bytes: &[u8]) -> Result<(Vec<String>, Vec<f32>)> {
         // Step 1: Run detection
-        let tensor = Value::from_array(([1usize, 3, 960, 960], input_data.to_vec()))
+        let tensor = Value::from_array(([1usize, 3, 1024, 1024], input_data.to_vec()))
             .map_err(|e| OcrError::Inference(format!("Failed to create input tensor: {}", e)))?;
         
         let det_outputs = detection_session.run(ort::inputs![tensor])
@@ -634,8 +637,8 @@ mod tests {
         assert!(tensor.is_ok());
         let tensor = tensor.unwrap();
         
-        // Check tensor shape: [1, 1, 960, 960]
-        assert_eq!(tensor.shape(), &[1, 1, 960, 960]);
+        // Check tensor shape: [1, 3, 1024, 1024] for RGB detection
+        assert_eq!(tensor.shape(), &[1, 3, 1024, 1024]);
         
         // Check values are normalized to [0, 1]
         for &val in tensor.iter() {
@@ -839,7 +842,7 @@ mod tests {
         ).unwrap();
         
         // Create engine with bundled models
-        let engine = NdlocrEngine::new("assets/ocr/models", "ja");
+        let mut engine = NdlocrEngine::new("assets/ocr/models", "ja");
         
         // Initialize will succeed if models are present
         match engine.initialize().await {
