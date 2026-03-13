@@ -102,6 +102,20 @@ Plans:
 
 ---
 
+### Phase 03.2: Change PDF processing library (INSERTED)
+
+**Goal:** Replace pdfium-render with hayro for PDF rendering to eliminate CRT linking conflict
+
+**Requirements**: PDF-02, PERF-02
+**Depends on:** Phase 3
+**Plans:** 4 plans
+
+Plans:
+- [ ] 03.2-01-PLAN.md — Core hayro integration (replace pdfium-render, basic rendering)
+- [ ] 03.2-02-PLAN.md — Batch processing with parallel rendering (10 pages/batch)
+- [ ] 03.2-03-PLAN.md — Error handling and retry logic
+- [ ] 03.2-04-PLAN.md — Testing and human OCR accuracy validation
+
 ### Phase 03.1: Change OCR onnx models (INSERTED)
 
 **Goal:** Switch from PaddleOCR to NDLOCR-Lite models for 63% size reduction and better Japanese OCR
