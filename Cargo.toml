@@ -27,12 +27,9 @@ ort = "2.0.0-rc.12"
 image = "0.25"
 ndarray = "0.16"
 
-# PDF Processing (optional - for Phase 2)
-# Using dynamic linking with pre-built binaries from bblanchon/pdfium-binaries
-# See: https://github.com/bblanchon/pdfium-binaries/releases
-# Download pdfium.dll and place in project root or target directory
-# Uses runtime dynamic loading - no compile-time linking
-pdfium-render = { version = "0.8", default-features = false, features = ["thread_safe", "pdfium_latest"], optional = true }
+# PDF Processing - Pure Rust PDF renderer (hayro)
+# Eliminates CRT linking conflicts from pdfium-render
+hayro = "0.4"
 
 # Database
 rusqlite = { version = "0.32", features = ["bundled"] }
@@ -86,7 +83,6 @@ ios = []
 desktop = []
 web = []
 lindera = ["dep:lindera"]
-pdf = ["dep:pdfium-render"]
 ndlocr-test = []  # Enable NDLOCR tract compatibility tests
 moonshine-test = []  # Enable Moonshine tract compatibility tests
 
