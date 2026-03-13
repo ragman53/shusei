@@ -116,7 +116,7 @@ impl PdfProcessor {
 
         for i in 0..total_pages {
             progress_callback(i + 1, total_pages);
-            let image = self.render_page(document, i, width, height)?;
+            let image = self.render_with_retry(document, i, width, height)?;
             images.push(image);
         }
 
@@ -161,20 +161,19 @@ impl PdfProcessor {
             .unwrap();
 
         // Render pages with retry logic and skip-on-failure
-        let pages: Vec<_> = pool.install(|| {
+        let pages: Vec<Vec<u8>> = pool.install(|| {
             (start_idx..end_idx)
                 .into_par_iter()
-                .map(|i| {
+                .filter_map(|i| {
                     let page_index = i as u32;
                     match self.render_with_retry(document, page_index, width, height) {
-                        Ok(image) => Some(Ok(image)),
+                        Ok(image) => Some(image),
                         Err(e) => {
                             log::warn!("Skipping page {} after retry: {}", page_index, e);
                             None // Skip failed pages
                         }
                     }
                 })
-                .filter_map(|result| result)
                 .collect()
         });
 
