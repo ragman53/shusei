@@ -31,6 +31,9 @@ ndarray = "0.16"
 # Eliminates CRT linking conflicts from pdfium-render
 hayro = "0.4"
 
+# Parallel processing
+rayon = "1.8"
+
 # Database
 rusqlite = { version = "0.32", features = ["bundled"] }
 

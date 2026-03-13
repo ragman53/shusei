@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use hayro::{Pdf, RenderSettings, InterpreterSettings, render};
 use log::{info, debug, warn};
+use rayon::prelude::*;
 
 use crate::core::error::{Result, ShuseiError};
 use crate::core::db::Database;
@@ -47,8 +48,8 @@ impl PdfProcessor {
     }
 
     /// Get the number of pages in a PDF
-    pub fn page_count(&self, document: &PdfDocument) -> u32 {
-        document.pdf.pages().len() as u32
+    pub fn page_count(&self, document: &PdfDocument) -> usize {
+        document.pdf.pages().len()
     }
 
     /// Render a page to an image
@@ -81,6 +82,27 @@ impl PdfProcessor {
         Ok(pixmap.data_as_u8_slice().to_vec())
     }
 
+    /// Render a page with retry-once logic
+    ///
+    /// Attempts to render the page, and if it fails, retries once before returning the error.
+    fn render_with_retry(
+        &self,
+        document: &PdfDocument,
+        page_index: u32,
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<u8>> {
+        // First attempt
+        match self.render_page(document, page_index, width, height) {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                log::warn!("Render failed for page {}, retrying...", page_index);
+                // Retry once
+                self.render_page(document, page_index, width, height)
+            }
+        }
+    }
+
     /// Render all pages as images
     pub fn render_all_pages(
         &self,
@@ -89,7 +111,7 @@ impl PdfProcessor {
         height: u32,
         mut progress_callback: impl FnMut(u32, u32),
     ) -> Result<Vec<Vec<u8>>> {
-        let total_pages = self.page_count(document);
+        let total_pages = self.page_count(document) as u32;
         let mut images = Vec::with_capacity(total_pages as usize);
 
         for i in 0..total_pages {
@@ -101,65 +123,62 @@ impl PdfProcessor {
         Ok(images)
     }
 
-    /// Render a batch of pages with progress tracking and resume support
+    /// Render a batch of pages with parallel processing and concurrency control
     ///
     /// # Arguments
     /// * `document` - PDF document to render
-    /// * `book_id` - Book identifier for progress tracking
-    /// * `db` - Database connection for progress tracking
-    /// * `storage` - Storage service for saving rendered images
-    /// * `batch_size` - Number of pages to render per batch (default: 10)
+    /// * `start_page` - Starting page index (0-based)
+    /// * `batch_size` - Number of pages to render in this batch (default: 10)
     /// * `width` - Target width for rendered images
     /// * `height` - Target height for rendered images
     ///
     /// # Returns
-    /// Vec of (page_number, image_bytes) for the batch
+    /// Vec of rendered page images
     pub fn render_pages_batch(
         &self,
         document: &PdfDocument,
-        book_id: &str,
-        db: &Database,
-        storage: &StorageService,
-        batch_size: u32,
+        start_page: u32,
+        batch_size: usize,
         width: u32,
         height: u32,
-    ) -> Result<Vec<(u32, Vec<u8>)>> {
-        // Get current progress to determine starting page
-        let progress = db.get_progress(book_id)?;
-        let last_processed = progress
-            .as_ref()
-            .map(|p| p.last_processed_page as u32)
-            .unwrap_or(0);
+    ) -> Result<Vec<Vec<u8>>> {
         let total_pages = self.page_count(document);
+        let start_idx = start_page as usize;
+        let end_idx = std::cmp::min(start_idx + batch_size, total_pages);
 
-        // Calculate batch range - ensure consistent u32 types
-        let start_page = last_processed;
-        let end_page = std::cmp::min(start_page + batch_size, total_pages);
-
-        if start_page >= end_page {
-            // All pages already rendered
+        if start_idx >= end_idx {
+            // No pages to render
             return Ok(Vec::new());
         }
 
-        let mut rendered_pages = Vec::with_capacity((end_page - start_page) as usize);
+        debug!("Rendering pages {}-{} of {}", start_idx + 1, end_idx, total_pages);
 
-        // Render pages in the batch
-        for page_num in start_page..end_page {
-            let image_bytes = self.render_page(document, page_num, width, height)?;
-            
-            // Save image to storage
-            let _image_path = storage.save_image(
-                &image_bytes,
-                &format!("pdf_pages/{}", book_id),
-            )?;
-            
-            rendered_pages.push((page_num, image_bytes));
-        }
+        // Use rayon for parallel iteration with concurrency control
+        // Limit to 3 concurrent render operations to prevent memory spikes
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(3)
+            .build()
+            .unwrap();
 
-        // Update progress after batch complete
-        db.update_progress(book_id, end_page as i32, "processing")?;
+        // Render pages with retry logic and skip-on-failure
+        let pages: Vec<_> = pool.install(|| {
+            (start_idx..end_idx)
+                .into_par_iter()
+                .map(|i| {
+                    let page_index = i as u32;
+                    match self.render_with_retry(document, page_index, width, height) {
+                        Ok(image) => Some(Ok(image)),
+                        Err(e) => {
+                            log::warn!("Skipping page {} after retry: {}", page_index, e);
+                            None // Skip failed pages
+                        }
+                    }
+                })
+                .filter_map(|result| result)
+                .collect()
+        });
 
-        Ok(rendered_pages)
+        Ok(pages)
     }
 
     /// Import a PDF file: copy to app directory and extract metadata
@@ -306,6 +325,7 @@ impl PdfConversionService {
         let (total_pages_u32, all_pages) = {
             let document = self.pdf_processor.open(pdf_path)?;
             let total_pages = self.pdf_processor.page_count(&document);
+            let total_pages_u32 = total_pages as u32;
             
             info!("PDF opened: {} pages", total_pages);
             
@@ -316,55 +336,57 @@ impl PdfConversionService {
             progress_cb(ConversionProgress {
                 stage: ConversionStage::Rendering,
                 current_page: 0,
-                total_pages,
+                total_pages: total_pages_u32,
             });
 
-            // Render all pages (document borrowed here but released at end of block)
+            // Render all pages using batch processing with parallel rendering
             let batch_size = 10;
-            let mut rendered_count: u32 = 0;
             let mut all_pages: Vec<(u32, Vec<u8>)> = Vec::new();
-            let mut batch_num = 0;
+            let mut current_page = 0u32;
             
-            loop {
-                batch_num += 1;
+            while current_page < total_pages_u32 {
                 let batch_start = std::time::Instant::now();
                 
-                let pages = self.pdf_processor.render_pages_batch(
+                // Render batch with parallel processing
+                let batch_images = self.pdf_processor.render_pages_batch(
                     &document,
-                    book_id,
-                    &self.db,
-                    &self.storage,
+                    current_page,
                     batch_size,
                     800,
                     1000,
                 )?;
 
-                if pages.is_empty() {
-                    debug!("Batch {}: No more pages to render", batch_num);
-                    break; // All pages rendered
-                }
-
-                let batch_len = pages.len();
-                let batch_time = batch_start.elapsed();
-                rendered_count += batch_len as u32;
-                all_pages.extend(pages);
-                
-                info!(
-                    "Batch {} complete: rendered {} pages (total: {}/{}), time: {:.2?}",
-                    batch_num,
-                    batch_len,
-                    rendered_count,
-                    total_pages,
-                    batch_time
-                );
-
-                // Check if all pages are done
-                if rendered_count >= total_pages {
+                if batch_images.is_empty() {
                     break;
                 }
+
+                let batch_len = batch_images.len();
+                let batch_time = batch_start.elapsed();
+                
+                // Store pages with their numbers and save to storage
+                for (i, image_bytes) in batch_images.into_iter().enumerate() {
+                    let page_num = current_page + i as u32;
+                    let _image_path = self.storage.save_image(
+                        &image_bytes,
+                        &format!("pdf_pages/{}", book_id),
+                    )?;
+                    all_pages.push((page_num, image_bytes));
+                }
+                
+                // Update progress after batch complete
+                current_page += batch_len as u32;
+                self.db.update_progress(book_id, current_page as i32, "processing")?;
+                
+                info!(
+                    "Batch complete: rendered {} pages (total: {}/{}), time: {:.2?}",
+                    batch_len,
+                    current_page,
+                    total_pages_u32,
+                    batch_time
+                );
             }
             
-            (total_pages, all_pages)
+            (total_pages_u32, all_pages)
             // document dropped here
         };
 
@@ -487,41 +509,23 @@ startxref
             let pdf_path = temp_dir.path().join("test.pdf");
             create_test_pdf(&pdf_path).unwrap();
 
-            // Create database and storage
-            let db = Database::in_memory().unwrap();
-            let storage_dir = TempDir::new().unwrap();
-            let storage = StorageService::new(storage_dir.path().to_path_buf()).unwrap();
-
-            // Create book
-            let book_id = db
-                .create_book(&NewBook {
-                    title: "Test Book".to_string(),
-                    author: "Author".to_string(),
-                    ..Default::default()
-                })
-                .unwrap();
-
-            // Initialize progress
-            db.create_progress(&book_id, 3).unwrap();
-
             // Open PDF
             let document = processor.open(&pdf_path).unwrap();
 
-            // Render batch
+            // Render batch (pages 0-2, batch size 10)
             let result = processor
-                .render_pages_batch(&document, &book_id, &db, &storage, 10, 800, 1000);
+                .render_pages_batch(&document, 0, 10, 800, 1000);
 
             if let Ok(pages) = result {
                 assert_eq!(pages.len(), 3);
-                for (page_num, bytes) in pages {
-                    assert!(page_num < 3);
+                for bytes in pages {
                     assert!(!bytes.is_empty());
                 }
             }
         }
 
         #[tokio::test]
-        async fn test_render_pages_batch_returns_page_number_and_bytes() {
+        async fn test_render_pages_batch_returns_bytes() {
             let processor = PdfProcessor::new();
             if processor.is_err() {
                 println!("Skipping test - pdfium not available");
@@ -534,28 +538,13 @@ startxref
             let pdf_path = temp_dir.path().join("test.pdf");
             create_test_pdf(&pdf_path).unwrap();
 
-            let db = Database::in_memory().unwrap();
-            let storage_dir = TempDir::new().unwrap();
-            let storage = StorageService::new(storage_dir.path().to_path_buf()).unwrap();
-
-            let book_id = db
-                .create_book(&NewBook {
-                    title: "Test".to_string(),
-                    author: "Author".to_string(),
-                    ..Default::default()
-                })
-                .unwrap();
-
-            db.create_progress(&book_id, 3).unwrap();
-
             let document = processor.open(&pdf_path).unwrap();
             let result = processor
-                .render_pages_batch(&document, &book_id, &db, &storage, 10, 800, 1000);
+                .render_pages_batch(&document, 0, 10, 800, 1000);
 
             if let Ok(pages) = result {
-                // Verify structure: Vec<(page_number, image_bytes)>
-                for (page_num, bytes) in pages {
-                    assert!(page_num < 3, "Page number should be valid");
+                // Verify structure: Vec<Vec<u8>>
+                for bytes in pages {
                     assert!(!bytes.is_empty(), "Image bytes should not be empty");
                 }
             }
