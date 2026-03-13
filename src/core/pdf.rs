@@ -526,8 +526,7 @@ startxref
 
             // Render batch
             let result = processor
-                .render_pages_batch(&document, &book_id, &db, &storage, 10, 800, 1000)
-                .await;
+                .render_pages_batch(&document, &book_id, &db, &storage, 10, 800, 1000);
 
             if let Ok(pages) = result {
                 assert_eq!(pages.len(), 3);
@@ -568,8 +567,7 @@ startxref
 
             let document = processor.open(&pdf_path).unwrap();
             let result = processor
-                .render_pages_batch(&document, &book_id, &db, &storage, 10, 800, 1000)
-                .await;
+                .render_pages_batch(&document, &book_id, &db, &storage, 10, 800, 1000);
 
             if let Ok(pages) = result {
                 // Verify structure: Vec<(page_number, image_bytes)>
