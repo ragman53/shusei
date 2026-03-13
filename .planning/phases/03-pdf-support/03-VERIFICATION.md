@@ -1,6 +1,6 @@
 ---
 phase: 03-pdf-support
-verified: 2026-03-12T17:30:00Z
+verified: 2026-03-13T06:30:00Z
 status: gaps_found
 score: 10/12 must-haves verified
 re_verification:
@@ -12,9 +12,16 @@ re_verification:
     - "PDF is copied to app directory and book record created"
     - "User can start OCR conversion on imported PDF"
     - "Progress shows stage (Rendering → OCR → Saving) and page numbers"
+  gaps_closed:
+    - "User can select a PDF file from device storage"
+    - "PDF metadata is extracted and shown for review"
+    - "PDF is copied to app directory and book record created"
+    - "User can start OCR conversion on imported PDF"
+    - "Progress shows stage (Rendering → OCR → Saving) and page numbers"
+    - "Test infrastructure ready for large PDF processing verification"
   gaps_remaining:
     - "User can read converted PDF content in reflow mode"
-    - "Large PDFs (100+ pages) process without crashing"
+    - "Large PDFs (100+ pages) process without crashing - awaiting human verification"
   regressions: []
 gaps:
   - truth: "User can read converted PDF content in reflow mode"
@@ -30,24 +37,31 @@ gaps:
       - "Implement postprocessing to parse actual model output format"
   - truth: "Large PDFs (100+ pages) process without crashing"
     status: partial
-    reason: "Batch processing logic exists (batch_size=10, parallel OCR with concurrency limit 3) but needs human testing with real large PDFs"
+    reason: "Batch processing logic exists and test infrastructure is ready, awaiting human verification on actual device"
     artifacts:
       - path: "src/core/pdf.rs"
         issue: "Lines 331-357: Batch processing implemented correctly"
       - path: "src/core/ocr/engine.rs"
         issue: "Line 359: buffer_unordered(3) limits concurrent OCR to 3"
+      - path: "tests/large_pdf_test.pdf"
+        issue: "Test PDF ready: 373 pages, 14MB (Difference and Repetition by Deleuze)"
+      - path: "tests/large_pdf_test.md"
+        issue: "Complete test procedure documented with monitoring steps"
     missing:
-      - "Human testing with 100+ page PDF"
+      - "Human verification on Android device with performance monitoring"
 human_verification:
   - test: "Import a real PDF file and verify book appears in library"
     expected: "PDF imported, book created with is_pdf=true, shown in library with badge"
     why_human: "Requires running application with file system access and pdfium library"
+    status: "✓ READY - Test PDF available (373 pages)"
   - test: "Trigger OCR conversion with ONNX models and observe text extraction"
     expected: "OCR extracts actual text from PDF pages, displays in reflow reader"
     why_human: "Requires NDLOCR-Lite ONNX models to be downloaded/bundled"
+    status: "⚠️ BLOCKED - ONNX models not bundled"
   - test: "Process a 100+ page PDF and verify no memory crash"
     expected: "Processing completes without crash, memory usage stable"
     why_human: "Requires large PDF file and performance monitoring"
+    status: "✓ READY - Test infrastructure complete, awaiting device testing"
 ---
 
 # Phase 03: PDF Support Verification Report (Re-verification)
@@ -80,7 +94,7 @@ human_verification:
 | Gap | Status | Blocker |
 |-----|--------|---------|
 | OCR text extraction | ⚠️ PARTIAL | ONNX models not bundled, postprocessing returns empty |
-| Large PDF processing | ⚠️ PARTIAL | Needs human testing |
+| Large PDF processing | ⚠️ PARTIAL | Test infrastructure ready, awaiting human verification on device |
 
 ## Goal Achievement
 
@@ -94,7 +108,7 @@ human_verification:
 | 4 | User can start OCR conversion on imported PDF | ✓ VERIFIED | Convert button in BookCard and reader empty state |
 | 5 | Progress shows stage and page numbers | ✓ VERIFIED | ConversionProgressDisplay shows stage icons (📄/🔍/✓), page numbers, progress bar |
 | 6 | Processing resumes from last page after interruption | ✓ VERIFIED | processing_progress table + resume logic in render_pages_batch |
-| 7 | Large PDFs (100+ pages) process without crashing | ⚠️ PARTIAL | Batch logic exists, needs human testing |
+| 7 | Large PDFs (100+ pages) process without crashing | ⚠️ PARTIAL | Test infrastructure ready (373-page PDF, monitoring, procedure), awaiting device verification |
 | 8 | User can read converted PDF content in reflow mode | ⚠️ PARTIAL | Reader UI works, but OCR returns empty text |
 | 9 | User can adjust font size with slider (12px-32px) | ✓ VERIFIED | reader.rs:126-137 - Slider with 18px default, 12-32px range |
 | 10 | User can jump to specific page number | ✓ VERIFIED | PageJumpModal with validation (components.rs:231-289) |
@@ -185,12 +199,23 @@ Note: Known issue, requires conditional compilation for UI modules
 - Convert button in library and reader ✓
 - Progress display with stages and page numbers ✓
 - Reader UI with reflow, font controls, page jump ✓
+- Large PDF test infrastructure ✓ (373-page test PDF, monitoring, documented procedure)
 
 **What's Missing:**
 - ONNX model bundling
 - Postprocessing to extract text from model outputs
+- Human verification of large PDF processing on actual device
+
+### Test Infrastructure Status (Plan 03-07)
+
+**Large PDF Test Ready:**
+- Test file: `tests/large_pdf_test.pdf` (373 pages, 14MB)
+- Source: "Difference and Repetition" by Gilles Deleuze
+- Test procedure: `tests/large_pdf_test.md` (complete with monitoring steps)
+- Monitoring: Logging in pdf.rs (batch timing) and engine.rs (OCR progress)
+- Status: ✓ Ready for human verification on Android device
 
 ---
 
-_Verified: 2026-03-12T17:30:00Z_
+_Verified: 2026-03-13T06:30:00Z_
 _Verifier: OpenCode (gsd-verifier)_
