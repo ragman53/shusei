@@ -54,7 +54,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Performance
 
 - [ ] **PERF-01**: Android Go デバイス（2GB RAM）で動作
-- [ ] **PERF-02**: 画像処理中に UI がフリーズしない（バックグラウンド処理）
+- [x] **PERF-02**: 画像処理中に UI がフリーズしない（バックグラウンド処理）
 - [ ] **PERF-03**: 音声ストリーミング中にバッファオーバーフロー防止
 
 ## v2 Requirements
@@ -119,7 +119,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AI-03 | Phase 6 | Pending |
 | AI-04 | Phase 6 | Pending |
 | PERF-01 | Phase 7 | Pending |
-| PERF-02 | Phase 7 | Pending |
+| PERF-02 | Phase 7 | Complete |
 | PERF-03 | Phase 7 | Pending |
 
 **Phase Mapping Summary:**
