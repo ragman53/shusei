@@ -86,6 +86,7 @@ None currently.
 | 2 | Fix dx serve --android build failure (make tokenizers desktop-only) | 2026-03-13 | d8476b9 | [002-debug-dx-serve-android](./quick/002-debug-dx-serve-android/) |
 | 3 | Fix Android linker path with absolute Windows NDK paths | 2026-03-13 | 7f44f03 | [003-fix-android-linker-path](./quick/003-fix-android-linker-path/) |
 | 4 | Add bundled test PDF and Load Demo PDF button for Android | 2026-03-13 | 77eabd9 | [004-add-pdf-test-assets](./quick/004-add-pdf-test-assets/) |
+| 5 | Add Load Demo PDF button for desktop users | 2026-03-14 | 25526cc | [006-add-load-demo-pdf-button-for-desktop](./quick/006-add-load-demo-pdf-button-for-desktop/) |
 
 ### Known Issues
 
@@ -96,7 +97,7 @@ None currently.
 
 ## Session Continuity
 
-**Last action:** 2026-03-13 - Completed quick task 004: Add bundled test PDF and Load Demo PDF button for Android
+**Last action:** 2026-03-14 - Completed quick task 006: Add Load Demo PDF button for desktop users
 
 **Next action:** Human verification of OCR accuracy with 373-page PDF, then phase merge
 
