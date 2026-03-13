@@ -30,6 +30,8 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.concurrent.Semaphore;
@@ -180,6 +182,40 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
             } else {
                 vibrator.vibrate(durationMs);
             }
+        }
+    }
+    
+    /**
+     * Copy an asset from APK assets to the app's files directory.
+     * Called from Rust via JNI.
+     * @param assetPath Path within APK assets (e.g., "test/medium_pdf_test.pdf")
+     * @param targetPath Full path to copy the file to
+     * @return true if successful, false otherwise
+     */
+    public static boolean copyAssetToFiles(String assetPath, String targetPath) {
+        if (instance == null) {
+            Log.e(TAG, "copyAssetToFiles: instance is null");
+            return false;
+        }
+        
+        try {
+            InputStream is = instance.getAssets().open(assetPath);
+            FileOutputStream fos = new FileOutputStream(targetPath);
+            
+            byte[] buffer = new byte(8192);
+            int bytesRead;
+            while ((bytesRead = is.read(buffer)) != -1) {
+                fos.write(buffer, 0, bytesRead);
+            }
+            
+            fos.close();
+            is.close();
+            
+            Log.i(TAG, "Copied asset " + assetPath + " to " + targetPath);
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to copy asset: " + assetPath, e);
+            return false;
         }
     }
     

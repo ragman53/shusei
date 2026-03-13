@@ -114,6 +114,7 @@ pub fn LibraryScreen() -> Element {
         });
     });
 
+    #[cfg(not(target_os = "android"))]
     let handle_import_pdf = move |_| {
         spawn(async move {
             importing.set(true);
@@ -163,6 +164,76 @@ pub fn LibraryScreen() -> Element {
                         log::error!("Failed to create PdfProcessor: {:?}", e);
                         error_message.set(Some(format!("Failed to initialize PDF processor: {}", e)));
                     }
+                }
+            }
+            
+            importing.set(false);
+        });
+    };
+    
+    #[cfg(target_os = "android")]
+    let handle_import_pdf = move |_| {
+        spawn(async move {
+            error_message.set(Some("PDF import not available on mobile".to_string()));
+        });
+    };
+    
+    // Load demo PDF handler for Android
+    #[cfg(target_os = "android")]
+    let load_demo_pdf = move |_| {
+        spawn(async move {
+            importing.set(true);
+            error_message.set(None);
+            
+            log::info!("Loading demo PDF from bundled assets...");
+            
+            // Copy asset from APK to files directory
+            let demo_path = match crate::platform::android::copy_asset_to_files("test/medium_pdf_test.pdf") {
+                Ok(path) => path,
+                Err(e) => {
+                    log::error!("Failed to copy demo PDF from assets: {:?}", e);
+                    error_message.set(Some(format!("Failed to load demo PDF: {}", e)));
+                    importing.set(false);
+                    return;
+                }
+            };
+            
+            log::info!("Demo PDF copied to: {:?}", demo_path);
+            
+            // Get app data directory
+            let app_data_dir = match crate::platform::android::get_assets_directory() {
+                Ok(dir) => dir,
+                Err(e) => {
+                    log::error!("Failed to get assets directory: {:?}", e);
+                    error_message.set(Some(format!("Failed to get app directory: {}", e)));
+                    importing.set(false);
+                    return;
+                }
+            };
+            
+            // Import PDF using PdfProcessor
+            match PdfProcessor::new() {
+                Ok(processor) => {
+                    match processor.import_pdf(&demo_path, &app_data_dir) {
+                        Ok((metadata, copied_path)) => {
+                            log::info!("Demo PDF imported: {:?} -> {}", metadata, copied_path);
+                            
+                            // Show metadata review dialog
+                            review_title.set(metadata.title.clone().unwrap_or_else(|| "Demo PDF".to_string()));
+                            review_author.set(metadata.author.clone().unwrap_or_default());
+                            review_pages.set(metadata.page_count);
+                            pending_metadata.set(Some((metadata, copied_path)));
+                            show_metadata_dialog.set(true);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to import demo PDF: {:?}", e);
+                            error_message.set(Some(format!("Failed to import demo PDF: {}", e)));
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to create PdfProcessor: {:?}", e);
+                    error_message.set(Some(format!("Failed to initialize PDF processor: {}", e)));
                 }
             }
             
@@ -253,6 +324,19 @@ pub fn LibraryScreen() -> Element {
                         "Importing..."
                     } else {
                         "Import PDF"
+                    }
+                }
+
+                // Load Demo PDF button (Android only)
+                #[cfg(target_os = "android")]
+                button {
+                    class: "bg-orange-500 text-white px-4 py-2 rounded-lg",
+                    onclick: load_demo_pdf,
+                    disabled: importing(),
+                    if importing() {
+                        "Loading..."
+                    } else {
+                        "Load Demo PDF"
                     }
                 }
             }
