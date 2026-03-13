@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-last_updated: "2026-03-13T11:19:35.114Z"
+last_updated: "2026-03-13T12:45:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 3
@@ -82,23 +82,26 @@ None currently.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | 開発中に不要になったファイルやディレクトリを整理 | 2026-03-13 | 5d2efc1 | [001-cleanup-unnecessary-files](./quick/001-cleanup-unnecessary-files/) |
+| 2 | Fix dx serve --android build failure (make tokenizers desktop-only) | 2026-03-13 | d8476b9 | [002-debug-dx-serve-android](./quick/002-debug-dx-serve-android/) |
 
 ### Known Issues
 
 - **CRT Linking Conflict (ort dependency):** Tests cannot compile due to ort linking both dynamic and static C++ runtime libraries. Tests designed to skip gracefully. Resolution out of scope for Phase 03.2.
 - **Human Verification Pending:** OCR accuracy validation with 373-page PDF requires manual execution (auto-approved for workflow continuation).
+- **Android NDK Linker Not Found:** Android builds require NDK toolchain in PATH. Code compiles successfully (cargo check passes) but linking fails with `aarch64-linux-android30-clang not found`.
 
 ---
 
 ## Session Continuity
 
-**Last action:** 2026-03-13 - Completed quick task 1: 開発中に不要になったファイルやディレクトリを整理
+**Last action:** 2026-03-13 - Completed quick task 2: Fix dx serve --android build failure
 
 **Next action:** Human verification of OCR accuracy with 373-page PDF, then phase merge
 
 **Open questions:**
 - CRT linking issue with ort dependency (pre-existing, tests skip gracefully)
 - OCR accuracy equivalence validation (pending human verification)
+- Android NDK toolchain configuration (infrastructure issue, not code-related)
 
 **Context freshness:** Full context loaded from:
 - Phase 03.2 summaries (03.2-01 through 03.2-04)
@@ -120,5 +123,5 @@ None currently.
 ---
 
 *State initialized: 2026-03-11*
-*Last updated: 2026-03-13 (Phase 03.2 complete)*
+*Last updated: 2026-03-13 (Quick task 002 complete)*
 *Next: Human verification, then merge phase 03.2*
