@@ -1,189 +1,165 @@
 # Architecture
 
-**Analysis Date:** 2026-03-11
+**Analysis Date:** 2026-03-13
 
 ## Pattern Overview
 
-**Overall:** Layered Architecture with Platform Abstraction Layer
-
-This codebase follows a layered architecture pattern with clear separation of concerns:
-- **UI Layer**: Dioxus components for cross-platform rendering
-- **Core Layer**: Business logic independent of UI and platform
-- **Platform Layer**: Platform-specific abstractions (Android via JNI, iOS, Desktop)
+**Overall:** Layered architecture with platform abstraction
 
 **Key Characteristics:**
-- Platform-agnostic core business logic
-- Trait-based abstractions for extensibility (OcrEngine, SttEngine, PlatformApi)
-- Async/await pattern throughout for non-blocking operations
-- Error handling via custom error enums with thiserror
-- Feature flags for conditional compilation (android, ios, desktop, web, pdf, lindera)
+- Clear separation between UI, core business logic, and platform-specific code
+- Trait-based abstraction for external dependencies (OCR, STT, Platform APIs)
+- Async-first design using Tokio runtime
+- Cross-platform targeting (Desktop, Android, iOS) via conditional compilation
 
 ## Layers
 
-### Core Layer
-- **Purpose**: Business logic for OCR, STT, database, and vocabulary management
-- **Location**: `src/core/`
-- **Contains**: Engine implementations, data models, error types, database operations
-- **Depends on**: External crates (tract-onnx, rusqlite, image, ndarray, tokenizers)
-- **Used by**: UI layer, Platform layer
+**UI Layer:**
+- Purpose: User interface components and routing
+- Location: `src/ui/`
+- Contains: Dioxus components, pages, reusable UI elements
+- Depends on: Core layer for business logic, Platform layer for native features
+- Used by: Main application entry point
 
-**Sub-modules:**
-- `ocr/` - OCR pipeline with NDLOCR-Lite ONNX models
-- `stt/` - Speech-to-text with Moonshine Tiny models
-- `db.rs` - SQLite database with FTS5 for search
-- `vocab.rs` - Japanese word extraction and vocabulary management
-- `pdf.rs` - PDF rendering (optional, requires `pdf` feature)
-- `error.rs` - Centralized error types
+**Core Layer:**
+- Purpose: Platform-agnostic business logic
+- Location: `src/core/`
+- Contains: OCR pipeline, STT pipeline, database operations, storage, models
+- Depends on: External crates (tract, ort, rusqlite, hayro)
+- Used by: UI layer, exported as library via `src/lib.rs`
 
-### UI Layer
-- **Purpose**: Dioxus-based user interface components
-- **Location**: `src/ui/`
-- **Contains**: Page components, shared UI components
-- **Depends on**: Core layer, PlatformApi
-- **Used by**: App routing layer
-
-**Sub-modules:**
-- `camera.rs` - Camera capture and OCR trigger page
-- `notes.rs` - Sticky notes list and search
-- `reader.rs` - PDF library and reading view
-- `vocab.rs` - Vocabulary list management
-- `components.rs` - Reusable UI components (Button, Card, LoadingSpinner, etc.)
-
-### Platform Layer
-- **Purpose**: Abstract platform-specific functionality (camera, microphone, file picker)
-- **Location**: `src/platform/`
-- **Contains**: Platform trait and implementations
-- **Depends on**: Core error types
-- **Used by**: UI layer for hardware access
-
-**Sub-modules:**
-- `android.rs` - JNI-based Android implementation
-- `ios.rs` - iOS implementation stub (future)
-- `mod.rs` - PlatformApi trait and DesktopPlatform fallback
-
-### App Layer
-- **Purpose**: Application routing and page coordination
-- **Location**: `src/app.rs`
-- **Contains**: Route definitions, page wrappers
-- **Depends on**: UI layer components
-- **Used by**: Main entry point
+**Platform Layer:**
+- Purpose: Platform-specific implementations
+- Location: `src/platform/`
+- Contains: JNI bindings for Android, iOS platform code, desktop stubs
+- Depends on: Core error types, platform-specific crates (jni)
+- Used by: UI layer via `PlatformApi` trait
 
 ## Data Flow
 
-### OCR Pipeline Flow:
+**PDF Conversion Flow:**
 
-1. **Image Capture**: `ui/camera.rs` → `platform/android.rs` (JNI) → Android Camera API
-2. **Image Processing**: `core/ocr/preprocess.rs` → Resize, normalize, convert to tensor
-3. **Text Detection**: `core/ocr/postprocess.rs` → detect_text() (TODO: tract inference)
-4. **Text Recognition**: `core/ocr/postprocess.rs` → recognize_text() (TODO: tract inference)
-5. **Direction Classification**: `core/ocr/postprocess.rs` → classify_direction() (TODO)
-6. **Markdown Generation**: `core/ocr/markdown.rs` → Sort by reading order, format as Markdown
-7. **Storage**: `core/db.rs` → Save to SQLite with FTS5 index
+1. User selects PDF via file picker (platform layer)
+2. `PdfProcessor` opens PDF using hayro library
+3. Pages rendered in parallel batches (10 pages, 3 concurrent)
+4. Each page image passed to `NdlocrEngine.process_image()`
+5. OCR results saved to SQLite via `Database.save_page()`
+6. Progress tracked in `processing_progress` table
 
-### STT Pipeline Flow:
+**OCR Pipeline Flow:**
 
-1. **Audio Recording**: `platform/android.rs` → Android AudioRecord API (TODO)
-2. **Audio Preprocessing**: `core/stt/engine.rs` → Mel-spectrogram computation (TODO)
-3. **Encoder**: `core/stt/engine.rs` → Run encoder model (TODO: tract)
-4. **Decoder**: `core/stt/decoder.rs` → Autoregressive decoding with KV cache (TODO)
-5. **Tokenization**: `core/stt/tokenizer.rs` → Decode tokens to text
-6. **Storage**: `core/db.rs` → Save transcript to sticky note
+1. Image bytes received from camera or PDF renderer
+2. `preprocess_image_for_inference()` converts to normalized tensor [1, 3, 1024, 1024]
+3. Detection model (DEIM) identifies text regions
+4. Each region extracted and resized to [1, 1, 32, W]
+5. Recognition model (PARSeq) decodes text with CTC
+6. Results aggregated into `OcrResult` with markdown output
 
-### Note Retrieval Flow:
+**Camera Capture Flow:**
 
-1. **UI Request**: `ui/notes.rs` → User search query
-2. **Database Query**: `core/db.rs` → FTS5 search or list all
-3. **Display**: `ui/notes.rs` → Render NoteCard components
+1. UI calls `platform.capture_image()` async method
+2. Android: JNI call to `MainActivity.startCameraCapture()`
+3. Java camera API captures image
+4. Callback `onImageCaptured()` sends bytes to Rust via JNI
+5. Result sent through oneshot channel to waiting async task
+6. UI receives `CameraResult` with image data
+
+**State Management:**
+- Dioxus signals for reactive UI state (`use_signal`)
+- SQLite for persistent data (books, notes, vocabulary)
+- File system for images (paths stored in DB, not BLOBs)
+- `AppState` struct for Android lifecycle state persistence
 
 ## Key Abstractions
 
-### OcrEngine Trait
-- **Purpose**: Abstract interface for OCR implementations
-- **Location**: `src/core/ocr/engine.rs`
-- **Pattern**: Trait object for dependency injection
-- **Implementations**: `NdlocrEngine` (NDLOCR-Lite with tract)
-- **Methods**: `process_image()`, `is_ready()`, `name()`
+**OcrEngine Trait:**
+- Purpose: Abstract OCR processing for different backends
+- Examples: `src/core/ocr/engine.rs`
+- Pattern: Async trait with `process_image()`, `is_ready()`, `name()` methods
+- Implementation: `NdlocrEngine` using ONNX Runtime (ort crate)
 
-### SttEngine Trait
-- **Purpose**: Abstract interface for speech-to-text
-- **Location**: `src/core/stt/engine.rs`
-- **Pattern**: Trait object with async support
-- **Implementations**: `MoonshineEngine` (Moonshine Tiny with tract)
-- **Methods**: `transcribe()`, `is_ready()`, `name()`, `language()`
+**SttEngine Trait:**
+- Purpose: Abstract speech-to-text processing
+- Examples: `src/core/stt/engine.rs`
+- Pattern: Async trait with `transcribe()`, `is_ready()`, `language()` methods
+- Implementation: `MoonshineEngine` (placeholder, uses tract)
 
-### PlatformApi Trait
-- **Purpose**: Abstract platform hardware access
-- **Location**: `src/platform/mod.rs`
-- **Pattern**: async_trait for async methods
-- **Implementations**: `AndroidPlatform` (JNI), `IosPlatform` (stub), `DesktopPlatform` (fallback)
-- **Methods**: `capture_image()`, `record_audio()`, `pick_file()`, permission checks
+**PlatformApi Trait:**
+- Purpose: Abstract platform-specific functionality
+- Examples: `src/platform/mod.rs`
+- Pattern: Async trait for camera, audio, file picker, permissions, vibration
+- Implementations: `AndroidPlatform`, `IosPlatform`, `DesktopPlatform`
 
-### Error Types
-- **Purpose**: Structured error handling across layers
-- **Location**: `src/core/error.rs`
-- **Pattern**: thiserror-based enums with From impls
-- **Types**: `ShuseiError` (top-level), `OcrError`, `SttError`
+**PdfConversionService:**
+- Purpose: Orchestrate PDF-to-text conversion pipeline
+- Examples: `src/core/pdf.rs`
+- Pattern: Combines PdfProcessor + OcrEngine + Database + StorageService
+- Methods: `convert_pdf()` with progress callback
 
 ## Entry Points
 
-### Desktop/Web Entry Point
-- **Location**: `src/main.rs`
-- **Triggers**: Direct execution
-- **Responsibilities**: Initialize logger, launch Dioxus app
+**Binary Entry Point:**
+- Location: `src/main.rs`
+- Triggers: Application launch
+- Responsibilities: Initialize logger, launch Dioxus application
 
-### Library Entry Point
-- **Location**: `src/lib.rs`
-- **Triggers**: Android JNI, iOS bindings, crate consumers
-- **Responsibilities**: Export public API modules and types
+**Library Entry Point:**
+- Location: `src/lib.rs`
+- Triggers: When used as a library
+- Responsibilities: Re-export public API (error types, engines, database)
 
-### Android JNI Entry Points
-- **Location**: `src/platform/android.rs`
-- **Triggers**: Java MainActivity callbacks
-- **Functions**:
-  - `Java_com_shusei_app_MainActivity_nativeInit` - Store JavaVM
-  - `Java_com_shusei_app_MainActivity_onImageCaptured` - Handle camera result
+**App Component:**
+- Location: `src/app.rs`
+- Triggers: Dioxus application mount
+- Responsibilities: Route definition, state restoration, root component
+
+**Android JNI Entry Points:**
+- Location: `src/platform/android.rs`
+- Triggers: Called from Java/Kotlin code
+- Functions: `Java_com_shusei_app_MainActivity_nativeInit`, `onImageCaptured`
 
 ## Error Handling
 
-**Strategy**: Structured error propagation with thiserror
+**Strategy:** Typed errors with thiserror, propagated via Result
 
 **Patterns:**
-- All errors convert to `ShuseiError` at boundaries
-- Platform errors use `ShuseiError::Platform(String)`
-- Module-specific errors (OcrError, SttError) with detailed variants
-- `Result<T>` type alias for convenience
+- `ShuseiError` - Top-level error enum wrapping all error types
+- `OcrError` - OCR-specific errors (preprocessing, detection, recognition)
+- `SttError` - STT-specific errors (encoder, decoder, tokenization)
+- `Result<T>` - Type alias for `std::result::Result<T, ShuseiError>`
+- Error conversion via `From` trait implementations
 
-**Example:**
+**Error Flow:**
 ```rust
-pub type Result<T> = std::result::Result<T, ShuseiError>;
+// Core returns typed errors
+fn process_image(&self, data: &[u8]) -> Result<OcrResult>
 
-#[derive(Error, Debug)]
-pub enum ShuseiError {
-    #[error("OCR error: {0}")]
-    Ocr(#[from] OcrError),
-    // ...
+// UI handles with match or ?
+match engine.process_image(&data).await {
+    Ok(result) => { /* handle success */ },
+    Err(e) => error_message.set(Some(e.to_string())),
 }
 ```
 
 ## Cross-Cutting Concerns
 
-**Logging:** Uses `log` crate with `env_logger` initialization in `main.rs`
+**Logging:** env_logger with configurable filter level
+- Init: `env_logger::Builder::from_env(...).init()`
+- Usage: `log::info!()`, `log::warn!()`, `log::error!()`
 
-**Async Runtime:** Tokio with multi-threaded runtime (`Cargo.toml`)
+**Validation:** 
+- Input validation at UI layer before processing
+- Confidence thresholds in OCR (detection: 0.5, recognition: 0.5)
+- Max image size: 1024px for detection model
 
-**Feature Flags:**
-- `android` - JNI support
-- `ios` - iOS platform stubs
-- `desktop` - Desktop-specific features
-- `web` - Web platform support
-- `pdf` - PDF processing via pdfium-render
-- `lindera` - Japanese morphological analysis
+**Authentication:** Not applicable (offline-only application)
 
-**Configuration:**
-- `Cargo.toml` - Dependencies and features
-- `Dioxus.toml` - UI framework configuration
-- `.cargo/config.toml` - Android cross-compilation settings
+**Concurrency:**
+- Rayon thread pool (3 threads) for parallel PDF rendering
+- Async parallel OCR with `buffer_unordered(3)` for concurrency limit
+- Mutex/Arc for thread-safe ONNX session access
+- Tokio spawn_blocking for database operations
 
 ---
 
-*Architecture analysis: 2026-03-11*
+*Architecture analysis: 2026-03-13*

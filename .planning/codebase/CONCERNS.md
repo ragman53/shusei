@@ -1,298 +1,261 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-03-11
+**Analysis Date:** 2026-03-13
 
 ## Tech Debt
 
-### Unimplemented TODOs
+**Unimplemented TODO Comments:**
+- Issue: 25+ TODO comments indicating incomplete implementations
+- Files: Multiple files across `src/`
+- Impact: Core features are placeholder implementations:
+  - `src/core/ocr/postprocess.rs:15,29,43` - Text detection, recognition, direction classification using tract
+  - `src/core/stt/engine.rs:68,114,136` - ONNX model loading, mel-spectrogram, full STT pipeline
+  - `src/core/stt/decoder.rs:152,194,203` - Decoder step, top-k sampling, top-p sampling
+  - `src/core/vocab.rs:45,57,84` - Lindera tokenizer integration for Japanese word extraction
+  - `src/platform/ios.rs:28,35,42,49` - All iOS platform APIs are stubs
+  - `src/ui/camera.rs:78,186` - OCR engine call, database save
+  - `src/ui/notes.rs:20,36` - Database loading, FTS search
+  - `src/ui/vocab.rs:20,74,82,108` - Database loading, export functions, word deletion
+- Fix approach: Prioritize and implement missing functionality in phased approach
 
-**OCR Engine (`src/core/ocr/engine.rs`):**
-- Line 79: Model loading via tract not implemented - `NdlocrEngine::initialize()` only checks file existence
-- Line 129: Full OCR pipeline not implemented - `process_image()` returns empty results
+**unwrap() Calls in Production Code:**
+- Issue: Multiple `.unwrap()` calls that can panic at runtime
+- Files: `src/core/db.rs`, `src/core/pdf.rs`, `src/core/models.rs`, `src/core/ocr/engine.rs`
+- Impact: Application crashes on edge cases (time errors, missing data)
+- Specific locations:
+  - `src/core/db.rs:336,343,462,480` - `SystemTime::now().duration_since(UNIX_EPOCH).unwrap()`
+  - `src/core/models.rs:23` - Same time calculation
+  - `src/core/pdf.rs:161` - ThreadPool build unwrap
+  - `src/core/ocr/engine.rs:388,472` - Tensor slice unwrap
+- Fix approach: Replace with proper error handling using `Result` and `?` operator
 
-**OCR Postprocessing (`src/core/ocr/postprocess.rs`):**
-- Line 15: Text detection using tract not implemented
-- Line 29: Text recognition using tract not implemented  
-- Line 43: Direction classification using tract not implemented
+**expect() in Default Implementations:**
+- Issue: `Default` implementations use `.expect()` which panics
+- Files: `src/core/pdf.rs:229`, `src/core/vocab.rs:108`
+- Impact: Application panic if initialization fails (e.g., missing pdfium)
+- Fix approach: Remove `Default` impl or use lazy initialization with Result
 
-**STT Engine (`src/core/stt/engine.rs`):**
-- Line 68: ONNX model loading via tract not implemented - `MoonshineEngine::initialize()` only checks file existence
-- Line 114: Mel-spectrogram preprocessing not implemented - returns raw audio as placeholder
-- Line 136: Full STT pipeline not implemented - `transcribe()` returns empty results
+## Known Bugs
 
-**STT Decoder (`src/core/stt/decoder.rs`):**
-- Line 152: Decoder step using tract not implemented - returns placeholder token
-- Line 194: Top-k sampling not implemented (falls through to greedy)
-- Line 203: Top-p sampling not implemented (falls through to greedy)
+**iOS Platform Not Implemented:**
+- Symptoms: All iOS platform methods return error "not yet implemented"
+- Files: `src/platform/ios.rs`
+- Trigger: Any platform API call on iOS
+- Workaround: Desktop/Android only for MVP
 
-**UI Pages (`src/ui/notes.rs`, `src/ui/reader.rs`, `src/ui/vocab.rs`):**
-- Line 20 in all: Database loading not implemented - all pages show empty state
-- Line 36 in notes.rs: FTS search not implemented
-- Line 74, 82 in vocab.rs: Markdown/CSV export not implemented
-- Line 52, 69 in reader.rs: File picker not implemented
+**Android Microphone Permission:**
+- Symptoms: `has_microphone_permission()` always returns false, `request_microphone_permission()` returns Ok(false)
+- Files: `src/platform/android.rs:141-159`
+- Trigger: Audio recording feature
+- Workaround: None - feature blocked
 
-**Vocabulary Module (`src/core/vocab.rs`):**
-- Line 45: Lindera tokenizer initialization not implemented
-- Line 57: Japanese word extraction not implemented - returns empty Vec
+**Japanese Word Extraction:**
+- Symptoms: Returns empty Vec for Japanese text
+- Files: `src/core/vocab.rs:83-88`
+- Trigger: Extracting words from Japanese text
+- Workaround: English-only word extraction works
 
-**Platform iOS (`src/platform/ios.rs`):**
-- Line 28: Camera using AVCaptureSession not implemented
-- Line 35: Audio using AVAudioRecorder not implemented
-- Line 42: File picker using UIDocumentPickerViewController not implemented
-- Line 49: Vibration using UIImpactFeedbackGenerator not implemented
+## Security Considerations
 
-### Stubs and Placeholders
+**Unsafe JNI Block:**
+- Risk: Potential undefined behavior if JNI contract violated
+- Files: `src/platform/android.rs:193`
+- Code: `let byte_array = unsafe { JByteArray::from_raw(image_data) };`
+- Current mitigation: Used only in controlled callback from Java
+- Recommendations: Add validation of jbyteArray pointer before use
 
-**Desktop Platform (`src/platform/mod.rs`):**
-- Lines 85-118: `DesktopPlatform` returns errors or false for all operations
-- Desktop is a fallback that provides no actual functionality
-- Development must target Android device/emulator for camera features
+**File Path Handling:**
+- Risk: No path traversal validation in storage service
+- Files: `src/core/storage.rs:68-83`
+- Code: `get_image()` accepts arbitrary path string
+- Current mitigation: Paths generated internally with UUID
+- Recommendations: Add path sanitization to prevent `../` traversal
 
-**UI Components (`src/ui/components.rs`):**
-- Components are well-structured but not yet used in main UI
-- Camera page uses inline HTML instead of shared components
+**Hardcoded Android Path:**
+- Risk: Hardcoded path may not work on all Android configurations
+- Files: `src/platform/android.rs:226`
+- Code: `PathBuf::from("/data/data/com.shusei.app/files")`
+- Current mitigation: None
+- Recommendations: Use JNI to get actual files directory from Context
 
-## Potential Bugs
+**No Input Size Limits:**
+- Risk: Memory exhaustion from large images
+- Files: `src/ui/camera.rs:87-92`
+- Code: Base64 encoding of arbitrary image data without size limits
+- Current mitigation: None
+- Recommendations: Add maximum image size validation before processing
 
-### Panic in Default Implementations
+## Performance Bottlenecks
 
-**Critical:** Default trait implementations use `.expect()` which will panic:
+**Memory Usage in PDF Rendering:**
+- Problem: All pages rendered into memory before OCR starts
+- Files: `src/core/pdf.rs:324-388`
+- Cause: `render_pages_batch` returns Vec of all page images
+- Improvement path: Stream pages to OCR as rendered, don't hold all in memory
 
-- `src/core/vocab.rs` line 108: `WordExtractor::default()` calls `.expect("Failed to create WordExtractor")`
-- `src/core/pdf.rs` line 108: `PdfProcessor::default()` calls `.expect("Failed to create PdfProcessor")`
+**Image Clone in Base64 Encoding:**
+- Problem: Captured image cloned and encoded to base64 for display
+- Files: `src/ui/camera.rs:87-92`
+- Cause: UI needs base64 data URI for image display
+- Improvement path: Use blob URLs or native image component
 
-**Impact:** Application will crash on startup if these types are instantiated via Default trait.
+**Synchronous Database Operations:**
+- Problem: Database operations are synchronous but called from async UI context
+- Files: `src/core/db.rs`
+- Impact: UI may freeze during large queries
+- Improvement path: Wrap database calls in `spawn_blocking` or use async SQLite
 
-**Fix approach:** Remove Default implementations or make them return Option/Result.
-
-### Float Comparison Fragility
-
-**Multiple locations use `partial_cmp` with unwrap:**
-- `src/core/ocr/markdown.rs` lines 90, 94, 101, 105, 114, 118
-- `src/core/ocr/postprocess.rs` line 60
-- `src/core/stt/decoder.rs` lines 189-208
-
-**Issue:** `partial_cmp` returns None for NaN values, but code unwraps to Equal. Sorting may produce incorrect results with NaN confidence scores.
-
-### Test-Only unwrap() Calls
-
-**Tests use `.unwrap()` extensively:**
-- `src/core/db.rs` lines 293-311: Database tests use unwrap
-- `src/core/vocab.rs` lines 215, 225: Vocabulary tests use unwrap
-- `src/core/ocr/markdown.rs` lines 190, 201: Markdown generation tests use unwrap
-
-**Risk:** Tests may panic instead of failing gracefully. Not critical for production but indicates test fragility.
-
-### JNI Thread Safety
-
-**Android Platform (`src/platform/android.rs`):**
-- Line 14: `CAMERA_STATE` uses std Mutex across async boundaries
-- Line 16: `JAVA_VM` stored in Mutex
-- Lines 72-78: State mutation without considering reentrancy
-
-**Risk:** Potential deadlocks if camera callbacks happen on unexpected threads.
-
-## Security Concerns
-
-### No Input Validation
-
-**Camera page (`src/ui/camera.rs`):**
-- Line 87-92: Base64 encoding of arbitrary image data without size limits
-- No validation of image dimensions from JNI callback
-- No protection against maliciously large images causing memory exhaustion
-
-**Database (`src/core/db.rs`):**
-- Line 115-136: `create_sticky_note()` accepts arbitrary strings without sanitization
-- No SQL injection risk (uses parameterized queries), but no content validation
-
-### JNI Security
-
-**Android Platform (`src/platform/android.rs`):**
-- Lines 163-181: `nativeInit` gets JavaVM and stores globally
-- No validation that caller is authorized Android activity
-- Potential for malicious native code injection if APK is tampered
-
-### File Path Exposure
-
-**PDF Processor (`src/core/pdf.rs`):**
-- Lines 21-26: Loads system library without path validation
-- If pdfium is not bundled, may load from attacker-controlled path
-
-## Performance Issues
-
-### Memory Inefficiency
-
-**STT KV Cache (`src/core/stt/decoder.rs`):**
-- Lines 32-44: Pre-allocates `max_seq_len` worth of zeros for each layer
-- For typical values (4 layers, 8 heads, 64 dim, 512 seq): ~4 * 512 * 512 * 4 bytes = 4MB per cache
-- Multiple concurrent transcriptions could exhaust memory
-
-**Image Processing (`src/core/ocr/preprocess.rs`):**
-- Line 66-81: `image_to_rgb_tensor()` iterates pixel-by-pixel
-- Could be optimized with ndarray operations or parallel iteration
-
-### Synchronous Database Operations
-
-**All database methods (`src/core/db.rs`):**
-- Database operations are synchronous but called from async UI context
-- UI may freeze during large queries
-- No connection pooling for multiple concurrent operations
-
-### No Caching Strategy
-
-- No LRU cache for rendered PDF pages
-- No image cache for camera captures
-- Repeated OCR on same image re-runs full pipeline
+**No Caching Strategy:**
+- Problem: No LRU cache for rendered PDF pages, no image cache for camera captures
+- Files: Multiple
+- Impact: Repeated OCR on same image re-runs full pipeline
+- Improvement path: Implement caching layer for processed results
 
 ## Fragile Areas
 
-### JNI Bridge (`src/platform/android.rs`)
+**JNI Camera Integration:**
+- Files: `src/platform/android.rs:163-223`
+- Why fragile: Complex async state management with oneshot channels
+- Safe modification: Ensure CAMERA_STATE mutex always released before callback
+- Test coverage: Limited - requires Android device/emulator
+- Breakage risk: Race conditions if Java callback never fires (30s timeout)
 
-**Complexity:** 223 lines of unsafe JNI interop
+**Parallel PDF Processing:**
+- Files: `src/core/pdf.rs:137-181`, `src/core/ocr/engine.rs:526-596`
+- Why fragile: Thread pool with fixed 3 threads, assumes availability
+- Safe modification: Keep batch sizes consistent with memory limits
+- Test coverage: Integration tests in `tests/large_pdf_test.rs`
+- Breakage risk: Memory exhaustion on very large PDFs if concurrency too high
 
-**Fragility points:**
-- Line 81-89: Java method call via JNI - method name/signature must match exactly
-- Line 183-213: JNI callback from Java to Rust - byte array conversion uses unsafe
-- Line 193: `unsafe { JByteArray::from_raw(image_data) }` - assumes valid JNI reference
-- Line 215-223: Sender channel may be closed if callback happens unexpectedly
+**OCR Session Locking:**
+- Files: `src/core/ocr/engine.rs:383-400,471-507`
+- Why fragile: Mutex-wrapped ONNX sessions, lock scope management critical
+- Safe modification: Always extract tensor data before releasing lock
+- Test coverage: Unit tests with mock models
+- Breakage risk: Deadlock if lock held during async operation
 
-**Safe modification:**
-- Add JNI signature validation tests
-- Wrap JNI calls in safer abstraction
-- Add timeout handling for all JNI operations
-
-### Model Loading (`src/core/ocr/engine.rs`, `src/core/stt/engine.rs`)
-
-**Fragility:**
-- Assumes models exist at specific paths relative to executable
-- No graceful degradation if models are missing
-- No model version checking
-
-**Safe modification:**
-- Check model checksums/hashes
-- Provide fallback to cloud API if models unavailable
-- Add model metadata validation
-
-### Float Operations in Sorting
-
-**Markdown Generation (`src/core/ocr/markdown.rs`):**
-- Lines 89-120: Sorting by bbox coordinates with partial_cmp
-- Lines 45-46: Threshold comparison for paragraph detection
-
-**Risk:** Page layouts with overlapping or strangely positioned text may sort incorrectly.
+**Float Comparison in Sorting:**
+- Files: `src/core/ocr/markdown.rs:89-120`
+- Why fragile: `partial_cmp` returns None for NaN, code unwraps to Equal
+- Safe modification: Handle None case explicitly in sort comparisons
+- Test coverage: Unit tests with normal floats
+- Breakage risk: Incorrect sorting with NaN confidence scores
 
 ## Scaling Limits
 
-### Database
+**PDF Page Processing:**
+- Current capacity: Tested with 373-page PDF
+- Limit: Memory exhaustion on very large PDFs (1000+ pages)
+- Scaling path: Implement true streaming with page-at-a-time processing
 
-**Current:** Single SQLite file per device
-- No migration strategy for schema changes (see `src/core/db.rs` line 40-106)
-- No backup/restore mechanism
-- FTS5 virtual table may have performance issues with large datasets
+**SQLite FTS Index:**
+- Current capacity: Suitable for thousands of notes
+- Limit: FTS5 performance degrades with millions of records
+- Scaling path: Partition database per-book, or migrate to dedicated search
 
-**Limit:** Unknown - depends on device storage and FTS5 performance
+**ONNX Model Memory:**
+- Current capacity: Single model loaded at a time
+- Limit: Multiple concurrent OCR/STT operations share same model sessions
+- Scaling path: Load multiple model instances or queue operations
 
-### Models
+**STT KV Cache:**
+- Current capacity: Pre-allocates `max_seq_len` for each layer
+- Limit: ~4MB per cache (4 layers, 512 seq, 64 dim)
+- Scaling path: Dynamic cache growth, memory-mapped tensors
 
-**OCR:** NDLOCR-Lite ~8-17MB total
-**STT:** Moonshine Tiny ~45-60MB per language
+## Dependencies at Risk
 
-**Current approach:** Load models on demand, no memory management
+**hayro (v0.4):**
+- Risk: Relatively new PDF library, may have rendering bugs
+- Impact: PDF processing failures for edge-case PDFs
+- Migration plan: Fallback to pdfium if hayro issues persist
 
-**Limit:** Can only have one language model loaded at a time
+**ort (v2.0.0-rc.12):**
+- Risk: Release candidate, not stable version
+- Impact: Potential API changes, instability
+- Migration plan: Pin version, test thoroughly before upgrading
 
-### Image Processing
+**tract-onnx (v0.21):**
+- Risk: Alternative inference runtime, different behavior than ort
+- Impact: Inconsistency between test and production inference
+- Migration plan: Standardize on ort for production
 
-**Preprocessing (`src/core/ocr/preprocess.rs`):**
-- Line 37-46: Images scaled to max_size (1024px) by default
-- No memory limit for very large images
-- Could OOM on 4K+ images
-
-## Test Coverage Gaps
-
-### Missing Integration Tests
-
-- No end-to-end OCR pipeline test
-- No end-to-end STT pipeline test
-- No JNI integration tests (requires Android emulator)
-- No database migration tests
-
-### Mock-Based Tests Only
-
-- OCR engine tests use placeholder implementations
-- STT tests use hardcoded dummy data
-- No tests with actual ONNX model loading
-
-### Platform Tests
-
-**iOS (`src/platform/ios.rs`):**
-- Entirely stubbed - no tests possible
-
-**Android (`src/platform/android.rs`):**
-- JNI callbacks cannot be unit tested
-- Requires instrumentation tests on device
+**jni (v0.21):**
+- Risk: Unsafe code required for all JNI operations
+- Impact: Easy to introduce memory safety bugs
+- Migration plan: Wrap in safer abstraction layer
 
 ## Missing Critical Features
 
-### Error Recovery
+**STT Pipeline:**
+- Problem: Speech-to-text engine is placeholder only
+- Files: `src/core/stt/engine.rs`, `src/core/stt/decoder.rs`
+- Blocks: Voice note transcription feature
 
-- No retry logic for transient failures (JNI calls, model loading)
-- No graceful degradation when models unavailable
-- No offline queue for failed operations
+**iOS Support:**
+- Problem: All iOS platform methods return errors
+- Files: `src/platform/ios.rs`
+- Blocks: iOS deployment
 
-### Data Persistence
+**Japanese Morphological Analysis:**
+- Problem: Lindera tokenizer not initialized
+- Files: `src/core/vocab.rs`
+- Blocks: Japanese word extraction from text
 
-- No automatic backup of user data
-- No export/import functionality for notes (only vocabulary export implemented)
-- No data migration between app versions
+**UI-Database Integration:**
+- Problem: Most UI pages use placeholder data, not database
+- Files: `src/ui/notes.rs`, `src/ui/vocab.rs`, `src/ui/camera.rs`
+- Blocks: Actual data persistence and retrieval
 
-### Input Sanitization
+**Database Migration:**
+- Problem: No migration strategy for schema changes
+- Files: `src/core/db.rs:40-106`
+- Blocks: Safe app updates
 
-- No XSS protection in markdown rendering
-- No validation of OCR output before display
-- No limits on note size or vocabulary list size
+## Test Coverage Gaps
 
-## Dependency Risks
+**Android Platform Tests:**
+- What's not tested: JNI callbacks, camera capture flow, permission handling
+- Files: `src/platform/android.rs`
+- Risk: Runtime failures on Android only
+- Priority: High - critical for mobile deployment
 
-### tract-onnx (v0.21)
+**STT Engine Tests:**
+- What's not tested: Audio transcription pipeline (not implemented)
+- Files: `src/core/stt/`
+- Risk: Feature won't work when implemented
+- Priority: Medium - post-MVP feature
 
-**Risk:** Core dependency for ML inference
-- Limited documentation on mobile deployment
-- Complex build requirements for cross-compilation
-- May have compatibility issues with specific ONNX ops
+**iOS Platform Tests:**
+- What's not tested: Everything (stub implementation)
+- Files: `src/platform/ios.rs`
+- Risk: Feature missing entirely
+- Priority: Low - post-MVP platform
 
-**Mitigation:** Test files `tests/ndlocr_tract_test.rs` and `tests/moonshine_tract_test.rs` document known issues
+**Error Path Testing:**
+- What's not tested: Error recovery, partial failures, edge cases
+- Files: All modules
+- Risk: Poor user experience on errors
+- Priority: Medium
 
-### pdfium-render (v0.8)
-
-**Risk:** PDF rendering dependency
-- Requires native pdfium library (not bundled by default)
-- Platform-specific build complexity
-- Optional feature but main use case depends on it
-
-### Dioxus (v0.7)
-
-**Risk:** UI framework
-- Relatively new framework, API may change
-- Mobile support still maturing
-- Router integration is feature-flagged
-
-### jni (v0.21)
-
-**Risk:** Android JNI bindings
-- Unsafe code required for all JNI operations
-- Complex lifetime management between Java and Rust
-- Easy to introduce memory safety bugs
+**Database Migration:**
+- What's not tested: Schema migrations, version upgrades
+- Files: `src/core/db.rs`
+- Risk: Data loss on app update
+- Priority: High for production release
 
 ## Recommended Priority Order
 
-1. **High:** Fix panic in Default implementations (`vocab.rs`, `pdf.rs`)
-2. **High:** Implement actual model loading in OCR/STT engines
-3. **Medium:** Add input validation for image sizes and note content
-4. **Medium:** Implement retry logic for JNI operations
-5. **Low:** Add database migration strategy
-6. **Low:** Optimize image preprocessing with parallel operations
+1. **Critical:** Fix panic in Default implementations (`src/core/vocab.rs:108`, `src/core/pdf.rs:229`)
+2. **Critical:** Replace unwrap() with proper error handling in time calculations
+3. **High:** Implement actual model loading in OCR/STT engines
+4. **High:** Add database migration strategy
+5. **Medium:** Add input validation for image sizes and note content
+6. **Medium:** Implement retry logic for JNI operations
+7. **Medium:** Add path traversal protection in storage service
+8. **Low:** Optimize image preprocessing with parallel operations
+9. **Low:** Implement caching layer for processed results
 
 ---
 
-*Concerns audit: 2026-03-11*
+*Concerns audit: 2026-03-13*

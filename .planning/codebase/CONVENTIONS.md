@@ -1,107 +1,86 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-03-11
+**Analysis Date:** 2026-03-13
 
 ## Naming Patterns
 
 **Files:**
-- Snake_case for all Rust files: `engine.rs`, `mod.rs`, `postprocess.rs`
-- Module entry points: `mod.rs` in each directory
-
-**Modules:**
-- `src/core/mod.rs` - Core business logic
-- `src/ui/mod.rs` - UI components
-- `src/platform/mod.rs` - Platform abstraction
-
-**Structs:**
-- PascalCase: `OcrEngine`, `SttResult`, `NdlocrEngine`, `MoonshineEngine`
-- Descriptive names that describe the concept
-
-**Traits:**
-- PascalCase with descriptive names: `OcrEngine`, `SttEngine`, `PlatformApi`
-- Async traits use `#[async_trait]` attribute
+- Module files: `snake_case.rs` (e.g., `engine.rs`, `mod.rs`)
+- Test files: `*_test.rs` in `tests/` directory (e.g., `ndlocr_tract_test.rs`)
+- Module subdirectories: `snake_case/` (e.g., `src/core/ocr/`)
 
 **Functions:**
-- Snake_case: `process_image`, `transcribe`, `capture_image`
-- Async functions prefix not required (trait-based)
+- Public functions: `snake_case` (e.g., `process_image`, `save_to_prefs`)
+- Private helper functions: `snake_case` (e.g., `preprocess_image_for_inference`)
+- Async functions: Named same as sync, distinguished by `async` keyword
+- Test functions: `test_<description>` or `test_<feature>_<behavior>` pattern
 
 **Variables:**
-- Snake_case: `image_data`, `max_duration_seconds`, `model_dir`
-- Boolean flags: `is_ready`, `is_capturing`, `is_processing`
+- Local variables: `snake_case` (e.g., `image_data`, `book_id`)
+- Constants: `SCREAMING_SNAKE_CASE` (e.g., `MODEL_DETECTION_PATH`, `ENGLISH_MODELS`)
+- Static variables: `SCREAMING_SNAKE_CASE`
 
-**Enums:**
-- PascalCase variants: `Language::English`, `Language::Japanese`
-- Error enums: `OcrError`, `SttError`, `ShuseiError`
-
-**Constants:**
-- UPPER_SNAKE_CASE: `ENGLISH_MODELS`, `JAPANESE_MODELS`
+**Types:**
+- Structs: `PascalCase` (e.g., `OcrEngine`, `SttResult`, `AppState`)
+- Enums: `PascalCase` for type, `PascalCase` for variants (e.g., `Language::English`, `Route::Home`)
+- Traits: `PascalCase` with descriptive names (e.g., `OcrEngine`, `SttEngine`)
+- Type aliases: `PascalCase` (e.g., `Result<T>` in `src/core/error.rs`)
 
 ## Code Style
 
 **Formatting:**
-- Standard `rustfmt` formatting (no custom config file found)
-- 4 spaces for indentation
-- Max line length: standard Rust convention (~100 chars)
+- Default Rust formatting (no custom rustfmt.toml detected)
+- Indentation: 4 spaces
+- Max line length: Default (100 chars)
 
 **Linting:**
-- Clippy used (implied by Rust best practices)
-- No custom clippy configuration
+- Standard Clippy rules (no custom clippy.toml detected)
+- Warnings treated as errors in CI recommended
 
 ## Import Organization
 
 **Order:**
-1. Standard library imports (`std::path::Path`, `std::collections::HashMap`)
-2. Third-party crate imports (`serde`, `async_trait`, `tract_onnx`)
-3. Internal module imports (`crate::core::error`)
+1. External crates (e.g., `use dioxus::prelude::*`)
+2. Standard library (e.g., `use std::path::PathBuf`)
+3. Local modules (e.g., `use crate::core::error::Result`)
 
-**Patterns:**
+**Pattern observed in `src/core/ocr/engine.rs`:**
 ```rust
-use std::path::PathBuf;
-
-use serde::{Deserialize, Serialize};
 use async_trait::async_trait;
+use ort::session::Session;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use std::path::PathBuf;
+use ndarray::Array4;
+use image::DynamicImage;
+// ... more external imports
 
 use crate::core::error::{OcrError, Result};
+use crate::core::db::{Database, NewBookPage};
 ```
 
-**Re-exports:**
-- `pub use` pattern for exposing public API
-- Example from `src/core/mod.rs`:
-```rust
-pub use error::{ShuseiError, OcrError, SttError};
-pub use ocr::OcrEngine;
-pub use stt::SttEngine;
-pub use db::Database;
-```
-
-## Documentation
-
-**Module Documentation:**
-- Every module starts with a doc comment (`//!`)
-- Describes the module's purpose
-
-```rust
-//! OCR (Optical Character Recognition) pipeline
-//!
-//! This module implements the OCR pipeline using NDLOCR-Lite ONNX models
-//! with the tract inference runtime.
-```
-
-**Item Documentation:**
-- Public structs and functions have doc comments
-- Include usage examples for complex items
-
-**Doc Comments:**
-- `//!` for module-level documentation
-- `///` for item-level documentation
+**Path Aliases:**
+- `crate::` prefix for internal module access
+- Re-exports in `mod.rs` files for clean public API
 
 ## Error Handling
 
-**Strategy:** `thiserror` for custom error types
+**Patterns:**
+- Use `thiserror` for library error types (`src/core/error.rs`)
+- Use `anyhow` for application-level error handling (`src/core/storage.rs`)
+- Result type alias: `pub type Result<T> = std::result::Result<T, ShuseiError>`
 
-**Pattern:**
+**Error Type Structure (`src/core/error.rs`):**
 ```rust
-use thiserror::Error;
+#[derive(Error, Debug)]
+pub enum ShuseiError {
+    #[error("OCR error: {0}")]
+    Ocr(#[from] OcrError),
+
+    #[error("Database error: {0}")]
+    Database(#[from] rusqlite::Error),
+    // ... with #[from] for automatic conversion
+}
 
 #[derive(Error, Debug)]
 pub enum OcrError {
@@ -110,81 +89,155 @@ pub enum OcrError {
 
     #[error("Model loading failed: {0}")]
     ModelLoading(String),
-    // ...
+    // ... descriptive error messages with context
 }
 ```
 
-**Result Type:**
-- Custom `Result<T>` alias for `std::result::Result<T, ShuseiError>`
-- Located in `src/core/error.rs`
+**Error Context with anyhow (`src/core/storage.rs`):**
+```rust
+fs::create_dir_all(&images_dir)
+    .with_context(|| format!("Failed to create images directory: {:?}", images_dir))?;
+```
 
 **Error Propagation:**
 - Use `?` operator for automatic conversion
-- `#[from]` attribute for automatic error conversion
+- Use `.map_err(|e| ...)` for custom error wrapping
 
 ## Logging
 
 **Framework:** `log` crate with `env_logger`
 
-**Patterns:**
+**Initialization (`src/main.rs`):**
 ```rust
-log::info!("Initializing NDLOCR engine from {:?}", self.model_dir);
-log::warn!("Direction classifier model not found, direction classification will be disabled");
-log::error!("Capture failed: {}", e);
-log::debug!("Preprocessing audio: {} samples", audio.len());
+env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+    .init();
 ```
 
-**Levels:**
-- `info!` - Initialization, completion events
-- `warn!` - Non-critical issues
-- `error!` - Errors that impact functionality
-- `debug!` - Detailed debugging information
+**Patterns:**
+```rust
+log::info!("Starting Shusei...");
+log::info!("Initializing NDLOCR engine from {:?}", self.model_dir);
+log::debug!("App initialized with default state (no saved state found)");
+log::warn!("Detection model not found: {:?}", detection_model);
+log::warn!("Direction classifier model not found, direction classification will be disabled");
+log::error!("Failed to save page {}: {}", page_num, e);
+```
+
+**Log Level Usage:**
+- `info!`: Application lifecycle events, major operations, initialization
+- `debug!`: Detailed execution flow, state changes
+- `warn!`: Non-critical issues, missing optional resources
+- `error!`: Failures that affect functionality
+
+## Comments
+
+**When to Comment:**
+- Module-level doc comments: `//!` for crate and module overview
+- Public items: `///` for documentation with examples
+- Complex algorithms: Inline comments explaining why
+
+**Module Documentation Pattern (`src/core/error.rs`):**
+```rust
+//! Error types for the Shusei application
+//!
+//! This module defines all error types used throughout the application.
+```
+
+**Function Documentation (`src/core/ocr/engine.rs`):**
+```rust
+/// Process multiple pages in parallel with concurrency control
+///
+/// # Arguments
+/// * `pages` - Vec of (page_number, image_bytes) to process
+/// * `book_id` - Book identifier for database storage
+/// * `db` - Database connection for saving results
+/// * `progress_cb` - Callback called after each page completes: (page_num, total)
+///
+/// # Returns
+/// Ok(()) on success, or error if critical failure occurs
+pub async fn process_pages_parallel(
+    &self,
+    pages: Vec<(u32, Vec<u8>)>,
+    book_id: &str,
+    db: &Database,
+    progress_cb: impl Fn(u32, u32),
+) -> Result<()>
+```
 
 ## Function Design
 
-**Size:** Functions tend to be focused and under 50 lines
+**Size:** Functions typically 10-50 lines; larger functions split into helpers
 
 **Parameters:**
 - Use `impl Into<PathBuf>` for flexible path arguments
-- Use `Option<T>` for optional parameters in structs
+- Use `&str` for string references, `String` for ownership transfer
+- Group related parameters into config structs (e.g., `OcrConfig`, `SttConfig`)
+
+**Return Values:**
+- Return `Result<T>` for fallible operations
+- Return `Option<T>` for optional results
+- Use `impl Trait` for complex return types
 
 **Async Functions:**
-- Marked with `async fn` or `#[async_trait]` for traits
-- Return `Result<T>` for fallible operations
+- Mark with `async` keyword
+- Use `#[async_trait]` for trait definitions
+- Spawn blocking operations with `tokio::task::spawn_blocking`
 
-**Builder Pattern:**
-- `Default` trait for configuration structs
-- Example: `OcrConfig`, `SttConfig`
+**Example from `src/ui/reader.rs`:**
+```rust
+use_effect(move || {
+    spawn(async move {
+        let result = tokio::task::spawn_blocking(move || {
+            match Database::open("shusei.db") {
+                Ok(db) => {
+                    let book_result = db.get_book(&book_id.to_string());
+                    let pages_result = db.get_pages_by_book(&book_id.to_string());
+                    match (book_result, pages_result) {
+                        (Ok(Some(b)), Ok(p)) => Some((b, p)),
+                        _ => None,
+                    }
+                }
+                Err(_) => None,
+            }
+        }).await;
+        // ...
+    });
+});
+```
 
 ## Module Design
 
-**Structure:**
-```
-src/
-├── core/          # Business logic
-│   ├── error.rs   # Error types
-│   ├── db.rs      # Database operations
-│   ├── ocr/       # OCR module
-│   ├── stt/       # STT module
-│   └── vocab.rs   # Vocabulary management
-├── ui/            # Dioxus UI components
-├── platform/      # Platform abstraction
-├── app.rs         # Main app component
-├── lib.rs         # Library entry
-└── main.rs        # Binary entry
-```
+**Exports:**
+- Public API defined in `mod.rs` with `pub use`
+- Private implementation details in submodules
 
-**Visibility:**
-- Public API: `pub`
-- Module-private: default (no keyword)
-- Re-export from parent modules for convenience
-
-## Traits and Generics
-
-**Async Trait Pattern:**
+**Barrel Files (`src/core/mod.rs`):**
 ```rust
-use async_trait::async_trait;
+pub mod error;
+pub mod ocr;
+pub mod stt;
+pub mod db;
+pub mod vocab;
+pub mod storage;
+pub mod models;
+pub mod state;
+pub mod pdf;
 
+pub use error::{ShuseiError, OcrError, SttError};
+pub use ocr::OcrEngine;
+pub use stt::SttEngine;
+pub use db::Database;
+pub use storage::StorageService;
+pub use state::AppState;
+```
+
+**Trait-Based Abstraction:**
+- Define traits for major components (e.g., `OcrEngine`, `SttEngine`)
+- Implement for concrete types (e.g., `NdlocrEngine`, `MoonshineEngine`)
+- Use `Arc<Mutex<>>` for shared mutable state in async contexts
+
+**Trait Pattern (`src/core/ocr/engine.rs`):**
+```rust
 #[async_trait]
 pub trait OcrEngine: Send + Sync {
     async fn process_image(&self, image_data: &[u8]) -> Result<OcrResult>;
@@ -193,37 +246,126 @@ pub trait OcrEngine: Send + Sync {
 }
 ```
 
-**Generic Bounds:**
-- `Send + Sync` for thread safety
-- `impl AsRef<Path>` for path parameters
+## Dioxus UI Conventions
 
-## Serde Serialization
-
-**Pattern:**
+**Component Structure (`src/ui/components.rs`):**
 ```rust
-use serde::{Deserialize, Serialize};
+#[component]
+pub fn Button(
+    text: String,
+    onclick: EventHandler<MouseEvent>,
+    variant: Option<String>,
+    disabled: Option<bool>,
+) -> Element {
+    let variant_class = match variant.as_deref() {
+        Some("primary") => "bg-blue-600 text-white",
+        Some("secondary") => "bg-gray-200 text-gray-800",
+        Some("danger") => "bg-red-600 text-white",
+        _ => "bg-blue-600 text-white",
+    };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SttResult {
-    pub text: String,
-    pub confidence: Option<f32>,
+    rsx! {
+        button {
+            class: "px-4 py-2 rounded-lg {variant_class}",
+            onclick: move |e| onclick.call(e),
+            disabled: disabled.unwrap_or(false),
+            "{text}"
+        }
+    }
+}
+```
+
+**State Management:**
+- Use `use_signal` for reactive state: `let mut font_size = use_signal(|| 18);`
+- Use `use_effect` for side effects
+- Use `spawn` for async operations in event handlers
+
+**Routing (`src/app.rs`):**
+```rust
+#[derive(Routable, Clone, PartialEq, Debug)]
+pub enum Route {
+    #[route("/")]
+    Home,
+
+    #[route("/camera")]
+    Camera,
+
+    #[route("/notes")]
+    Notes,
+
+    #[route("/reader/:book_id")]
+    ReaderBook { book_id: i64 },
     // ...
 }
 ```
 
-**Feature Gates:**
-- Some modules conditionally compiled: `#[cfg(feature = "pdf")]`
+## Serde Patterns
 
-## Testing Conventions
+**Serialization:**
+- Derive `Serialize` and `Deserialize` for data models
+- Use `#[serde(default)]` for optional fields
 
-**Inline Tests:**
-- Located in `#[cfg(test)]` modules at bottom of file
-- Example in `src/core/db.rs` (lines 287-313)
+**Example (`src/core/state.rs`):**
+```rust
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AppState {
+    pub current_route: String,
+    pub scroll_position: f32,
+    pub timestamp: i64,
+}
+```
 
-**Integration Tests:**
-- Located in `tests/` directory
-- Named: `*_test.rs` pattern
+## Platform Conditional Compilation
+
+**Pattern (`src/core/state.rs`):**
+```rust
+#[cfg(target_os = "android")]
+let base_dir = match crate::platform::android::get_assets_directory() {
+    Ok(dir) => dir,
+    Err(_) => std::env::current_dir()?,
+};
+
+#[cfg(not(target_os = "android"))]
+let base_dir = std::env::current_dir()?;
+```
+
+**Feature Flags (`Cargo.toml`):**
+```toml
+[features]
+default = []
+android = ["jni"]
+ios = []
+desktop = []
+web = []
+lindera = ["dep:lindera"]
+ndlocr-test = []
+moonshine-test = []
+```
+
+## Default Trait Pattern
+
+**Use Default for Configuration (`src/core/ocr/mod.rs`):**
+```rust
+#[derive(Debug, Clone)]
+pub struct OcrConfig {
+    pub max_image_size: u32,
+    pub detection_threshold: f32,
+    pub recognition_threshold: f32,
+    pub enable_direction_classification: bool,
+}
+
+impl Default for OcrConfig {
+    fn default() -> Self {
+        Self {
+            max_image_size: 1024,
+            detection_threshold: 0.5,
+            recognition_threshold: 0.5,
+            enable_direction_classification: true,
+        }
+    }
+}
+```
 
 ---
 
-*Convention analysis: 2026-03-11*
+*Convention analysis: 2026-03-13*

@@ -1,12 +1,18 @@
 # External Integrations
 
-**Analysis Date:** 2026-03-11
+**Analysis Date:** 2026-03-13
 
 ## APIs & External Services
 
-**No External Cloud APIs** - This is an offline-first application with no external API dependencies. All processing is done locally.
+**None - Fully Offline Application**
 
-**Platform-Specific APIs:**
+Shusei is designed as a completely offline-first application with no external API dependencies:
+- No cloud services
+- No external HTTP APIs
+- No third-party SDK integrations
+- All ML inference runs locally via ONNX Runtime
+
+## Platform-Specific APIs
 
 ### Android (JNI Integration)
 - **File**: `src/platform/android.rs`
@@ -14,31 +20,38 @@
 - **Java Package**: `com.shusei.app`
 - **Main Activity**: `MainActivity`
 
-**JNI Methods Exposed:**
+**JNI Native Methods (Rust → Java callbacks):**
 ```rust
-// Native initialization
+// Native initialization - stores JavaVM reference
 Java_com_shusei_app_MainActivity_nativeInit(JNIEnv, JClass)
 
-// Image capture callback
+// Image capture callback - receives camera data from Java
 Java_com_shusei_app_MainActivity_onImageCaptured(
-    JNIEnv, JClass, jbyteArray, jint width, jint height
+    JNIEnv, JClass, jbyteArray imageData, jint width, jint height
 )
 ```
 
 **Java Methods Called from Rust:**
-- `startCameraCapture()` - Initiates camera capture
-- `vibrate(long)` - Haptic feedback
-- `hasCameraPermission()` - Check camera permission
-- `requestCameraPermission()` - Request camera permission
+| Method | Purpose |
+|--------|---------|
+| `startCameraCapture()` | Initiates camera capture via CameraX |
+| `vibrate(long ms)` | Haptic feedback |
+| `hasCameraPermission()` | Check camera permission status |
+| `requestCameraPermission()` | Request camera permission |
 
-### iOS (Planned)
+**Static State:**
+- `CAMERA_STATE`: Mutex<Option<CameraState>> - Pending capture result channel
+- `JAVA_VM`: Lazy<Mutex<Option<JavaVM>>> - Stored JavaVM reference
+
+### iOS
 - **File**: `src/platform/ios.rs`
-- **Status**: Stub implementation, post-MVP
-- **Planned APIs**:
-  - `AVCaptureSession` - Camera access
-  - `AVAudioRecorder` - Audio recording
-  - `UIDocumentPickerViewController` - File picking
-  - `UIImpactFeedbackGenerator` - Haptic feedback
+- **Status**: Stub implementation only
+- **Planned APIs**: AVCaptureSession, AVAudioRecorder, UIDocumentPickerViewController
+
+### Desktop
+- **File**: `src/platform/mod.rs` (DesktopPlatform struct)
+- **File Picker**: `rfd` 0.15 crate for native dialogs
+- **Camera/Microphone**: Returns error (not implemented)
 
 ## Data Storage
 
@@ -46,34 +59,81 @@ Java_com_shusei_app_MainActivity_onImageCaptured(
 **SQLite with rusqlite**
 - **File**: `src/core/db.rs`
 - **Library**: rusqlite 0.32 with `bundled` feature
-- **Features**: FTS5 full-text search enabled
+- **Features**: FTS5 full-text search, WAL mode for concurrent reads
 
 **Database Schema:**
-- `sticky_notes` - OCR results and voice transcripts
-- `sticky_notes_fts` - FTS5 virtual table for search
-- `books` - PDF book metadata
-- `book_pages` - Converted page content
-- `vocabulary` - User vocabulary with review tracking
+| Table | Purpose |
+|-------|---------|
+| `sticky_notes` | OCR results and voice transcripts |
+| `sticky_notes_fts` | FTS5 virtual table for full-text search |
+| `books` | PDF/book metadata with cover images |
+| `book_pages` | Converted page content with OCR results |
+| `vocabulary` | User vocabulary with review tracking |
+| `processing_progress` | PDF conversion progress tracking |
 
-**Indexes:**
-- `idx_sticky_notes_book` - Book title lookup
-- `idx_sticky_notes_created` - Chronological ordering
-- `idx_books_updated` - Recent books
-- `idx_vocab_word` - Word lookup
+**Database Path:**
+- Desktop: `{current_dir}/.shusei/shusei.db`
+- Android: `/data/data/com.shusei.app/files/shusei.db`
 
 ### File Storage
-**Local Filesystem Only**
-- Image captures: Temporary storage during processing
-- PDF files: User-selected documents
-- ONNX models: `assets/models/` directory
-  - `moonshine/` - STT models (not committed, ~50-60MB per language)
-  - `ndlocr/` - OCR models (not committed, ~8-17MB total)
+**Local Filesystem Only** - `src/core/storage.rs`
+| Path | Purpose |
+|------|---------|
+| `{assets_dir}/images/` | General image storage |
+| `{assets_dir}/pages/{book_id}/` | PDF page images |
+| `{assets_dir}/pdfs/` | Imported PDF files |
+| `{data_dir}/.shusei/app_state.json` | App state persistence |
 
 **No Cloud Storage** - All data remains on device
 
 ### Caching
-- In-memory caching via `once_cell` and `parking_lot`
-- No external caching service (Redis, etc.)
+- In-memory caching via `parking_lot` Mutex/RwLock
+- ONNX model sessions cached in `NdlocrEngine` and `MoonshineEngine`
+- No external caching service
+
+## Machine Learning Models
+
+### OCR Engine (NDLOCR-Lite)
+**ONNX Runtime / tract**
+- **File**: `src/core/ocr/engine.rs`
+- **Engine**: `NdlocrEngine` struct
+- **Models Required**:
+  - `deim-s-1024x1024.onnx` - Text detection (1024x1024 input)
+  - `parseq-ndl-16x384-50-tiny-146epoch-tegaki2.onnx` - Text recognition
+  - `direction_classifier.onnx` - Text direction (optional)
+  - `dict.txt` - Character dictionary
+
+**OCR Pipeline:**
+1. Preprocess image → RGB tensor [1, 3, 1024, 1024]
+2. Detect text regions via DEIM model
+3. Extract and resize each region to 32px height
+4. Recognize text via Parseq model with CTC decoding
+5. Aggregate results with confidence scores
+
+**Parallel Processing:**
+- `process_pages_parallel()` - Batch OCR with concurrency limit of 3
+- Retry logic: Up to 3 attempts per page
+- Progress callback for UI updates
+
+### Speech-to-Text (Moonshine Tiny)
+**tract-onnx Runtime**
+- **File**: `src/core/stt/engine.rs`
+- **Engine**: `MoonshineEngine` struct
+- **Models Required**:
+  - `encoder.onnx` - Audio encoder (~15-20MB)
+  - `decoder.onnx` - Text decoder (~30-40MB)
+
+**STT Pipeline (Planned):**
+1. Load audio (WAV via hound, 16kHz mono)
+2. Compute mel-spectrogram (80 bins, 25ms window, 10ms hop)
+3. Encoder forward pass
+4. Autoregressive decoder generation with KV cache
+5. Token decoding to text
+
+**Current Status:**
+- Engine structure implemented
+- Model loading checks implemented
+- Inference pipeline not yet implemented (TODO in source)
 
 ## Authentication & Identity
 
@@ -83,67 +143,25 @@ Java_com_shusei_app_MainActivity_onImageCaptured(
 - No identity management
 - No OAuth, JWT, or session management
 
-## ML Model Integration
-
-### OCR Engine (NDLOCR-Lite)
-**tract-onnx Runtime**
-- **File**: `src/core/ocr/engine.rs`
-- **Models Required**:
-  - `text_detection.onnx` (~2-5MB)
-  - `text_recognition.onnx` (~5-10MB)
-  - `direction_classifier.onnx` (~1-2MB)
-- **Model Source**: https://github.com/ndl-lab/ndlocr_ocr
-- **Input**: Image tensor [1, 3, H, W]
-- **Output**: Text regions with bounding boxes and confidence
-
-**OCR Pipeline:**
-1. Preprocess image (grayscale, normalization)
-2. Detect text regions
-3. Classify text direction (0°, 90°, 180°, 270°)
-4. Recognize text in each region
-5. Sort by reading order
-6. Generate markdown output
-
-### STT Engine (Moonshine Tiny)
-**tract-onnx Runtime**
-- **File**: `src/core/stt/engine.rs`
-- **Models Required** (per language):
-  - `moonshine-tiny-{lang}-encoder.onnx` (~15-20MB)
-  - `moonshine-tiny-{lang}-decoder.onnx` (~30-40MB)
-- **Model Source**: https://github.com/usefulsensors/moonshine
-- **Supported Languages**: English, Japanese (planned)
-- **Input**: Log-mel spectrogram [batch, 80, time_frames]
-- **Output**: Transcribed text with confidence
-
-**STT Pipeline:**
-1. Load audio (WAV via hound)
-2. Resample to 16kHz if needed
-3. Compute mel-spectrogram (80 bins, 25ms window, 10ms hop)
-4. Log compression
-5. Encoder forward pass
-6. Autoregressive decoder generation
-7. Token decoding
-
 ## Monitoring & Observability
 
 **Error Tracking:**
 - None (no Sentry, Rollbar, etc.)
-- Errors logged to console via `env_logger`
+- Errors handled via `anyhow` and `thiserror`
 
 **Logging:**
-- Framework: `log` crate with `env_logger`
-- Configuration: Environment variable `RUST_LOG`
+- Framework: `log` crate with `env_logger` backend
+- Configuration: `src/main.rs` lines 14-15
+  ```rust
+  env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+      .init();
+  ```
 - Default level: `info`
-- Usage in code:
-```rust
-log::info!("Starting Shusei...");
-log::debug!("Processing image: {} bytes", data.len());
-log::error!("Failed to load model: {}", e);
-```
+- Environment variable: `RUST_LOG` for level control
 
 **Metrics:**
 - None (no Prometheus, StatsD, etc.)
-- Manual timing for ML inference operations
+- Manual timing via `std::time::Instant` for ML inference
 
 ## CI/CD & Deployment
 
@@ -161,19 +179,13 @@ cargo run
 cargo build --target aarch64-linux-android --features android
 
 # Web
-cargo build --target wasm32-unknown-unknown --features web
+dx serve  # Dioxus CLI
 
 # Tests
 cargo test
 cargo test --features ndlocr-test  # Requires ONNX models
 cargo test --features moonshine-test  # Requires ONNX models
 ```
-
-**Deployment:**
-- Desktop: Native binaries
-- Android: APK via Dioxus bundling
-- iOS: Not yet implemented
-- Web: WASM bundle
 
 ## Environment Configuration
 
@@ -183,8 +195,10 @@ cargo test --features moonshine-test  # Requires ONNX models
 - No external service configuration
 
 **Optional Configuration:**
-- `RUST_LOG` - Log level (default: info)
-- `RUST_BACKTRACE` - Stack trace on panic
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `RUST_LOG` | Log level | `info` |
+| `RUST_BACKTRACE` | Stack trace on panic | unset |
 
 ## Webhooks & Callbacks
 
@@ -197,8 +211,10 @@ cargo test --features moonshine-test  # Requires ONNX models
 - No event streaming
 
 **Internal Callbacks (JNI):**
-- `onImageCaptured` - Called from Java when camera capture completes
-- Triggered by Android Camera API, dispatched to Rust via JNI
+| Callback | Trigger |
+|----------|---------|
+| `onImageCaptured` | Android CameraX capture complete |
+| Progress callbacks | PDF rendering, OCR processing |
 
 ## External Dependencies Summary
 
@@ -211,7 +227,7 @@ cargo test --features moonshine-test  # Requires ONNX models
 | Caching | In-memory | ✓ Active |
 | Error Tracking | None | N/A |
 | CI/CD | None | ⚠ Not configured |
-| Monitoring | None | N/A |
+| Monitoring | Console logging | ✓ Active |
 | ML Models | NDLOCR, Moonshine | ✓ Local ONNX |
 | Mobile Platform | Android JNI | ✓ Active |
 | Web Platform | WASM | ✓ Supported |
@@ -229,12 +245,12 @@ cargo test --features moonshine-test  # Requires ONNX models
 - Fully offline capable
 
 **Model Assets**
-- ONNX models expected in `assets/models/`
-- Models not committed to repository
-- Download instructions in test files:
-  - `tests/moonshine_tract_test.rs`
-  - `tests/ndlocr_tract_test.rs`
+- ONNX models expected in `assets/models/` and `assets/ocr/models/`
+- Models gitignored in `.gitignore`
+- Download instructions:
+  - `assets/ocr/README.md` - NDLOCR models
+  - `assets/models/moonshine/README.md` - Moonshine models
 
 ---
 
-*Integration audit: 2026-03-11*
+*Integration audit: 2026-03-13*

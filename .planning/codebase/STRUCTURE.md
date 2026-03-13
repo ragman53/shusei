@@ -1,226 +1,220 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-03-11
+**Analysis Date:** 2026-03-13
 
 ## Directory Layout
 
 ```
 shusei/
-├── .cargo/                     # Cargo configuration
-│   └── config.toml             # Android cross-compilation settings
-├── .planning/                  # Planning documents (this codebase mapping)
-│   ├── backups/                # File backups
-│   └── codebase/               # Architecture documentation
-├── assets/                     # Static assets
-│   └── models/                 # ONNX model files
-│       ├── moonshine/          # STT models
-│       └── ndlocr/             # OCR models
-├── docs/                       # Documentation
-├── platform/                   # Platform-specific code
-│   └── android/                # Android project
-│       └── app/                # Android app source
-├── src/                        # Rust source code
-│   ├── core/                   # Business logic
-│   │   ├── ocr/                # OCR pipeline
-│   │   ├── stt/                # STT pipeline
-│   │   ├── db.rs               # Database operations
-│   │   ├── error.rs            # Error types
-│   │   ├── mod.rs              # Core module exports
-│   │   ├── pdf.rs              # PDF processing (optional)
-│   │   └── vocab.rs            # Vocabulary management
-│   ├── platform/               # Platform abstraction
-│   │   ├── android.rs          # Android JNI implementation
-│   │   ├── ios.rs              # iOS implementation stub
-│   │   └── mod.rs              # PlatformApi trait
-│   ├── ui/                     # UI components
-│   │   ├── camera.rs           # Camera page
-│   │   ├── components.rs       # Shared UI components
-│   │   ├── mod.rs              # UI module exports
-│   │   ├── notes.rs            # Notes page
-│   │   ├── reader.rs           # PDF reader page
-│   │   └── vocab.rs            # Vocabulary page
-│   ├── app.rs                  # Routing and main app
-│   ├── lib.rs                  # Library entry point
-│   └── main.rs                 # Desktop entry point
-├── tests/                      # Integration tests
-│   ├── moonshine_tract_test.rs # STT model tests
-│   └── ndlocr_tract_test.rs    # OCR model tests
-├── Cargo.toml                  # Rust dependencies
-├── Cargo.lock                  # Dependency lock
-└── Dioxus.toml                 # UI framework config
+├── src/                    # Source code
+│   ├── main.rs             # Binary entry point
+│   ├── lib.rs              # Library entry point
+│   ├── app.rs              # Root component and routing
+│   ├── core/               # Platform-agnostic business logic
+│   ├── ui/                 # Dioxus UI components
+│   └── platform/           # Platform-specific implementations
+├── assets/                 # Static assets (models, icons)
+│   ├── models/             # ONNX models for OCR/STT
+│   │   ├── moonshine/      # Speech-to-text models
+│   │   └── ndlocr/         # OCR models
+│   └── ocr/                # OCR model files
+├── tests/                  # Integration tests
+├── platform/               # Platform-specific build configs
+│   └── android/            # Android project structure
+├── docs/                   # Documentation
+├── bin/                    # Binary dependencies
+├── lib/                    # Library dependencies
+├── include/                # C/C++ headers
+├── target/                 # Build output (generated)
+├── .planning/              # GSD planning documents
+├── Cargo.toml              # Rust package manifest
+├── Dioxus.toml             # Dioxus configuration
+└── build.rs                # Build script
 ```
 
 ## Directory Purposes
 
-**`.cargo/`:**
-- Contains Android linker configuration for cross-compilation
-- Key file: `config.toml` with NDK toolchain settings
+**src/core:**
+- Purpose: Platform-agnostic business logic
+- Contains: OCR pipeline, STT pipeline, database, storage, models
+- Key files: `ocr/mod.rs`, `stt/mod.rs`, `db.rs`, `pdf.rs`, `storage.rs`
 
-**`assets/models/`:**
-- ONNX model files for ML inference
-- `moonshine/` - Encoder and decoder models for STT
-- `ndlocr/` - Detection, recognition, direction classifier for OCR
-- Referenced in `Dioxus.toml` as bundled resources
+**src/ui:**
+- Purpose: Dioxus UI components
+- Contains: Page components, shared UI elements
+- Key files: `camera.rs`, `reader.rs`, `notes.rs`, `vocab.rs`, `components.rs`
 
-**`docs/`:**
-- Project documentation
-- Not actively used in current codebase
+**src/platform:**
+- Purpose: Platform-specific implementations
+- Contains: Android JNI bindings, iOS stubs, desktop platform
+- Key files: `mod.rs` (trait definition), `android.rs`
 
-**`platform/android/`:**
-- Full Android project structure
-- Java/Kotlin source in `app/src/main/java/`
-- MainActivity with JNI bridge to Rust
+**assets/models:**
+- Purpose: ONNX model files for ML inference
+- Contains: moonshine/ (STT), ndlocr/ (OCR)
+- Key files: Detection model (~45MB), recognition model (~15MB)
 
-**`src/core/`:**
-- Business logic with no UI or platform dependencies
-- Each submodule has its own directory for complex features
-- `mod.rs` re-exports public types
-
-**`src/platform/`:**
-- Platform abstraction layer
-- Conditional compilation via `#[cfg]` attributes
-- Desktop fallback implementation for development
-
-**`src/ui/`:**
-- Dioxus UI components
-- One file per major page/screen
-- Shared components in `components.rs`
-
-**`tests/`:**
-- Integration tests for ML model compatibility
-- Tests tract runtime with actual ONNX models
+**tests:**
+- Purpose: Integration tests
+- Contains: Large PDF tests, model compatibility tests
+- Key files: `large_pdf_test.rs`, `moonshine_tract_test.rs`, `ndlocr_tract_test.rs`
 
 ## Key File Locations
 
 **Entry Points:**
-- `src/main.rs`: Desktop application entry
-- `src/lib.rs`: Library entry for Android/iOS integration
-- `src/platform/android.rs`: JNI entry points (`Java_com_shusei_app_MainActivity_*`)
+- `src/main.rs`: Binary entry, initializes logger and launches Dioxus
+- `src/lib.rs`: Library entry, re-exports public API
+- `src/app.rs`: Root Dioxus component with routing
 
 **Configuration:**
-- `Cargo.toml`: Dependencies, features, profiles
-- `Dioxus.toml`: UI configuration, platform settings
-- `.cargo/config.toml`: Cross-compilation toolchain
+- `Cargo.toml`: Dependencies, features, build profiles
+- `Dioxus.toml`: UI framework configuration (platforms, assets)
+- `build.rs`: Build-time configuration
 
 **Core Logic:**
-- `src/core/db.rs`: SQLite operations, 314 lines
-- `src/core/ocr/engine.rs`: OCR trait and NDLOCR implementation, 156 lines
-- `src/core/stt/engine.rs`: STT trait and Moonshine implementation, 165 lines
-- `src/core/vocab.rs`: Vocabulary extraction and export, 231 lines
+- `src/core/ocr/engine.rs`: NdlocrEngine implementation (872 lines)
+- `src/core/stt/engine.rs`: MoonshineEngine implementation (165 lines)
+- `src/core/db.rs`: SQLite database operations (922 lines)
+- `src/core/pdf.rs`: PDF processing and conversion service (706 lines)
+- `src/core/storage.rs`: File storage for images (270 lines)
 
-**UI Components:**
-- `src/ui/camera.rs`: Camera capture page, 201 lines
-- `src/ui/notes.rs`: Notes list with search, 121 lines
-- `src/ui/components.rs`: Reusable UI primitives, 164 lines
+**UI Pages:**
+- `src/ui/camera.rs`: Camera capture page (201 lines)
+- `src/ui/reader.rs`: PDF reader and library (333 lines)
+- `src/ui/notes.rs`: Sticky notes page
+- `src/ui/vocab.rs`: Vocabulary management page
+- `src/ui/components.rs`: Shared UI components (289 lines)
 
-**Platform:**
-- `src/platform/mod.rs`: PlatformApi trait definition, 135 lines
-- `src/platform/android.rs`: JNI implementation, 223 lines
+**Platform Implementations:**
+- `src/platform/mod.rs`: PlatformApi trait definition (135 lines)
+- `src/platform/android.rs`: Android JNI bindings (227 lines)
 
-**Error Handling:**
-- `src/core/error.rs`: All error types, 104 lines
+**Testing:**
+- `tests/`: Integration tests directory
+- Inline `#[cfg(test)]` modules in each source file
 
 ## Naming Conventions
 
 **Files:**
-- Rust modules: `snake_case.rs` (e.g., `engine.rs`, `preprocess.rs`)
-- Module directories: `snake_case/` (e.g., `ocr/`, `stt/`)
-- Module entry: `mod.rs` in each directory
-- Tests: Co-located in `#[cfg(test)]` or separate `tests/*.rs`
+- Rust source: `snake_case.rs` (e.g., `engine.rs`, `preprocess.rs`)
+- Module directories: `snake_case/` with `mod.rs` (e.g., `core/ocr/mod.rs`)
+- Test files: `*_test.rs` for integration tests
 
-**Directories:**
-- Top-level: descriptive (e.g., `core/`, `ui/`, `platform/`)
-- Feature subdirectories: plural nouns (e.g., `models/`, `docs/`)
+**Modules:**
+- Crate root modules: `core`, `ui`, `platform`
+- Sub-modules: `ocr`, `stt`, nested under parent
+- Re-exports: `pub use` at module root for clean API
 
-**Rust Naming:**
-- Types (structs, enums, traits): PascalCase (e.g., `OcrEngine`, `ShuseiError`)
-- Functions/variables: snake_case (e.g., `process_image`, `captured_image`)
-- Constants: UPPER_SNAKE_CASE or SCREAMING_SNAKE_CASE
-- Modules: snake_case (e.g., `mod camera`, `mod vocab`)
+**Structs and Enums:**
+- PascalCase for types (e.g., `OcrEngine`, `NdlocrEngine`, `ConversionStage`)
+- New types for creation: `NewStickyNote`, `NewBook`, `NewBookPage`
+- Result types: `OcrResult`, `SttResult`, `CameraResult`
 
-**Examples from codebase:**
-```rust
-// Traits: PascalCase
-pub trait OcrEngine: Send + Sync { }
-pub trait SttEngine: Send + Sync { }
-pub trait PlatformApi: Send + Sync { }
+**Functions:**
+- snake_case for functions (e.g., `process_image`, `save_to_prefs`)
+- Async functions: no special suffix, called with `.await`
+- Constructor pattern: `new()`, `with_all_fields()`
 
-// Structs: PascalCase
-pub struct NdlocrEngine { }
-pub struct MoonshineEngine { }
-pub struct StickyNote { }
-
-// Functions: snake_case
-fn preprocess_image(image_data: &[u8], config: &PreprocessConfig) -> Result<Array3<f32>>
-fn capture_image(&self) -> Result<CameraResult>
-
-// Enums: PascalCase variants
-pub enum ShuseiError {
-    Ocr(#[from] OcrError),
-    Platform(String),
-    // ...
-}
-```
+**Variables:**
+- snake_case for locals (e.g., `image_data`, `book_id`)
+- SCREAMING_SNAKE_CASE for constants (e.g., `MODEL_DETECTION_PATH`)
 
 ## Where to Add New Code
 
-**New UI Page:**
-- Create `src/ui/{page_name}.rs`
+**New Feature:**
+- Core logic: `src/core/{feature}/mod.rs`
+- UI page: `src/ui/{feature}.rs`
 - Add to `src/ui/mod.rs` exports
-- Add route in `src/app.rs` Route enum
-- Add page wrapper component in `src/app.rs`
+- Add route in `src/app.rs`
 
-**New OCR Feature:**
-- Add to `src/core/ocr/` directory
-- Export from `src/core/ocr/mod.rs`
-- Update `src/core/mod.rs` if needed
+**New Component/Module:**
+- Implementation: `src/core/{module}/`
+- Create `mod.rs` with public interface
+- Add to `src/core/mod.rs` exports
 
-**New Platform Implementation:**
-- Create `src/platform/{platform}.rs`
-- Implement `PlatformApi` trait
-- Add `#[cfg]` conditional in `src/platform/mod.rs` `get_platform_api()`
+**New Platform Support:**
+- Implementation: `src/platform/{platform}.rs`
+- Add to `src/platform/mod.rs` with `#[cfg(target_os = "...")]`
+- Add feature flag in `Cargo.toml`
 
-**New Database Table:**
-- Add schema to `src/core/db.rs` `initialize_schema()`
-- Add model struct (e.g., `NewBook`, `Book`)
-- Add CRUD methods to `Database` impl
+**Utilities:**
+- Shared helpers: New module in `src/core/`
+- UI utilities: `src/ui/components.rs`
 
-**New Shared Component:**
-- Add to `src/ui/components.rs`
-- Export from `src/ui/mod.rs`
-- Use in page components via `crate::ui::ComponentName`
-
-**New Test:**
-- Unit tests: Co-located in source files under `#[cfg(test)]`
-- Integration tests: Add to `tests/` directory
-- Name: `{feature}_test.rs` or `{feature}_tests.rs`
+**Tests:**
+- Unit tests: Inline `#[cfg(test)] mod tests` in source file
+- Integration tests: New file in `tests/` directory
 
 ## Special Directories
 
-**`target/`:**
-- Purpose: Cargo build output
-- Generated: Yes (by cargo)
-- Committed: No (in `.gitignore`)
-- Contains: Compiled binaries, intermediate artifacts
+**assets/models:**
+- Purpose: ONNX model files for ML inference
+- Generated: No (bundled with app)
+- Committed: Yes (required for OCR/STT)
+- Structure: `moonshine/` for STT, `ndlocr/` for OCR
 
-**`assets/models/`:**
-- Purpose: ML model storage
-- Generated: No (manually placed)
-- Committed: No (models tracked separately)
-- Expected files: `*.onnx` model files
-
-**`.planning/`:**
-- Purpose: Project planning documents
-- Generated: No (manually maintained)
+**assets/ocr/models:**
+- Purpose: OCR model files (DEIM detection, PARSeq recognition)
+- Generated: No
 - Committed: Yes
-- Contains: Architecture docs, task planning
 
-**`platform/android/app/`:**
-- Purpose: Android project source
-- Generated: Partially (by Android build tools)
+**target:**
+- Purpose: Build output and compiled artifacts
+- Generated: Yes
+- Committed: No (in .gitignore)
+- Structure: `debug/`, `release/`, platform-specific targets
+
+**.planning:**
+- Purpose: GSD planning documents (phases, codebase analysis)
+- Generated: By GSD commands
+- Committed: Yes (tracked in git)
+- Structure: `phases/`, `codebase/`, `research/`
+
+**platform/android:**
+- Purpose: Android-specific build configuration and Java/Kotlin code
+- Generated: Partially (by Dioxus/cargo-apk)
 - Committed: Yes
-- Contains: Java source, resources, manifest
+- Structure: `app/src/main/java/com/shusei/app/`
+
+## Module Organization
+
+**Core Module Structure:**
+```
+src/core/
+├── mod.rs          # Re-exports: error, ocr, stt, db, storage, state, models, pdf
+├── error.rs        # ShuseiError, OcrError, SttError, Result<T>
+├── db.rs           # Database, CRUD operations, data models
+├── models.rs       # Book model
+├── pdf.rs          # PdfProcessor, PdfConversionService
+├── state.rs        # AppState for lifecycle persistence
+├── storage.rs      # StorageService for file operations
+├── vocab.rs        # Vocabulary management
+├── ocr/
+│   ├── mod.rs      # OcrConfig, model paths, re-exports
+│   ├── engine.rs   # OcrEngine trait, NdlocrEngine
+│   ├── preprocess.rs
+│   ├── postprocess.rs
+│   └── markdown.rs
+└── stt/
+    ├── mod.rs      # SttConfig, Language enum
+    ├── engine.rs   # SttEngine trait, MoonshineEngine
+    ├── decoder.rs  # Decoder state, KV cache
+    └── tokenizer.rs
+```
+
+**UI Module Structure:**
+```
+src/ui/
+├── mod.rs          # Re-exports all page components
+├── camera.rs       # CameraPage component
+├── reader.rs       # ReaderPage, ReaderBookView components
+├── notes.rs        # NotesPage component
+├── vocab.rs        # VocabPage component
+├── add_book.rs     # AddBookPage component
+├── library.rs      # LibraryPage component
+└── components.rs   # Shared: LoadingSpinner, Button, Card, etc.
+```
 
 ---
 
-*Structure analysis: 2026-03-11*
+*Structure analysis: 2026-03-13*
