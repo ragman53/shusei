@@ -1,11 +1,11 @@
 //! PDF processing module
 //!
-//! This module handles PDF rendering using pdfium-render.
+//! This module handles PDF rendering using hayro (pure Rust PDF renderer).
 
 use std::path::Path;
 use std::sync::Arc;
 
-use pdfium_render::prelude::*;
+use hayro::{Pdf, RenderSettings, InterpreterSettings, render};
 use log::{info, debug, warn};
 
 use crate::core::error::{Result, ShuseiError};
@@ -13,50 +13,42 @@ use crate::core::db::Database;
 use crate::core::storage::StorageService;
 use crate::core::ocr::NdlocrEngine;
 
-/// PDF processor for rendering pages as images
-pub struct PdfProcessor {
-    /// Pdfium bindings
-    pdfium: Pdfium,
+/// PDF document wrapper for hayro
+pub struct PdfDocument {
+    pub pdf: Pdf,
+    pub data: Vec<u8>,
 }
+
+/// PDF processor for rendering pages as images
+pub struct PdfProcessor {}
 
 impl PdfProcessor {
     /// Create a new PDF processor
     pub fn new() -> Result<Self> {
-        // Use dynamic linking with pre-built binaries from bblanchon/pdfium-binaries
-        // Try to load from current directory first, then fall back to system library
-        let bindings = Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path("./"))
-            .or_else(|_| Pdfium::bind_to_system_library())
-            .map_err(|e| {
-                ShuseiError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Failed to load PDFium library. Download pre-built binaries from https://github.com/bblanchon/pdfium-binaries/releases and place in project root. Error: {}", e),
-                ))
-            })?;
-        let pdfium = Pdfium::new(bindings);
-
-        log::info!("PDF processor initialized with dynamic linking");
-
-        Ok(Self { pdfium })
+        log::info!("PDF processor initialized (hayro, pure Rust)");
+        Ok(Self {})
     }
 
     /// Open a PDF file
-    pub fn open<'a>(&'a self, path: impl AsRef<Path>) -> Result<PdfDocument<'a>> {
-        let document = self
-            .pdfium
-            .load_pdf_from_file(path.as_ref(), None)
-            .map_err(|e| {
-                ShuseiError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    e.to_string(),
-                ))
-            })?;
-
-        Ok(document)
+    pub fn open(&self, path: impl AsRef<Path>) -> Result<PdfDocument> {
+        let pdf_data = std::fs::read(path.as_ref()).map_err(|e| {
+            ShuseiError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e.to_string(),
+            ))
+        })?;
+        let pdf = Pdf::new(std::sync::Arc::new(pdf_data.clone())).map_err(|e| {
+            ShuseiError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to load PDF: {:?}", e),
+            ))
+        })?;
+        Ok(PdfDocument { pdf, data: pdf_data })
     }
 
     /// Get the number of pages in a PDF
     pub fn page_count(&self, document: &PdfDocument) -> u32 {
-        document.pages().len() as u32
+        document.pdf.pages().len() as u32
     }
 
     /// Render a page to an image
@@ -67,34 +59,26 @@ impl PdfProcessor {
         width: u32,
         height: u32,
     ) -> Result<Vec<u8>> {
-        // v0.8 uses u16 for page indexing
-        let page_index = page_index as u16;
-        let page = document.pages().get(page_index).map_err(|e| {
+        let pages = document.pdf.pages();
+        let page = pages.iter().nth(page_index as usize).ok_or_else(|| {
             ShuseiError::Io(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                e.to_string(),
+                format!("Page {} not found", page_index),
             ))
         })?;
 
-        // Render to bitmap - v0.8 uses builder pattern for render config
-        let bitmap = page
-            .render_with_config(
-                &PdfRenderConfig::new()
-                    .set_target_width(width as i32)
-                    .set_target_height(height as i32)
-                    .render_annotations(true),
-            )
-            .map_err(|e| {
-                ShuseiError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    e.to_string(),
-                ))
-            })?;
+        // Render to pixmap with hayro
+        let render_settings = RenderSettings {
+            x_scale: 1.0,
+            y_scale: 1.0,
+            width: Some(width as u16),
+            height: Some(height as u16),
+        };
+        let interpreter_settings = InterpreterSettings::default();
+        let pixmap = render(page, &interpreter_settings, &render_settings);
 
-        // Convert to RGBA bytes
-        let bytes = bitmap.as_bytes();
-
-        Ok(bytes.to_vec())
+        // Return RGBA bytes (premultiplied)
+        Ok(pixmap.data_as_u8_slice().to_vec())
     }
 
     /// Render all pages as images
@@ -241,16 +225,15 @@ pub struct PdfMetadata {
 
 impl PdfMetadata {
     /// Extract metadata from a PDF document
+    /// Note: hayro doesn't expose PDF metadata yet, so only page_count is populated
     pub fn from_document(document: &PdfDocument) -> Self {
-        let metadata = document.metadata();
-        // v0.8 uses get() method with PdfDocumentMetadataTagType enum
         Self {
-            title: metadata.get(PdfDocumentMetadataTagType::Title).map(|t| t.value().to_string()),
-            author: metadata.get(PdfDocumentMetadataTagType::Author).map(|t| t.value().to_string()),
-            subject: metadata.get(PdfDocumentMetadataTagType::Subject).map(|t| t.value().to_string()),
-            creator: metadata.get(PdfDocumentMetadataTagType::Creator).map(|t| t.value().to_string()),
-            producer: metadata.get(PdfDocumentMetadataTagType::Producer).map(|t| t.value().to_string()),
-            page_count: document.pages().len() as u32,
+            title: None,
+            author: None,
+            subject: None,
+            creator: None,
+            producer: None,
+            page_count: document.pdf.pages().len() as u32,
         }
     }
 }

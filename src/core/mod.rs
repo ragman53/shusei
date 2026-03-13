@@ -11,8 +11,6 @@ pub mod vocab;
 pub mod storage;
 pub mod models;
 pub mod state;
-
-#[cfg(feature = "pdf")]
 pub mod pdf;
 
 pub use error::{ShuseiError, OcrError, SttError};
