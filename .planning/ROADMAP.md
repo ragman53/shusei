@@ -108,7 +108,7 @@ Plans:
 
 **Requirements**: PDF-02, PERF-02
 **Depends on:** Phase 3
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 - [ ] 03.2-01-PLAN.md — Core hayro integration (replace pdfium-render, basic rendering)
