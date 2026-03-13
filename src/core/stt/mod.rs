@@ -5,10 +5,12 @@
 
 mod engine;
 mod decoder;
+#[cfg(not(target_os = "android"))]
 mod tokenizer;
 
 pub use engine::{SttEngine, SttResult, MoonshineEngine};
 pub use decoder::{DecoderState, KvCache};
+#[cfg(not(target_os = "android"))]
 pub use tokenizer::Tokenizer;
 
 use crate::core::error::SttError;
