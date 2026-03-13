@@ -19,7 +19,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **PAPER-01**: カメラ起動でページを撮影し、画像を保存
 - [ ] **PAPER-02**: 撮影画像を 2MP 以下にダウンケール（メモリ最適化）
-- [ ] **PAPER-03**: NDLOCR-Lite で OCR 処理、テキストを抽出
+- [x] **PAPER-03**: NDLOCR-Lite で OCR 処理、テキストを抽出
 - [ ] **PAPER-04**: OCR 結果テキストを SQLite に保存（画像パスと紐付け）
 - [ ] **PAPER-05**: ページ画像と OCR テキストを紐付けて表示
 
@@ -32,10 +32,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Annotation
 
-- [ ] **ANNO-01**: ページに付箋（テキストメモ）を追加・編集・削除
-- [ ] **ANNO-02**: ブックマークを追加・削除
-- [ ] **ANNO-03**: 単語をタップして採集（単語＋用例文＋ページ位置）
-- [ ] **ANNO-04**: 採集単語リストを表示（採集回数付き）
+- [x] **ANNO-01**: ページに付箋（テキストメモ）を追加・編集・削除
+- [x] **ANNO-02**: ブックマークを追加・削除
+- [x] **ANNO-03**: 単語をタップして採集（単語＋用例文＋ページ位置）
+- [x] **ANNO-04**: 採集単語リストを表示（採集回数付き）
 
 ### Voice Memo
 
@@ -46,7 +46,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### AI Dictionary
 
-- [ ] **AI-01**: 採集単語に対して Qwen3.5-08B で定義を生成（オフライン）
+- [ ] **AI-01**: 採集単語に対して Qwen3.5-0.8B で定義を生成（オフライン）
 - [ ] **AI-02**: 生成定義を SQLite に保存（単語と紐付け）
 - [ ] **AI-03**: 同一単語を再選択時に採集回数を表示
 - [ ] **AI-04**: モデル順次読み込み（メモリ最適化、複数モデル同時読み込み防止）
@@ -99,17 +99,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CORE-05 | Phase 1 | Complete |
 | PAPER-01 | Phase 2 | Pending |
 | PAPER-02 | Phase 2 | Pending |
-| PAPER-03 | Phase 2 | Pending |
+| PAPER-03 | Phase 2 | Complete |
 | PAPER-04 | Phase 2 | Pending |
 | PAPER-05 | Phase 2 | Pending |
 | PDF-01 | Phase 3 | Complete |
 | PDF-02 | Phase 3 | Complete |
 | PDF-03 | Phase 3 | Complete |
 | PDF-04 | Phase 3 | Complete |
-| ANNO-01 | Phase 4 | Pending |
-| ANNO-02 | Phase 4 | Pending |
-| ANNO-03 | Phase 4 | Pending |
-| ANNO-04 | Phase 4 | Pending |
+| ANNO-01 | Phase 4 | Complete |
+| ANNO-02 | Phase 4 | Complete |
+| ANNO-03 | Phase 4 | Complete |
+| ANNO-04 | Phase 4 | Complete |
 | VOICE-01 | Phase 5 | Pending |
 | VOICE-02 | Phase 5 | Pending |
 | VOICE-03 | Phase 5 | Pending |

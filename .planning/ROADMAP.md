@@ -107,7 +107,7 @@ Plans:
 **Goal:** Switch from PaddleOCR to NDLOCR-Lite models for 63% size reduction and better Japanese OCR
 **Requirements**: PDF-02, PAPER-03
 **Depends on:** Phase 03
-**Plans:** 8/8 plans complete
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 03.1-01-PLAN.md — Download NDLOCR-Lite models and update paths
