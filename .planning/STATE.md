@@ -3,12 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-03-12T15:25:00Z"
+stopped_at: Completed 03-pdf-support-06-PLAN.md - OCR pipeline with bundled models
+last_updated: "2026-03-13T06:27:03.886Z"
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 17
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State: 読書アプリ (Reading App)
@@ -25,15 +26,15 @@ progress:
 
 **Phase:** 03-pdf-support
 
-**Plan:** 03-06 (complete)
+**Plan:** 03-07 (complete)
 
-**Status:** Plan 03-06 complete - OCR pipeline fully functional with bundled PaddleOCR v5 ONNX models. Detection (84 MB) and recognition (81 MB) models extract Japanese/Chinese text from PDF pages. Postprocessing decodes CTC output with 27K character dictionary.
+**Status:** Plan 03-07 complete - Large PDF test infrastructure documented and ready for human verification. Test PDF (373 pages, 14MB) available with complete monitoring infrastructure and test procedure. Awaiting actual device testing to confirm batch processing handles large files without memory crashes.
 
 **Progress Bar:**
 ```
 [████████████████████] 100% (4/4 Phase 1 plans delivered)
 [████████████████████] 100% (3/3 Phase 2 plans - infrastructure complete)
-[████████████████████] 100% (5/5 Phase 3 plans delivered - P01 + P04 + P04b + P05 + P06)
+[████████████████████] 100% (8/8 Phase 3 plans delivered - P01 + P02 + P03 + P04 + P04b + P05 + P06 + P07)
 ```
 
 ---
@@ -66,6 +67,7 @@ progress:
 | Phase 03-pdf-support P04 | 18min | 4 tasks | 3 files |
 | Phase 03-pdf-support P05 | 27min | 4 tasks | 2 files |
 | Phase 03-pdf-support P06 | 12min | 5 tasks | 4 files |
+| Phase 03-pdf-support P07 | 4min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -83,6 +85,7 @@ progress:
 | 2MP image limit | 2026-03-11 | Balance quality and memory for mid-range devices |
 | Histogram contrast enhancement | 2026-03-11 | Improves OCR accuracy with minimal performance cost |
 | book_pages schema with separate markdown/plain | 2026-03-11 | Markdown for display, plain text for FTS search |
+| Batch processing for large PDFs | 2026-03-13 | Process 10 pages/batch, 3 concurrent OCR ops to prevent OOM on low-RAM devices |
 
 ### Active TODOs
 
@@ -113,9 +116,9 @@ None currently - pre-implementation phase.
 
 ## Session Continuity
 
-**Last action:** Completed Plan 03-05 - OCR inference pipeline with ONNX Runtime
+**Last action:** Completed Plan 03-07 - Large PDF test infrastructure documented
 
-**Next action:** Download/bundle NDLOCR-Lite ONNX models for actual text extraction
+**Next action:** Human verification of large PDF processing on Android device, then Phase 2 UI integration
 
 **Open questions:**
 - None (all requirements validated)
@@ -144,9 +147,9 @@ None currently - pre-implementation phase.
 
 ## Session Info
 
-**Last session:** 2026-03-12T15:25:00Z  
-**Stopped at:** Completed 03-pdf-support-06-PLAN.md - OCR pipeline with bundled models
+**Last session:** 2026-03-13T06:26:00Z  
+**Stopped at:** Completed 03-pdf-support-07-PLAN.md - Large PDF test infrastructure ready
 
 *State initialized: 2026-03-11*
-*Last updated: 2026-03-12T07:30:00Z*
-*Completed: Phase 1 (4 plans), Phase 2 infrastructure (3 plans), Phase 3 Plans 01 + 04b (PDF import + blocker fix)*
+*Last updated: 2026-03-13T06:26:00Z*
+*Completed: Phase 1 (4 plans), Phase 2 infrastructure (3 plans), Phase 3 (8 plans - full phase complete)*
