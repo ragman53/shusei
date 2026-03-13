@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-last_updated: "2026-03-13T12:45:00.000Z"
+last_updated: "2026-03-13T13:50:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 3
@@ -85,6 +85,7 @@ None currently.
 | 1 | 開発中に不要になったファイルやディレクトリを整理 | 2026-03-13 | 5d2efc1 | [001-cleanup-unnecessary-files](./quick/001-cleanup-unnecessary-files/) |
 | 2 | Fix dx serve --android build failure (make tokenizers desktop-only) | 2026-03-13 | d8476b9 | [002-debug-dx-serve-android](./quick/002-debug-dx-serve-android/) |
 | 3 | Fix Android linker path with absolute Windows NDK paths | 2026-03-13 | 7f44f03 | [003-fix-android-linker-path](./quick/003-fix-android-linker-path/) |
+| 4 | Add bundled test PDF and Load Demo PDF button for Android | 2026-03-13 | 77eabd9 | [004-add-pdf-test-assets](./quick/004-add-pdf-test-assets/) |
 
 ### Known Issues
 
@@ -95,7 +96,7 @@ None currently.
 
 ## Session Continuity
 
-**Last action:** 2026-03-13 - Completed quick task 3: Fix Android linker path with absolute Windows NDK paths
+**Last action:** 2026-03-13 - Completed quick task 004: Add bundled test PDF and Load Demo PDF button for Android
 
 **Next action:** Human verification of OCR accuracy with 373-page PDF, then phase merge
 
@@ -123,5 +124,5 @@ None currently.
 ---
 
 *State initialized: 2026-03-11*
-*Last updated: 2026-03-13 (Quick task 003 complete)*
+*Last updated: 2026-03-13 (Quick task 004 complete)*
 *Next: Human verification, then merge phase 03.2*
