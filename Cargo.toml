@@ -28,7 +28,11 @@ image = "0.25"
 ndarray = "0.16"
 
 # PDF Processing (optional - for Phase 2)
-pdfium-render = { version = "0.8", features = ["static"], optional = true }
+# Using dynamic linking with pre-built binaries from bblanchon/pdfium-binaries
+# See: https://github.com/bblanchon/pdfium-binaries/releases
+# Download pdfium.dll and place in project root or target directory
+# Uses runtime dynamic loading - no compile-time linking
+pdfium-render = { version = "0.8", default-features = false, features = ["thread_safe", "pdfium_latest"], optional = true }
 
 # Database
 rusqlite = { version = "0.32", features = ["bundled"] }

@@ -22,16 +22,19 @@ pub struct PdfProcessor {
 impl PdfProcessor {
     /// Create a new PDF processor
     pub fn new() -> Result<Self> {
-        // Use static bindings (pdfium-render v0.8 with "static" feature)
-        let bindings = Pdfium::bind_to_statically_linked_library().map_err(|e| {
-            ShuseiError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                e.to_string(),
-            ))
-        })?;
+        // Use dynamic linking with pre-built binaries from bblanchon/pdfium-binaries
+        // Try to load from current directory first, then fall back to system library
+        let bindings = Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path("./"))
+            .or_else(|_| Pdfium::bind_to_system_library())
+            .map_err(|e| {
+                ShuseiError::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to load PDFium library. Download pre-built binaries from https://github.com/bblanchon/pdfium-binaries/releases and place in project root. Error: {}", e),
+                ))
+            })?;
         let pdfium = Pdfium::new(bindings);
 
-        log::info!("PDF processor initialized");
+        log::info!("PDF processor initialized with dynamic linking");
 
         Ok(Self { pdfium })
     }
