@@ -358,14 +358,15 @@ impl PdfConversionService {
                     break; // All pages rendered
                 }
 
+                let batch_len = pages.len();
                 let batch_time = batch_start.elapsed();
-                rendered_count += pages.len() as u32;
+                rendered_count += batch_len as u32;
                 all_pages.extend(pages);
                 
                 info!(
                     "Batch {} complete: rendered {} pages (total: {}/{}), time: {:.2?}",
                     batch_num,
-                    pages.len(),
+                    batch_len,
                     rendered_count,
                     total_pages,
                     batch_time
