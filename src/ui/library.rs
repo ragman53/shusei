@@ -241,6 +241,54 @@ pub fn LibraryScreen() -> Element {
         });
     };
     
+    // Load demo PDF handler for desktop
+    #[cfg(not(target_os = "android"))]
+    let load_demo_pdf = move |_| {
+        spawn(async move {
+            importing.set(true);
+            error_message.set(None);
+            
+            log::info!("Loading demo PDF from bundled assets...");
+            
+            // Direct path to the demo PDF
+            let demo_path = std::path::PathBuf::from("assets/test/medium_pdf_test.pdf");
+            
+            // Get app data directory
+            let app_data_dir = match std::env::current_exe() {
+                Ok(exe) => exe.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from(".")),
+                Err(_) => std::path::PathBuf::from("."),
+            };
+            
+            // Import PDF using PdfProcessor
+            match PdfProcessor::new() {
+                Ok(processor) => {
+                    match processor.import_pdf(&demo_path, &app_data_dir) {
+                        Ok((metadata, copied_path)) => {
+                            log::info!("Demo PDF imported: {:?} -> {}", metadata, copied_path);
+                            
+                            // Show metadata review dialog
+                            review_title.set(metadata.title.clone().unwrap_or_else(|| "Demo PDF".to_string()));
+                            review_author.set(metadata.author.clone().unwrap_or_default());
+                            review_pages.set(metadata.page_count);
+                            pending_metadata.set(Some((metadata, copied_path)));
+                            show_metadata_dialog.set(true);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to import demo PDF: {:?}", e);
+                            error_message.set(Some(format!("Failed to import demo PDF: {}", e)));
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to create PdfProcessor: {:?}", e);
+                    error_message.set(Some(format!("Failed to initialize PDF processor: {}", e)));
+                }
+            }
+            
+            importing.set(false);
+        });
+    };
+    
     // Handle metadata confirmation
     let handle_metadata_confirm = move |(title, author): (String, String)| {
         spawn(async move {
@@ -327,17 +375,21 @@ pub fn LibraryScreen() -> Element {
                     }
                 }
 
-                // Load Demo PDF button (Android only)
+                // Load Demo PDF button (both platforms)
                 #[cfg(target_os = "android")]
                 button {
                     class: "bg-orange-500 text-white px-4 py-2 rounded-lg",
                     onclick: load_demo_pdf,
                     disabled: importing(),
-                    if importing() {
-                        "Loading..."
-                    } else {
-                        "Load Demo PDF"
-                    }
+                    if importing() { "Loading..." } else { "Load Demo PDF" }
+                }
+
+                #[cfg(not(target_os = "android"))]
+                button {
+                    class: "bg-orange-500 text-white px-4 py-2 rounded-lg",
+                    onclick: load_demo_pdf,
+                    disabled: importing(),
+                    if importing() { "Loading..." } else { "Load Demo PDF" }
                 }
             }
             
