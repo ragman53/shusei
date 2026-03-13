@@ -2,12 +2,12 @@
   "profiles": {
     "presets": {
       "genius": {
-        "planning": "alibaba-coding-plan/kimi-k2.5",
+        "planning": "alibaba-coding-plan/glm-5",
         "execution": "alibaba-coding-plan/qwen3.5-plus",
         "verification": "alibaba-coding-plan/glm-5"
       },
       "smart": {
-        "planning": "alibaba-coding-plan/qwen3.5-plus",
+        "planning": "alibaba-coding-plan/glm-5",
         "execution": "alibaba-coding-plan/qwen3.5-plus",
         "verification": "alibaba-coding-plan/glm-5"
       }

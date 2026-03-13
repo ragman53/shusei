@@ -2,6 +2,20 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
+status: Blocked by PDFium CRT conflict, requires manual resolution
+stopped_at: Completed 03.1-01-PLAN.md - NDLOCR-Lite models downloaded and integrated
+last_updated: "2026-03-13T08:10:41.336Z"
+progress:
+  total_phases: 8
+  completed_phases: 4
+  total_plans: 17
+  completed_plans: 18
+---
+
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
 status: planning
 stopped_at: Plan 03.1-02 partial - PDFium CRT linking conflict blocks test execution
 last_updated: "2026-03-13T16:46:00Z"
@@ -77,6 +91,7 @@ progress:
 ### Roadmap Evolution
 
 - Phase 03.1 inserted after Phase 03: Change OCR onnx models (URGENT)
+- Phase 08 added: Change PDF processing library from pdfium-render to hayro for resolving a recent blocker
 
 ### Key Decisions Made
 
