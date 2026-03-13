@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed 03.1-01-PLAN.md - NDLOCR-Lite models downloaded and integrated
-last_updated: "2026-03-13T06:48:57.646Z"
+stopped_at: Plan 03.1-02 partial - PDFium CRT linking conflict blocks test execution
+last_updated: "2026-03-13T16:46:00Z"
 progress:
   total_phases: 8
   completed_phases: 3
@@ -26,16 +26,16 @@ progress:
 
 **Phase:** 03.1-change-ocr-onnx-models
 
-**Plan:** 01 (complete)
+**Plan:** 02 (partial - CRT linking limitation)
 
-**Status:** Ready for next plan
+**Status:** Blocked by PDFium CRT conflict, requires manual resolution
 
 **Progress Bar:**
 ```
 [████████████████████] 100% (4/4 Phase 1 plans delivered)
 [████████████████████] 100% (3/3 Phase 2 plans - infrastructure complete)
 [████████████████████] 100% (8/8 Phase 3 plans delivered - P01 + P02 + P03 + P04 + P04b + P05 + P06 + P07)
-[████████████████████] 100% (1/1 Phase 03.1 plans delivered - P01)
+[████████████████████]  50% (1/2 Phase 03.1 plans delivered - P01 complete, P02 partial)
 ```
 
 ---
@@ -70,6 +70,7 @@ progress:
 | Phase 03-pdf-support P06 | 12min | 5 tasks | 4 files |
 | Phase 03-pdf-support P07 | 4min | 3 tasks | 1 files |
 | Phase 03.1-change-ocr-onnx-models P01 | 4min | 4 tasks | 8 files |
+| Phase 03.1-change-ocr-onnx-models P02 | partial | 1/4 tasks | 6 files (CRT linking blocked) |
 
 ## Accumulated Context
 
@@ -109,6 +110,10 @@ progress:
 ### Blockers
 
 - ~~**pdfium-render v0.8 API incompatibilities**~~ - RESOLVED by Plan 03-04b. pdf.rs now compiles cleanly with pdfium-render v0.8.37.
+- **PDFium CRT linking conflict (LNK1169)** - Pre-built binaries from bblanchon/pdfium-binaries have CRT mismatch with Rust's default LIBCMT. 
+  - Workaround: Use `cargo check` for verification (code compiles correctly)
+  - Fix: Build PDFium from source with matching CRT settings or use alternative binary source
+  - Impact: Cannot run integration tests requiring pdf feature
 
 ### Known Issues
 
@@ -118,9 +123,9 @@ None currently - pre-implementation phase.
 
 ## Session Continuity
 
-**Last action:** Completed Plan 03-07 - Large PDF test infrastructure documented
+**Last action:** Plan 03.1-02 partial - PDFium dynamic linking implemented, CRT conflict documented
 
-**Next action:** Human verification of large PDF processing on Android device, then Phase 2 UI integration
+**Next action:** Resolve CRT linking conflict (build PDFium from source or find alternative binaries), then continue with tasks 2-4
 
 **Open questions:**
 - None (all requirements validated)
