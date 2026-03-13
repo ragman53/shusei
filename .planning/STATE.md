@@ -77,6 +77,12 @@ progress:
 
 None currently.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | 開発中に不要になったファイルやディレクトリを整理 | 2026-03-13 | 5d2efc1 | [001-cleanup-unnecessary-files](./quick/001-cleanup-unnecessary-files/) |
+
 ### Known Issues
 
 - **CRT Linking Conflict (ort dependency):** Tests cannot compile due to ort linking both dynamic and static C++ runtime libraries. Tests designed to skip gracefully. Resolution out of scope for Phase 03.2.
@@ -86,7 +92,7 @@ None currently.
 
 ## Session Continuity
 
-**Last action:** Quick task 001 complete - removed all PDFium legacy artifacts
+**Last action:** 2026-03-13 - Completed quick task 1: 開発中に不要になったファイルやディレクトリを整理
 
 **Next action:** Human verification of OCR accuracy with 373-page PDF, then phase merge
 
