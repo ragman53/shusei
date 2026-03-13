@@ -116,11 +116,11 @@ impl NdlocrEngine {
     
     /// Initialize the engine (load ONNX models)
     pub async fn initialize(&mut self) -> Result<()> {
-        log::info!("Initializing NDLOCR engine from {:?}", self.model_dir);
+        log::info!("Initializing NDLOCR-Lite engine from {:?}", self.model_dir);
         
-        // Check if model files exist
-        let detection_model = self.model_dir.join("text_detection.onnx");
-        let recognition_model = self.model_dir.join("text_recognition.onnx");
+        // Check if model files exist (NDLOCR-Lite models)
+        let detection_model = self.model_dir.join("deim-s-1024x1024.onnx");
+        let recognition_model = self.model_dir.join("parseq-ndl-16x384-50-tiny-146epoch-tegaki2.onnx");
         let direction_model = self.model_dir.join("direction_classifier.onnx");
         
         // Load detection model
