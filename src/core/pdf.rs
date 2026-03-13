@@ -550,6 +550,61 @@ startxref
         }
     }
 
+    // Basic unit tests for PDF operations
+    #[test]
+    fn test_processor_new() {
+        let processor = PdfProcessor::new();
+        assert!(processor.is_ok(), "PdfProcessor::new() should succeed");
+    }
+
+    #[test]
+    fn test_open_pdf() {
+        // Create a minimal test PDF
+        let temp_dir = TempDir::new().unwrap();
+        let pdf_path = temp_dir.path().join("test.pdf");
+        let minimal_pdf = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\nxref\n0 3\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\ntrailer\n<< /Size 3 /Root 1 0 R >>\nstartxref\n116\n%%EOF";
+        fs::write(&pdf_path, minimal_pdf).unwrap();
+
+        let processor = PdfProcessor::new().unwrap();
+        let doc = processor.open(&pdf_path);
+        assert!(doc.is_ok(), "Opening valid PDF should succeed");
+    }
+
+    #[test]
+    fn test_render_single_page() {
+        // Create a minimal 1-page PDF
+        let temp_dir = TempDir::new().unwrap();
+        let pdf_path = temp_dir.path().join("test.pdf");
+        let pdf_content = b"%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>
+endobj
+xref
+0 4
+0000000000 65535 f
+0000000009 00000 n
+0000000058 00000 n
+0000000115 00000 n
+trailer
+<< /Size 4 /Root 1 0 R >>
+startxref
+198
+%%EOF";
+        fs::write(&pdf_path, pdf_content).unwrap();
+
+        let processor = PdfProcessor::new().unwrap();
+        let doc = processor.open(&pdf_path).unwrap();
+        let result = processor.render_page(&doc, 0, 1000, 1000);
+        assert!(result.is_ok(), "Rendering page should succeed");
+        assert!(!result.unwrap().is_empty(), "Rendered page should not be empty");
+    }
+
     #[test]
     fn test_pdf_processor_new() {
         let processor = PdfProcessor::new();
