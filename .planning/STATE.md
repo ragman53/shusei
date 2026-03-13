@@ -65,6 +65,7 @@ progress:
 | Batch processing (10 pages) | 2026-03-13 | Memory efficiency for large PDFs |
 | Parallel rendering (3 threads) | 2026-03-13 | Performance optimization |
 | Graceful test skip on CRT issue | 2026-03-13 | Tests structured, run when CRT resolved |
+| NDK 26 with absolute Windows paths | 2026-03-13 | Fixes linker not found; NDK 29 has esaxx-rs issues |
 
 ### Active TODOs
 
@@ -83,25 +84,24 @@ None currently.
 |---|-------------|------|--------|-----------|
 | 1 | 開発中に不要になったファイルやディレクトリを整理 | 2026-03-13 | 5d2efc1 | [001-cleanup-unnecessary-files](./quick/001-cleanup-unnecessary-files/) |
 | 2 | Fix dx serve --android build failure (make tokenizers desktop-only) | 2026-03-13 | d8476b9 | [002-debug-dx-serve-android](./quick/002-debug-dx-serve-android/) |
+| 3 | Fix Android linker path with absolute Windows NDK paths | 2026-03-13 | 7f44f03 | [003-fix-android-linker-path](./quick/003-fix-android-linker-path/) |
 
 ### Known Issues
 
 - **CRT Linking Conflict (ort dependency):** Tests cannot compile due to ort linking both dynamic and static C++ runtime libraries. Tests designed to skip gracefully. Resolution out of scope for Phase 03.2.
 - **Human Verification Pending:** OCR accuracy validation with 373-page PDF requires manual execution (auto-approved for workflow continuation).
-- **Android NDK Linker Not Found:** Android builds require NDK toolchain in PATH. Code compiles successfully (cargo check passes) but linking fails with `aarch64-linux-android30-clang not found`.
 
 ---
 
 ## Session Continuity
 
-**Last action:** 2026-03-13 - Completed quick task 2: Fix dx serve --android build failure
+**Last action:** 2026-03-13 - Completed quick task 3: Fix Android linker path with absolute Windows NDK paths
 
 **Next action:** Human verification of OCR accuracy with 373-page PDF, then phase merge
 
 **Open questions:**
 - CRT linking issue with ort dependency (pre-existing, tests skip gracefully)
 - OCR accuracy equivalence validation (pending human verification)
-- Android NDK toolchain configuration (infrastructure issue, not code-related)
 
 **Context freshness:** Full context loaded from:
 - Phase 03.2 summaries (03.2-01 through 03.2-04)
@@ -123,5 +123,5 @@ None currently.
 ---
 
 *State initialized: 2026-03-11*
-*Last updated: 2026-03-13 (Quick task 002 complete)*
+*Last updated: 2026-03-13 (Quick task 003 complete)*
 *Next: Human verification, then merge phase 03.2*
