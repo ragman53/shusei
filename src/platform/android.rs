@@ -510,24 +510,30 @@ pub extern "system" fn Java_com_shusei_app_MainActivity_onFilePicked(
 ) {
     log::info!("onFilePicked: file selected");
     
-    let path = unsafe {
-        let jstring = env.get_string(&JString::from_raw(file_path))
-            .map_err(|e| {
+    if file_path.is_null() {
+        log::error!("onFilePicked: file_path is null");
+        send_file_picker_result(Err(ShuseiError::Platform(
+            "File path is null".into()
+        )));
+        return;
+    }
+    
+    unsafe {
+        let j_string = JString::from_raw(file_path);
+        let java_str = match env.get_string(&j_string) {
+            Ok(s) => s,
+            Err(e) => {
                 log::error!("Failed to get file path string: {}", e);
-            });
-        match jstring {
-            Ok(s) => s.to_str().unwrap_or("").to_string(),
-            Err(_) => {
                 send_file_picker_result(Err(ShuseiError::Platform(
                     "Failed to convert file path".into()
                 )));
                 return;
             }
-        }
-    };
-    
-    log::info!("File picked: {}", path);
-    send_file_picker_result(Ok(path));
+        };
+        let path = java_str.to_str().unwrap_or("").to_string();
+        log::info!("File picked: {}", path);
+        send_file_picker_result(Ok(path));
+    }
 }
 
 #[no_mangle]
@@ -538,19 +544,28 @@ pub extern "system" fn Java_com_shusei_app_MainActivity_onFilePickFailed(
 ) {
     log::error!("onFilePickFailed: file picker failed");
     
-    let error = unsafe {
-        let jstring = env.get_string(&JString::from_raw(error_message))
-            .map_err(|e| {
-                log::error!("Failed to get error message string: {}", e);
-            });
-        match jstring {
-            Ok(s) => s.to_str().unwrap_or("Unknown error").to_string(),
-            Err(_) => "Unknown error".to_string(),
-        }
-    };
+    if error_message.is_null() {
+        log::error!("File picker failed: Unknown error (null message)");
+        send_file_picker_result(Err(ShuseiError::Platform("Unknown error".into())));
+        return;
+    }
     
-    log::error!("File picker failed: {}", error);
-    send_file_picker_result(Err(ShuseiError::Platform(error)));
+    unsafe {
+        let j_string = JString::from_raw(error_message);
+        let java_str = match env.get_string(&j_string) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("Failed to get error message string: {}", e);
+                send_file_picker_result(Err(ShuseiError::Platform(
+                    "Unknown error".into()
+                )));
+                return;
+            }
+        };
+        let error = java_str.to_str().unwrap_or("Unknown error").to_string();
+        log::error!("File picker failed: {}", error);
+        send_file_picker_result(Err(ShuseiError::Platform(error)));
+    }
 }
 
 // Also need the legacy package version for Dioxus
@@ -563,26 +578,30 @@ pub extern "system" fn Java_dev_dioxus_main_MainActivity_onFilePicked(
 ) {
     log::info!("onFilePicked (dev.dioxus.main): file selected");
     
-    use jni::objects::JString;
+    if file_path.is_null() {
+        log::error!("onFilePicked (dev.dioxus.main): file_path is null");
+        send_file_picker_result(Err(ShuseiError::Platform(
+            "File path is null".into()
+        )));
+        return;
+    }
     
-    let path = unsafe {
-        let jstring = env.get_string(&JString::from_raw(file_path))
-            .map_err(|e| {
+    unsafe {
+        let j_string = JString::from_raw(file_path);
+        let java_str = match env.get_string(&j_string) {
+            Ok(s) => s,
+            Err(e) => {
                 log::error!("Failed to get file path string: {}", e);
-            });
-        match jstring {
-            Ok(s) => s.to_str().unwrap_or("").to_string(),
-            Err(_) => {
                 send_file_picker_result(Err(ShuseiError::Platform(
                     "Failed to convert file path".into()
                 )));
                 return;
             }
-        }
-    };
-    
-    log::info!("File picked: {}", path);
-    send_file_picker_result(Ok(path));
+        };
+        let path = java_str.to_str().unwrap_or("").to_string();
+        log::info!("File picked: {}", path);
+        send_file_picker_result(Ok(path));
+    }
 }
 
 #[no_mangle]
@@ -593,21 +612,28 @@ pub extern "system" fn Java_dev_dioxus_main_MainActivity_onFilePickFailed(
 ) {
     log::error!("onFilePickFailed (dev.dioxus.main): file picker failed");
     
-    use jni::objects::JString;
+    if error_message.is_null() {
+        log::error!("File picker failed (dev.dioxus.main): Unknown error (null message)");
+        send_file_picker_result(Err(ShuseiError::Platform("Unknown error".into())));
+        return;
+    }
     
-    let error = unsafe {
-        let jstring = env.get_string(&JString::from_raw(error_message))
-            .map_err(|e| {
+    unsafe {
+        let j_string = JString::from_raw(error_message);
+        let java_str = match env.get_string(&j_string) {
+            Ok(s) => s,
+            Err(e) => {
                 log::error!("Failed to get error message string: {}", e);
-            });
-        match jstring {
-            Ok(s) => s.to_str().unwrap_or("Unknown error").to_string(),
-            Err(_) => "Unknown error".to_string(),
-        }
-    };
-    
-    log::error!("File picker failed: {}", error);
-    send_file_picker_result(Err(ShuseiError::Platform(error)));
+                send_file_picker_result(Err(ShuseiError::Platform(
+                    "Unknown error".into()
+                )));
+                return;
+            }
+        };
+        let error = java_str.to_str().unwrap_or("Unknown error").to_string();
+        log::error!("File picker failed: {}", error);
+        send_file_picker_result(Err(ShuseiError::Platform(error)));
+    }
 }
 
 fn send_file_picker_result(result: Result<String>) {

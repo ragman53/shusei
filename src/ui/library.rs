@@ -13,8 +13,8 @@ use crate::core::db::{Book, Database, NewBook};
 use crate::core::pdf::{PdfMetadata, PdfProcessor};
 use crate::core::storage::StorageService;
 
-#[cfg(target_os = "android")]
-use crate::platform::android;
+    #[cfg(target_os = "android")]
+use crate::platform::{android, PlatformApi};
 
 /// Filter type for library
 #[derive(Clone, PartialEq)]
@@ -181,6 +181,7 @@ pub fn LibraryScreen() -> Element {
             error_message.set(None);
             
             // Use platform file picker
+            use crate::platform::PlatformApi;
             match crate::platform::get_platform_api().pick_file(&["pdf"]).await {
                 Ok(file_path) => {
                     log::info!("PDF file picked: {}", file_path);
