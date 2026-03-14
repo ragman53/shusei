@@ -376,15 +376,6 @@ pub fn LibraryScreen() -> Element {
                 }
 
                 // Load Demo PDF button (both platforms)
-                #[cfg(target_os = "android")]
-                button {
-                    class: "bg-orange-500 text-white px-4 py-2 rounded-lg",
-                    onclick: load_demo_pdf,
-                    disabled: importing(),
-                    if importing() { "Loading..." } else { "Load Demo PDF" }
-                }
-
-                #[cfg(not(target_os = "android"))]
                 button {
                     class: "bg-orange-500 text-white px-4 py-2 rounded-lg",
                     onclick: load_demo_pdf,

@@ -7,37 +7,37 @@
   },
   "agent": {
     "gsd-planner": {
-      "model": "alibaba-coding-plan/qwen3.5-plus"
+      "model": "alibaba-coding-plan/glm-5"
     },
     "gsd-plan-checker": {
-      "model": "alibaba-coding-plan/qwen3.5-plus"
+      "model": "alibaba-coding-plan/glm-5"
     },
     "gsd-phase-researcher": {
-      "model": "alibaba-coding-plan/qwen3.5-plus"
+      "model": "alibaba-coding-plan/glm-5"
     },
     "gsd-roadmapper": {
-      "model": "alibaba-coding-plan/qwen3.5-plus"
+      "model": "alibaba-coding-plan/glm-5"
     },
     "gsd-project-researcher": {
-      "model": "alibaba-coding-plan/qwen3.5-plus"
+      "model": "alibaba-coding-plan/glm-5"
     },
     "gsd-research-synthesizer": {
-      "model": "alibaba-coding-plan/qwen3.5-plus"
+      "model": "alibaba-coding-plan/glm-5"
     },
     "gsd-codebase-mapper": {
-      "model": "alibaba-coding-plan/qwen3.5-plus"
+      "model": "alibaba-coding-plan/glm-5"
     },
     "gsd-executor": {
-      "model": "alibaba-coding-plan/qwen3.5-plus"
+      "model": "alibaba-coding-plan/kimi-k2.5"
     },
     "gsd-debugger": {
-      "model": "alibaba-coding-plan/qwen3.5-plus"
+      "model": "alibaba-coding-plan/kimi-k2.5"
     },
     "gsd-verifier": {
-      "model": "alibaba-coding-plan/glm-5"
+      "model": "alibaba-coding-plan/qwen3-coder-plus"
     },
     "gsd-integration-checker": {
-      "model": "alibaba-coding-plan/glm-5"
+      "model": "alibaba-coding-plan/qwen3-coder-plus"
     }
   }
 }

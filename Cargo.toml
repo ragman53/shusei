@@ -83,7 +83,7 @@ ort-tract = "0.3.0+0.22"
 default = []
 android = ["jni"]
 ios = []
-desktop = []
+desktop = ["dioxus/desktop"]
 web = []
 lindera = ["dep:lindera"]
 ndlocr-test = []  # Enable NDLOCR tract compatibility tests
@@ -107,3 +107,6 @@ strip = true
 [profile.dev]
 opt-level = 0
 debug = true
+
+[patch.crates-io]
+esaxx-rs = { path = "patches/esaxx-rs" }

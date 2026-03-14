@@ -13,3 +13,13 @@ ar = "C:\\Users\\ragma\\AppData\\Local\\Android\\Sdk\\ndk\\26.1.10909125\\toolch
 [target.x86_64-linux-android]
 linker = "C:\\Users\\ragma\\AppData\\Local\\Android\\Sdk\\ndk\\26.1.10909125\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\x86_64-linux-android21-clang.cmd"
 ar = "C:\\Users\\ragma\\AppData\\Local\\Android\\Sdk\\ndk\\26.1.10909125\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\llvm-ar.exe"
+
+# Windows MSVC targets - force dynamic CRT (/MD) to match ONNX Runtime
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=-crt-static"]
+
+[target.i686-pc-windows-msvc]
+rustflags = ["-C", "target-feature=-crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=-crt-static"]

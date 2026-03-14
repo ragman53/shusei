@@ -7,7 +7,7 @@ use dioxus::prelude::*;
 use dioxus_router::{Link, Routable, Router};
 
 use crate::core::state::AppState;
-use crate::ui::{CameraPage, NotesPage, ReaderPage, VocabPage};
+use crate::ui::{AddBookForm, CameraPage, LibraryScreen, NotesPage, ReaderPage, VocabPage};
 
 /// Application state signal for tracking restored state
 #[derive(Clone, Copy)]
@@ -82,7 +82,7 @@ fn Home() -> Element {
         div { class: "flex flex-col h-full",
             // Header
             header { class: "bg-blue-600 text-white p-4",
-                h1 { class: "text-2xl font-bold", "脳読" }
+                h1 { class: "text-2xl font-bold", "Shusei" }
                 p { class: "text-sm opacity-80", "Offline Reading Assistant" }
             }
 
@@ -188,25 +188,19 @@ fn Vocab() -> Element {
     }
 }
 
-/// Book list page - placeholder for library screen
+/// Book list page - uses LibraryScreen component
 #[component]
 fn BookList() -> Element {
     rsx! {
-        div { class: "p-4",
-            h1 { class: "text-xl font-bold", "Library" }
-            p { class: "text-gray-500", "Library view - coming soon" }
-        }
+        LibraryScreen {}
     }
 }
 
-/// Add book page - placeholder for add book form
+/// Add book page - uses AddBookForm component
 #[component]
 fn AddBook() -> Element {
     rsx! {
-        div { class: "p-4",
-            h1 { class: "text-xl font-bold", "Add Book" }
-            p { class: "text-gray-500", "Add book form - coming soon" }
-        }
+        AddBookForm {}
     }
 }
 

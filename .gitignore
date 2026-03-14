@@ -24,9 +24,6 @@ Thumbs.db
 
 # Assets (models will be downloaded separately)
 assets/models/
-# OCR models - track these (required for OCR functionality)
-!assets/ocr/models/*.onnx
-!assets/ocr/models/*.txt
 
 # Database files
 *.db
@@ -45,26 +42,3 @@ coverage/
 
 # Documentation
 docs/_build/
-
-# ── GSD baseline (auto-generated) ──
-.gsd/activity/
-.gsd/runtime/
-.gsd/worktrees/
-.gsd/auto.lock
-.gsd/metrics.json
-.gsd/STATE.md
-*.code-workspace
-.env.*
-!.env.example
-node_modules/
-.next/
-dist/
-build/
-__pycache__/
-*.pyc
-.venv/
-venv/
-target/
-vendor/
-.cache/
-tmp/
