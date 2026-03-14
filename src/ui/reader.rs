@@ -191,11 +191,18 @@ pub fn ReaderBookView(book_id: i64) -> Element {
                                                 .and_then(|exe| exe.parent().map(|p| p.to_path_buf()))
                                                 .unwrap_or_else(|| std::path::PathBuf::from("."));
                                             
-                                            // Construct PDF path from book ID (assuming stored as pdfs/{id}.pdf)
-                                            let pdf_path = app_data_dir.join("pdfs").join(format!("{}.pdf", book_id));
+                                            // Get PDF path from book record
+                                            let pdf_path = match book().as_ref().and_then(|b| b.pdf_path.as_ref()) {
+                                                Some(path) => app_data_dir.join(path),
+                                                None => {
+                                                    conversion_error.set(Some("PDF path not stored for this book".to_string()));
+                                                    is_converting.set(false);
+                                                    return;
+                                                }
+                                            };
                                             
                                             if !pdf_path.exists() {
-                                                conversion_error.set(Some("PDF file not found".to_string()));
+                                                conversion_error.set(Some(format!("PDF file not found: {}", pdf_path.display())));
                                                 is_converting.set(false);
                                                 return;
                                             }
