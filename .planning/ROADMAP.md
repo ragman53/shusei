@@ -36,7 +36,7 @@
 
 **Research Flags:** None - standard Dioxus + SQLite patterns well-documented
 
-**Plans:** 3/4 plans executed
+**Plans:** 4 plans
 
 Plans:
 - [x] 01-01-PLAN.md — Database foundation (models + schema + CRUD)
@@ -64,12 +64,7 @@ Plans:
 - NDLOCR-Lite Rust integration with ort needs validation
 - Complex ONNX model loading on Android requires testing
 
-**Plans:** 3 plans
-
-Plans:
-- [ ] 02-01-PLAN.md — OCR engine and image preprocessing
-- [ ] 02-02-PLAN.md — Camera UI integration with database persistence
-- [ ] 02-03-PLAN.md — Quality feedback, parallel processing, auto-retry
+**Plans:** TBD
 
 ---
 
@@ -89,43 +84,29 @@ Plans:
 
 **Research Flags:** None - uses same OCR infrastructure as Phase 2
 
-**Plans:** 7 plans
-
-Plans:
-- [x] 03-01-PLAN.md — PDF import with file picker, metadata extraction, library integration
-- [x] 03-02-PLAN.md — Batch OCR processing with progress tracking and resume support
-- [x] 03-03-PLAN.md — Reflow reading UI with font controls and page navigation
-- [x] 03-04-PLAN.md — Wire PDF import to database, add conversion trigger and progress UI (gap closure)
-- [x] 03-05-PLAN.md — Complete OCR pipeline with ONNX model loading and inference (gap closure)
-- [ ] 03-06-PLAN.md — Bundle ONNX models and implement postprocessing for text extraction (gap closure)
-- [ ] 03-07-PLAN.md — Human testing with 100+ page PDF for stability verification (gap closure)
+**Plans:** TBD
 
 ---
 
-### Phase 03.2: Change PDF processing library (INSERTED)
+### Phase 03.3: load pdf function for human verification on Android real devices (INSERTED)
 
-**Goal:** Replace pdfium-render with hayro for PDF rendering to eliminate CRT linking conflict
+**Goal:** Verify PDF loading functionality works correctly on real Android devices (not emulator)
+**Requirements:** Verification phase (no new requirements)
+**Depends on:** Phase 3, Phase 03.2
 
-**Requirements**: PDF-02, PERF-02
-**Depends on:** Phase 3
-**Plans:** 3/4 plans executed
+**Success Criteria** (what must be TRUE):
+1. App launches and shows Library screen on real Android device
+2. Load Demo PDF button is visible and tappable
+3. PDF loads without crashes on real Android device
+4. OCR processing completes without OOM
+5. UI remains responsive during processing
 
-Plans:
-- [ ] 03.2-01-PLAN.md — Core hayro integration (replace pdfium-render, basic rendering)
-- [ ] 03.2-02-PLAN.md — Batch processing with parallel rendering (10 pages/batch)
-- [ ] 03.2-03-PLAN.md — Error handling and retry logic
-- [ ] 03.2-04-PLAN.md — Testing and human OCR accuracy validation
+**Research Flags:** None - verification of existing functionality
 
-### Phase 03.1: Change OCR onnx models (INSERTED)
-
-**Goal:** Switch from PaddleOCR to NDLOCR-Lite models for 63% size reduction and better Japanese OCR
-**Requirements**: PDF-02, PAPER-03
-**Depends on:** Phase 03
-**Plans:** 1/2 plans executed
+**Plans:** 1 plan
 
 Plans:
-- [ ] 03.1-01-PLAN.md — Download NDLOCR-Lite models and update paths
-- [ ] 03.1-02-PLAN.md — Update preprocessing and test model inference
+- [ ] 03.3-01-PLAN.md — Human verification of PDF loading on Android device
 
 ### Phase 4: Annotation Foundation
 **Goal:** Rich annotation system for captured content including notes, bookmarks, and word collection
@@ -181,7 +162,7 @@ Plans:
 4. Only one AI model loads at a time (never simultaneously with OCR or Voice)
 
 **Research Flags:**
-- Qwen3.5-0.8B quantization and on-device performance needs testing
+- Qwen3.5-08B quantization and on-device performance needs testing
 - Memory pressure handling for 2GB RAM devices requires validation
 
 **Plans:** TBD
@@ -211,12 +192,14 @@ Plans:
 
 | Category | Requirements | Phase | Status |
 |----------|---------------|-------|--------|
-| Core Infrastructure | 5 | 1 | 3/4 | In Progress|  | 5 | 2 | Pending |
-| PDF Support | 4 | 3 | 5/6 | In Progress|  | 4 | 4 | Pending |
+| Core Infrastructure | 5 | 1 | Pending |
+| Paper Book Capture | 5 | 2 | Pending |
+| PDF Support | 4 | 3 | Pending |
+| Annotation | 4 | 4 | Pending |
 | Voice Memos | 4 | 5 | Pending |
 | AI Enhancement | 4 | 6 | Pending |
 | Performance | 3 | 7 | Pending |
-| **Total** | **30** | **7 phases** | **In progress (2/30)** |
+| **Total** | **30** | **7 phases** | **Pending** |
 
 ✓ All 30 v1 requirements mapped to exactly one phase
 ✓ No orphaned requirements
@@ -260,11 +243,15 @@ Phase 7 (Polish) depends on all previous phases
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Core Infrastructure | 2/4 | In progress | 01-01, 01-02 |
+| 1. Core Infrastructure | 0/TBD | Not started | - |
 | 2. Paper Book Capture | 0/TBD | Not started | - |
 | 3. PDF Support | 0/TBD | Not started | - |
 | 4. Annotation Foundation | 0/TBD | Not started | - |
 | 5. Voice Memos | 0/TBD | Not started | - |
 | 6. AI Enhancement | 0/TBD | Not started | - |
 | 7. Performance Polish | 0/TBD | Not started | - |
-
+
+---
+
+*Roadmap created: 2026-03-11*
+*Granularity: Standard | Mode: yolo*
