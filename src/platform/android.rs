@@ -15,6 +15,8 @@ static CAMERA_STATE: Mutex<Option<CameraState>> = Mutex::new(None);
 
 static JAVA_VM: Lazy<Mutex<Option<JavaVM>>> = Lazy::new(|| Mutex::new(None));
 
+static ACTIVITY: Lazy<Mutex<Option<jni::objects::GlobalRef>>> = Lazy::new(|| Mutex::new(None));
+
 struct CameraState {
     result_sender: Option<oneshot::Sender<Result<CameraResult>>>,
 }
@@ -51,7 +53,7 @@ impl AndroidPlatform {
     }
     
     fn find_activity_class<'local>(env: &mut JNIEnv<'local>) -> Result<JClass<'local>> {
-        env.find_class("com/shusei/app/MainActivity")
+        env.find_class("dev/dioxus/main/MainActivity")
             .map_err(|e| ShuseiError::Platform(format!("Failed to find MainActivity class: {}", e)))
     }
 }
@@ -161,9 +163,9 @@ impl PlatformApi for AndroidPlatform {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_com_shusei_app_MainActivity_nativeInit(
+pub extern "system" fn Java_dev_dioxus_main_MainActivity_nativeInit(
     mut env: JNIEnv,
-    _class: JClass,
+    activity: jni::objects::JObject,
 ) {
     log::info!("nativeInit called from Java");
     
@@ -178,6 +180,27 @@ pub extern "system" fn Java_com_shusei_app_MainActivity_nativeInit(
             log::error!("Failed to get JavaVM: {}", e);
         }
     }
+    
+    let global_ref = env.new_global_ref(activity);
+    match global_ref {
+        Ok(gref) => {
+            if let Ok(mut guard) = ACTIVITY.lock() {
+                *guard = Some(gref);
+                log::info!("Activity reference stored successfully");
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to create global ref for activity: {}", e);
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_shusei_app_MainActivity_nativeInit(
+    mut env: JNIEnv,
+    _class: JClass,
+) {
+    log::info!("nativeInit (legacy) called - use dev.dioxus.main.MainActivity instead");
 }
 
 #[no_mangle]
@@ -226,12 +249,9 @@ pub fn get_assets_directory() -> crate::core::error::Result<std::path::PathBuf> 
     Ok(std::path::PathBuf::from("/data/data/com.shusei.app/files"))
 }
 
-/// Copy a bundled asset from APK to the app's files directory
-/// Returns the path to the copied file
 pub fn copy_asset_to_files(asset_path: &str) -> crate::core::error::Result<std::path::PathBuf> {
     let files_dir = get_assets_directory()?;
     
-    // Create the target path
     let file_name = std::path::Path::new(asset_path)
         .file_name()
         .ok_or_else(|| ShuseiError::Platform("Invalid asset path".into()))?
@@ -240,13 +260,14 @@ pub fn copy_asset_to_files(asset_path: &str) -> crate::core::error::Result<std::
     
     let target_path = files_dir.join(file_name);
     
-    // If already copied, return the path
     if target_path.exists() {
         log::info!("Asset already copied to: {:?}", target_path);
         return Ok(target_path);
     }
     
-    // Use JNI to copy from APK assets
+    std::fs::create_dir_all(&files_dir)
+        .map_err(|e| ShuseiError::Platform(format!("Failed to create files directory: {}", e)))?;
+    
     let guard = JAVA_VM.lock()
         .map_err(|_| ShuseiError::Platform("Failed to lock JAVA_VM".into()))?;
     
@@ -256,24 +277,77 @@ pub fn copy_asset_to_files(asset_path: &str) -> crate::core::error::Result<std::
     let mut env = java_vm.attach_current_thread()
         .map_err(|e| ShuseiError::Platform(format!("Failed to get JNIEnv: {}", e)))?;
     
-    // Call Java method to copy asset
-    let class = env.find_class("com/shusei/app/MainActivity")
-        .map_err(|e| ShuseiError::Platform(format!("Failed to find MainActivity class: {}", e)))?;
+    let activity_guard = ACTIVITY.lock()
+        .map_err(|_| ShuseiError::Platform("Failed to lock ACTIVITY".into()))?;
+    
+    let activity_ref = activity_guard.as_ref()
+        .ok_or_else(|| ShuseiError::Platform("Activity not initialized - ensure nativeInit is called with activity reference".into()))?;
+    
+    let activity_obj = activity_ref.as_obj();
+    
+    let activity_class = env.find_class("android/app/Activity")
+        .map_err(|e| ShuseiError::Platform(format!("Failed to find Activity class: {}", e)))?;
+    
+    let asset_manager_obj = env.call_method(
+        activity_obj,
+        "getAssets",
+        "()Landroid/content/res/AssetManager;",
+        &[],
+    ).map_err(|e| ShuseiError::Platform(format!("Failed to get AssetManager: {}", e)))?
+    .l()
+    .map_err(|e| ShuseiError::Platform(format!("Failed to cast AssetManager: {}", e)))?;
     
     let asset_path_jstr = env.new_string(asset_path)
         .map_err(|e| ShuseiError::Platform(format!("Failed to create string: {}", e)))?;
     
-    let target_path_jstr = env.new_string(target_path.to_str().unwrap())
-        .map_err(|e| ShuseiError::Platform(format!("Failed to create target path string: {}", e)))?;
+    let input_stream = env.call_method(
+        &asset_manager_obj,
+        "open",
+        "(Ljava/lang/String;)Ljava/io/InputStream;",
+        &[JValue::Object(&asset_path_jstr)],
+    ).map_err(|e| ShuseiError::Platform(format!("Failed to open asset '{}': {}", asset_path, e)))?
+    .l()
+    .map_err(|e| ShuseiError::Platform(format!("Failed to cast InputStream: {}", e)))?;
     
-    env.call_static_method(
-        class,
-        "copyAssetToFiles",
-        "(Ljava/lang/String;Ljava/lang/String;)Z",
-        &[JValue::Object(&asset_path_jstr.into()), JValue::Object(&target_path_jstr.into())],
-    ).map_err(|e| ShuseiError::Platform(format!("Failed to call copyAssetToFiles: {}", e)))?
-    .z()
-    .map_err(|e| ShuseiError::Platform(format!("Failed to get boolean result: {}", e)))?;
+    if input_stream.is_null() {
+        return Err(ShuseiError::Platform(format!("Asset '{}' not found", asset_path).into()));
+    }
+    
+    let buffer_size = 8192i32;
+    let buffer = env.new_byte_array(buffer_size)
+        .map_err(|e| ShuseiError::Platform(format!("Failed to create buffer: {}", e)))?;
+    
+    let mut output_file = std::fs::File::create(&target_path)
+        .map_err(|e| ShuseiError::Platform(format!("Failed to create output file: {}", e)))?;
+    
+    loop {
+        let bytes_read = env.call_method(
+            &input_stream,
+            "read",
+            "([B)I",
+            &[JValue::Object(&buffer)],
+        ).map_err(|e| ShuseiError::Platform(format!("Failed to read from asset: {}", e)))?
+        .i()
+        .map_err(|e| ShuseiError::Platform(format!("Failed to cast bytes read: {}", e)))?;
+        
+        if bytes_read <= 0 {
+            break;
+        }
+        
+        let bytes = env.convert_byte_array(&buffer)
+            .map_err(|e| ShuseiError::Platform(format!("Failed to convert byte array: {}", e)))?;
+        
+        use std::io::Write;
+        output_file.write_all(&bytes[..bytes_read as usize])
+            .map_err(|e| ShuseiError::Platform(format!("Failed to write to output file: {}", e)))?;
+    }
+    
+    env.call_method(
+        &input_stream,
+        "close",
+        "()V",
+        &[],
+    ).map_err(|e| ShuseiError::Platform(format!("Failed to close input stream: {}", e)))?;
     
     log::info!("Asset copied to: {:?}", target_path);
     Ok(target_path)
@@ -296,11 +370,99 @@ pub extern "system" fn JNI_OnLoad(java_vm: *mut jni::sys::JavaVM, _reserved: *mu
         }
     };
     
-    if let Ok(mut guard) = JAVA_VM.lock() {
-        *guard = Some(java_vm);
-        log::info!("JavaVM initialized successfully in JNI_OnLoad");
-    } else {
-        log::error!("Failed to lock JAVA_VM mutex in JNI_OnLoad");
+    {
+        if let Ok(mut guard) = JAVA_VM.lock() {
+            *guard = Some(java_vm);
+            log::info!("JavaVM initialized successfully in JNI_OnLoad");
+        } else {
+            log::error!("Failed to lock JAVA_VM mutex in JNI_OnLoad");
+            return jni::sys::JNI_VERSION_1_6;
+        }
+    }
+    
+    let guard = match JAVA_VM.lock() {
+        Ok(g) => g,
+        Err(_) => {
+            log::error!("Failed to lock JAVA_VM for getting env");
+            return jni::sys::JNI_VERSION_1_6;
+        }
+    };
+    
+    let stored_vm = match guard.as_ref() {
+        Some(vm) => vm,
+        None => {
+            log::error!("JavaVM not stored");
+            return jni::sys::JNI_VERSION_1_6;
+        }
+    };
+    
+    let mut env = match stored_vm.attach_current_thread() {
+        Ok(e) => e,
+        Err(e) => {
+            log::error!("JNI_OnLoad: Failed to attach thread: {:?}", e);
+            return jni::sys::JNI_VERSION_1_6;
+        }
+    };
+    
+    match env.find_class("android/app/ActivityThread") {
+        Ok(activity_thread_class) => {
+            match env.call_static_method(
+                activity_thread_class,
+                "currentActivityThread",
+                "()Landroid/app/ActivityThread;",
+                &[],
+            ) {
+                Ok(activity_thread_obj) => {
+                    match activity_thread_obj.l() {
+                        Ok(activity_thread) => {
+                            if !activity_thread.is_null() {
+                                match env.call_method(
+                                    &activity_thread,
+                                    "getApplication",
+                                    "()Landroid/app/Application;",
+                                    &[],
+                                ) {
+                                    Ok(app_obj) => {
+                                        match app_obj.l() {
+                                            Ok(application) => {
+                                                if !application.is_null() {
+                                                    match env.new_global_ref(application) {
+                                                        Ok(global_ref) => {
+                                                            if let Ok(mut guard) = ACTIVITY.lock() {
+                                                                *guard = Some(global_ref);
+                                                                log::info!("Application context stored successfully");
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            log::error!("Failed to create global ref for application: {}", e);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                log::error!("Failed to cast Application: {}", e);
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        log::error!("Failed to get Application: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to cast ActivityThread: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to get currentActivityThread: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to find ActivityThread class: {}", e);
+        }
     }
     
     jni::sys::JNI_VERSION_1_6
