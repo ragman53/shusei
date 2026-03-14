@@ -3,8 +3,8 @@
     "presets": {
       "genius": {
         "planning": "alibaba-coding-plan/glm-5",
-        "execution": "alibaba-coding-plan/kimi-k2.5",
-        "verification": "alibaba-coding-plan/qwen3-coder-plus"
+        "execution": "alibaba-coding-plan/qwen3-coder-plus",
+        "verification": "alibaba-coding-plan/kimi-k2.5"
       },
       "smart": {
         "planning": "alibaba-coding-plan/glm-5",

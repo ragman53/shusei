@@ -46,7 +46,7 @@
   - Reference: https://github.com/ndl-lab/ndlocr-lite
 - **音声認識**: Moonshine Voice (オープンソース AI 音声ツールキット)
   - Reference: https://github.com/moonshine-ai/moonshine
-- **AI 辞書**: Qwen3.5-0.8B 等の軽量モデルをオンデバイスで実行
+- **AI 辞書**: Qwen3.5-08B 等の軽量モデルをオンデバイスで実行
 - **PDF 処理**: NDLOCR で Markdown 変換、リフロー表示
 
 ### User Pain Points
@@ -69,7 +69,7 @@
 |----------|-----------|---------|
 | NDLOCR-Lite 採用 | 軽量、ONNX 形式、Rust 移植可能 | — Pending |
 | Moonshine Voice 採用 | オープンソース、多言語対応（日英） | — Pending |
-| Qwen3.5-0.8B で AI 辞書 | オフラインで定義生成、0.8B パラメータは軽量 | — Pending |
+| Qwen3.5-08B で AI 辞書 | オフラインで定義生成、8B パラメータは軽量 | — Pending |
 | SQLite 採用 | 構造化データ、Rust エコシステム成熟 | — Pending |
 | 写真＋OCR 両保存 | 後から元ページ確認可能 | — Pending |
 | 単語採集回数表示 | 記憶定着の可視化 | — Pending |
