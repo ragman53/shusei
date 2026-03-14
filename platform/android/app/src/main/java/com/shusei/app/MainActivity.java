@@ -3,6 +3,7 @@ package com.shusei.app;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -18,9 +19,11 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
@@ -44,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
     private static final String TAG = "ShuseiCamera";
     private static final int CAMERA_PERMISSION_REQUEST = 1001;
+    private static final int FILE_PICKER_REQUEST = 1002;
     
     // Singleton instance for JNI access
     private static MainActivity instance;
@@ -73,6 +77,8 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
     private native void onImageCaptureFailed(String errorMessage);
     private native void onAudioRecorded(float[] audioData, int sampleRate);
     private native void onPermissionResult(String permission, boolean granted);
+    private native void onFilePicked(String filePath);
+    private native void onFilePickFailed(String errorMessage);
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -186,6 +192,32 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
     }
     
     /**
+     * Pick a PDF file using the system file picker.
+     * Called from Rust via JNI.
+     */
+    public static void pickPdfFile() {
+        if (instance == null) {
+            Log.e(TAG, "pickPdfFile: instance is null");
+            notifyFilePickFailed("Activity instance not available");
+            return;
+        }
+        
+        instance.runOnUiThread(() -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("application/pdf");
+            try {
+                instance.startActivityForResult(intent, FILE_PICKER_REQUEST);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to start file picker", e);
+                notifyFilePickFailed("Failed to open file picker: " + e.getMessage());
+            }
+        });
+    }
+    
+    private static native void notifyFilePickFailed(String errorMessage);
+    
+    /**
      * Copy an asset from APK assets to the app's files directory.
      * Called from Rust via JNI.
      * @param assetPath Path within APK assets (e.g., "test/medium_pdf_test.pdf")
@@ -232,6 +264,55 @@ public class MainActivity extends androidx.appcompat.app.AppCompatActivity {
         if (requestCode == CAMERA_PERMISSION_REQUEST) {
             boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
             onPermissionResult(Manifest.permission.CAMERA, granted);
+        }
+    }
+    
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        
+        if (requestCode == FILE_PICKER_REQUEST) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                Uri uri = data.getData();
+                handlePickedFile(uri);
+            } else {
+                onFilePickFailed("File picker cancelled or no file selected");
+            }
+        }
+    }
+    
+    private void handlePickedFile(Uri uri) {
+        try {
+            // Copy file content to app's files directory (SAF URIs are temporary)
+            String fileName = "imported_" + System.currentTimeMillis() + ".pdf";
+            java.io.File targetFile = new java.io.File(getFilesDir(), fileName);
+            
+            ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r");
+            if (pfd == null) {
+                onFilePickFailed("Cannot open file descriptor for selected file");
+                return;
+            }
+            
+            java.io.FileInputStream fis = new java.io.FileInputStream(pfd.getFileDescriptor());
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(targetFile);
+            
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                fos.write(buffer, 0, bytesRead);
+            }
+            
+            fos.close();
+            fis.close();
+            pfd.close();
+            
+            String copiedPath = targetFile.getAbsolutePath();
+            Log.i(TAG, "File copied to: " + copiedPath);
+            onFilePicked(copiedPath);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to handle picked file", e);
+            onFilePickFailed("Failed to process selected file: " + e.getMessage());
         }
     }
     
