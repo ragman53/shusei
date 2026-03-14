@@ -305,6 +305,7 @@ pub fn LibraryScreen() -> Element {
                             total_pages: Some(metadata.page_count as i32),
                             last_opened_at: None,
                             is_pdf: true,
+                            pdf_path: Some(copied_path.clone()),
                         };
                         
                         match db.create_book(&new_book) {
@@ -566,6 +567,7 @@ mod tests {
                 created_at: 1234567890,
                 updated_at: 1234567890,
                 is_pdf: false,
+                pdf_path: None,
             },
         ];
         assert_eq!(books.len(), 1);
@@ -587,6 +589,7 @@ mod tests {
                 created_at: 1234567890,
                 updated_at: 1234567890,
                 is_pdf: false,
+                pdf_path: None,
             },
             Book {
                 id: "2".to_string(),
@@ -599,6 +602,7 @@ mod tests {
                 created_at: 1234567890,
                 updated_at: 1234567890,
                 is_pdf: false,
+                pdf_path: None,
             },
         ];
         
@@ -631,6 +635,7 @@ mod tests {
             created_at: 1234567890,
             updated_at: 1234567890,
             is_pdf: false,
+            pdf_path: None,
         };
         
         assert_eq!(book.title, "Test Book");

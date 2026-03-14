@@ -85,6 +85,7 @@ progress:
 ### Roadmap Evolution
 
 - Phase 03.3 inserted after Phase 3: load pdf function for human verification on Android real devices (URGENT)
+- Phase 03.4 inserted after Phase 3: PDFや画像データを表示するなどの扱いのためのdbがないため、PDFの表示human verificationを試すことができません (URGENT)
 
 ### Active TODOs
 

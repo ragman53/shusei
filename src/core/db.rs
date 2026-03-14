@@ -73,7 +73,8 @@ impl Database {
                 last_opened_at  INTEGER,
                 created_at      INTEGER NOT NULL,
                 updated_at      INTEGER NOT NULL,
-                is_pdf          BOOLEAN DEFAULT FALSE
+                is_pdf          BOOLEAN DEFAULT FALSE,
+                pdf_path        TEXT
             );
             
             CREATE INDEX IF NOT EXISTS idx_books_title ON books(title);
@@ -345,8 +346,8 @@ impl Database {
 
         self.conn.execute(
             r#"
-            INSERT INTO books (id, title, author, cover_path, pages_captured, total_pages, last_opened_at, created_at, updated_at, is_pdf)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            INSERT INTO books (id, title, author, cover_path, pages_captured, total_pages, last_opened_at, created_at, updated_at, is_pdf, pdf_path)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
             "#,
             params![
                 id,
@@ -359,6 +360,7 @@ impl Database {
                 now, // created_at
                 now, // updated_at
                 book.is_pdf,
+                book.pdf_path,
             ],
         )?;
 
@@ -376,7 +378,8 @@ impl Database {
                 pages_captured = ?5,
                 total_pages = ?6,
                 last_opened_at = ?7,
-                is_pdf = ?8
+                is_pdf = ?8,
+                pdf_path = ?9
             WHERE id = ?1
             "#,
             params![
@@ -388,6 +391,7 @@ impl Database {
                 book.total_pages,
                 book.last_opened_at,
                 book.is_pdf,
+                book.pdf_path,
             ],
         )?;
 
@@ -583,6 +587,7 @@ pub struct Book {
     pub created_at: i64,
     pub updated_at: i64,
     pub is_pdf: bool,
+    pub pdf_path: Option<String>,
 }
 
 impl Book {
@@ -598,6 +603,7 @@ impl Book {
             created_at: row.get(7)?,
             updated_at: row.get(8)?,
             is_pdf: row.get(9)?,
+            pdf_path: row.get(10)?,
         })
     }
 }
@@ -613,6 +619,7 @@ pub struct NewBook {
     pub total_pages: Option<i32>,
     pub last_opened_at: Option<i64>,
     pub is_pdf: bool,
+    pub pdf_path: Option<String>,
 }
 
 /// Update book (for partial updates)

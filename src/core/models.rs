@@ -37,6 +37,7 @@ pub struct Book {
     pub created_at: i64,
     pub updated_at: i64,
     pub is_pdf: bool,
+    pub pdf_path: Option<String>,
 }
 
 impl Default for Book {
@@ -52,6 +53,7 @@ impl Default for Book {
             created_at: current_timestamp(),
             updated_at: current_timestamp(),
             is_pdf: false,
+            pdf_path: None,
         }
     }
 }
@@ -79,6 +81,7 @@ impl Book {
         created_at: i64,
         updated_at: i64,
         is_pdf: bool,
+        pdf_path: Option<String>,
     ) -> Self {
         Self {
             id,
@@ -91,6 +94,7 @@ impl Book {
             created_at,
             updated_at,
             is_pdf,
+            pdf_path,
         }
     }
 }
@@ -113,6 +117,7 @@ mod tests {
             1234567890,
             1234567890,
             false,
+            Some("pdfs/test.pdf".to_string()),
         );
 
         // Serialize to JSON
@@ -149,6 +154,7 @@ mod tests {
             1111111111,
             1111111111,
             false,
+            Some("pdfs/full.pdf".to_string()),
         );
 
         assert_eq!(book.id, "full-id");
