@@ -88,6 +88,26 @@ Plans:
 
 ---
 
+### Phase 03.4: PDF Database Integration for Human Verification (INSERTED)
+
+**Goal:** Fix PDF import flow by adding pdf_path column to books table, enabling end-to-end PDF import → conversion → reading workflow
+**Requirements**: CORE-02, CORE-03, PDF-01
+**Depends on:** Phase 3, Phase 03.3
+
+**Success Criteria** (what must be TRUE):
+1. User can import a PDF and it appears in the library
+2. User can tap the PDF book and see the reader view
+3. Reader can find the PDF file for conversion
+4. PDF conversion completes successfully
+5. User can read the converted pages
+
+**Research Flags:** None - straightforward schema migration
+
+**Plans:** 1 plan
+
+Plans:
+- [ ] 03.4-01-PLAN.md — Add pdf_path column, wire through import and reader flows
+
 ### Phase 03.3: load pdf function for human verification on Android real devices (INSERTED)
 
 **Goal:** Verify PDF loading functionality works correctly on real Android devices (not emulator)
@@ -250,6 +270,16 @@ Phase 7 (Polish) depends on all previous phases
 | 5. Voice Memos | 0/TBD | Not started | - |
 | 6. AI Enhancement | 0/TBD | Not started | - |
 | 7. Performance Polish | 0/TBD | Not started | - |
+
+### Phase 8: 4
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 7
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 8 to break down)
 
 ---
 
