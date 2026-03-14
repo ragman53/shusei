@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use jni::JNIEnv;
-use jni::objects::{JClass, JValue, JByteArray};
+use jni::objects::{JClass, JValue, JByteArray, JString};
 use jni::JavaVM;
 use std::sync::Mutex;
 use tokio::sync::oneshot;
@@ -13,12 +13,18 @@ use super::{PlatformApi, CameraResult, AudioResult};
 
 static CAMERA_STATE: Mutex<Option<CameraState>> = Mutex::new(None);
 
+static FILE_PICKER_STATE: Mutex<Option<FilePickerState>> = Mutex::new(None);
+
 static JAVA_VM: Lazy<Mutex<Option<JavaVM>>> = Lazy::new(|| Mutex::new(None));
 
 static ACTIVITY: Lazy<Mutex<Option<jni::objects::GlobalRef>>> = Lazy::new(|| Mutex::new(None));
 
 struct CameraState {
     result_sender: Option<oneshot::Sender<Result<CameraResult>>>,
+}
+
+struct FilePickerState {
+    result_sender: Option<oneshot::Sender<Result<String>>>,
 }
 
 pub struct AndroidPlatform;
@@ -107,9 +113,35 @@ impl PlatformApi for AndroidPlatform {
     }
     
     async fn pick_file(&self, _extensions: &[&str]) -> Result<String> {
-        Err(ShuseiError::Platform(
-            "File picker not yet implemented on Android.".into()
-        ).into())
+        log::info!("Attempting to pick file via JNI...");
+        
+        let (tx, rx) = oneshot::channel();
+        
+        {
+            let mut state = FILE_PICKER_STATE.lock()
+                .map_err(|_| ShuseiError::Platform("Failed to lock file picker state".into()))?;
+            *state = Some(FilePickerState {
+                result_sender: Some(tx),
+            });
+        }
+        
+        self.with_env(|env| {
+            let class = Self::find_activity_class(env)?;
+            env.call_static_method(
+                class,
+                "pickPdfFile",
+                "()V",
+                &[],
+            ).map_err(|e| ShuseiError::Platform(format!("Failed to call pickPdfFile: {}", e)))?;
+            Ok(())
+        })?;
+        
+        tokio::time::timeout(
+            std::time::Duration::from_secs(60),
+            rx
+        ).await
+            .map_err(|_| ShuseiError::Platform("File picker timeout".into()))?
+            .map_err(|_| ShuseiError::Platform("File picker channel closed".into()))?
     }
     
     fn vibrate(&self, duration_ms: u32) {
@@ -466,4 +498,124 @@ pub extern "system" fn JNI_OnLoad(java_vm: *mut jni::sys::JavaVM, _reserved: *mu
     }
     
     jni::sys::JNI_VERSION_1_6
+}
+
+// File picker JNI callbacks
+
+#[no_mangle]
+pub extern "system" fn Java_com_shusei_app_MainActivity_onFilePicked(
+    mut env: JNIEnv,
+    _class: JClass,
+    file_path: jni::sys::jstring,
+) {
+    log::info!("onFilePicked: file selected");
+    
+    let path = unsafe {
+        let jstring = env.get_string(&JString::from_raw(file_path))
+            .map_err(|e| {
+                log::error!("Failed to get file path string: {}", e);
+            });
+        match jstring {
+            Ok(s) => s.to_str().unwrap_or("").to_string(),
+            Err(_) => {
+                send_file_picker_result(Err(ShuseiError::Platform(
+                    "Failed to convert file path".into()
+                )));
+                return;
+            }
+        }
+    };
+    
+    log::info!("File picked: {}", path);
+    send_file_picker_result(Ok(path));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_shusei_app_MainActivity_onFilePickFailed(
+    mut env: JNIEnv,
+    _class: JClass,
+    error_message: jni::sys::jstring,
+) {
+    log::error!("onFilePickFailed: file picker failed");
+    
+    let error = unsafe {
+        let jstring = env.get_string(&JString::from_raw(error_message))
+            .map_err(|e| {
+                log::error!("Failed to get error message string: {}", e);
+            });
+        match jstring {
+            Ok(s) => s.to_str().unwrap_or("Unknown error").to_string(),
+            Err(_) => "Unknown error".to_string(),
+        }
+    };
+    
+    log::error!("File picker failed: {}", error);
+    send_file_picker_result(Err(ShuseiError::Platform(error)));
+}
+
+// Also need the legacy package version for Dioxus
+
+#[no_mangle]
+pub extern "system" fn Java_dev_dioxus_main_MainActivity_onFilePicked(
+    mut env: JNIEnv,
+    _class: JClass,
+    file_path: jni::sys::jstring,
+) {
+    log::info!("onFilePicked (dev.dioxus.main): file selected");
+    
+    use jni::objects::JString;
+    
+    let path = unsafe {
+        let jstring = env.get_string(&JString::from_raw(file_path))
+            .map_err(|e| {
+                log::error!("Failed to get file path string: {}", e);
+            });
+        match jstring {
+            Ok(s) => s.to_str().unwrap_or("").to_string(),
+            Err(_) => {
+                send_file_picker_result(Err(ShuseiError::Platform(
+                    "Failed to convert file path".into()
+                )));
+                return;
+            }
+        }
+    };
+    
+    log::info!("File picked: {}", path);
+    send_file_picker_result(Ok(path));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_dev_dioxus_main_MainActivity_onFilePickFailed(
+    mut env: JNIEnv,
+    _class: JClass,
+    error_message: jni::sys::jstring,
+) {
+    log::error!("onFilePickFailed (dev.dioxus.main): file picker failed");
+    
+    use jni::objects::JString;
+    
+    let error = unsafe {
+        let jstring = env.get_string(&JString::from_raw(error_message))
+            .map_err(|e| {
+                log::error!("Failed to get error message string: {}", e);
+            });
+        match jstring {
+            Ok(s) => s.to_str().unwrap_or("Unknown error").to_string(),
+            Err(_) => "Unknown error".to_string(),
+        }
+    };
+    
+    log::error!("File picker failed: {}", error);
+    send_file_picker_result(Err(ShuseiError::Platform(error)));
+}
+
+fn send_file_picker_result(result: Result<String>) {
+    if let Ok(mut state_guard) = FILE_PICKER_STATE.lock() {
+        if let Some(state) = state_guard.take() {
+            if let Some(sender) = state.result_sender {
+                let _ = sender.send(result);
+            }
+        }
+    }
 }
