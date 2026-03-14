@@ -111,6 +111,7 @@ None currently.
 | 7 | Build and deploy APK to real Android device | 2026-03-14 | 8fd877e | - |
 | 8 | Fix JavaVM not initialized error on Android | 2026-03-14 | f742224 | - |
 | 9 | Clean up garbage data generated during development and debug | 2026-03-14 | c0862ce | [9-clean-up-garbage-data-generated-during-d](./quick/9-clean-up-garbage-data-generated-during-d/) |
+| 10 | Fix PDF import on mobile (enable native file picker) | 2026-03-14 | 4a21155 | [10-fix-pdf-import-on-mobile-currently-shows](./quick/10-fix-pdf-import-on-mobile-currently-shows/) |
 
 ### Known Issues
 
@@ -121,7 +122,7 @@ None currently.
 
 ## Session Continuity
 
-**Last action:** 2026-03-14 - Completed quick task 9: Clean up garbage data generated during development and debug
+**Last action:** 2026-03-14 - Completed quick task 10: Fix PDF import on mobile (enable native file picker)
 
 **Next action:** Hardware verification on real Android device when available
 
