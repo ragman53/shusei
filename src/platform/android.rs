@@ -278,3 +278,30 @@ pub fn copy_asset_to_files(asset_path: &str) -> crate::core::error::Result<std::
     log::info!("Asset copied to: {:?}", target_path);
     Ok(target_path)
 }
+
+#[no_mangle]
+pub extern "system" fn JNI_OnLoad(java_vm: *mut jni::sys::JavaVM, _reserved: *mut std::ffi::c_void) -> jni::sys::jint {
+    log::info!("JNI_OnLoad called - initializing JavaVM");
+    
+    if java_vm.is_null() {
+        log::error!("JNI_OnLoad: java_vm is null");
+        return jni::sys::JNI_VERSION_1_6;
+    }
+    
+    let java_vm = match unsafe { JavaVM::from_raw(java_vm) } {
+        Ok(vm) => vm,
+        Err(e) => {
+            log::error!("JNI_OnLoad: Failed to create JavaVM from raw pointer: {:?}", e);
+            return jni::sys::JNI_VERSION_1_6;
+        }
+    };
+    
+    if let Ok(mut guard) = JAVA_VM.lock() {
+        *guard = Some(java_vm);
+        log::info!("JavaVM initialized successfully in JNI_OnLoad");
+    } else {
+        log::error!("Failed to lock JAVA_VM mutex in JNI_OnLoad");
+    }
+    
+    jni::sys::JNI_VERSION_1_6
+}
