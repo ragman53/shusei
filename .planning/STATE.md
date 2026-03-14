@@ -106,6 +106,9 @@ None currently.
 | 3 | Fix Android linker path with absolute Windows NDK paths | 2026-03-13 | 7f44f03 | [003-fix-android-linker-path](./quick/003-fix-android-linker-path/) |
 | 4 | Add bundled test PDF and Load Demo PDF button for Android | 2026-03-13 | 77eabd9 | [004-add-pdf-test-assets](./quick/004-add-pdf-test-assets/) |
 | 5 | Add Load Demo PDF button for desktop users | 2026-03-14 | 25526cc | [006-add-load-demo-pdf-button-for-desktop](./quick/006-add-load-demo-pdf-button-for-desktop/) |
+| 6 | Fix missing Library screen on Android | 2026-03-14 | (debug session) | [debug/missing-load-demo-pdf-android](./debug/resolved/missing-load-demo-pdf-android.md) |
+| 7 | Build and deploy APK to real Android device | 2026-03-14 | 8fd877e | - |
+| 8 | Fix JavaVM not initialized error on Android | 2026-03-14 | f742224 | - |
 
 ### Known Issues
 
