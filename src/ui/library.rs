@@ -13,6 +13,9 @@ use crate::core::db::{Book, Database, NewBook};
 use crate::core::pdf::{PdfMetadata, PdfProcessor};
 use crate::core::storage::StorageService;
 
+#[cfg(target_os = "android")]
+use crate::platform::android;
+
 /// Filter type for library
 #[derive(Clone, PartialEq)]
 pub enum LibraryFilter {
@@ -174,7 +177,65 @@ pub fn LibraryScreen() -> Element {
     #[cfg(target_os = "android")]
     let handle_import_pdf = move |_| {
         spawn(async move {
-            error_message.set(Some("PDF import not available on mobile".to_string()));
+            importing.set(true);
+            error_message.set(None);
+            
+            // Use platform file picker
+            match crate::platform::get_platform_api().pick_file(&["pdf"]).await {
+                Ok(file_path) => {
+                    log::info!("PDF file picked: {}", file_path);
+                    
+                    let source_path = std::path::PathBuf::from(&file_path);
+                    
+                    // Get app data directory
+                    let app_data_dir = match crate::platform::android::get_assets_directory() {
+                        Ok(dir) => dir,
+                        Err(e) => {
+                            log::error!("Failed to get app directory: {:?}", e);
+                            error_message.set(Some(format!("Failed to get app directory: {}", e)));
+                            importing.set(false);
+                            return;
+                        }
+                    };
+                    
+                    // Import PDF using PdfProcessor
+                    match PdfProcessor::new() {
+                        Ok(processor) => {
+                            match processor.import_pdf(&source_path, &app_data_dir) {
+                                Ok((metadata, copied_path)) => {
+                                    log::info!("PDF imported: {:?} -> {}", metadata, copied_path);
+                                    
+                                    // Show metadata review dialog
+                                    review_title.set(metadata.title.clone().unwrap_or_else(|| {
+                                        source_path.file_stem()
+                                            .and_then(|s| s.to_str())
+                                            .unwrap_or("Unknown")
+                                            .to_string()
+                                    }));
+                                    review_author.set(metadata.author.clone().unwrap_or_default());
+                                    review_pages.set(metadata.page_count);
+                                    pending_metadata.set(Some((metadata, copied_path)));
+                                    show_metadata_dialog.set(true);
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to import PDF: {:?}", e);
+                                    error_message.set(Some(format!("Failed to import PDF: {}", e)));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to create PdfProcessor: {:?}", e);
+                            error_message.set(Some(format!("Failed to initialize PDF processor: {}", e)));
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failed to pick file: {:?}", e);
+                    error_message.set(Some(format!("Failed to pick file: {}", e)));
+                }
+            }
+            
+            importing.set(false);
         });
     };
     
