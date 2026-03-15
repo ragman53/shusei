@@ -75,9 +75,9 @@
 | 単語採集回数表示 | 記憶定着の可視化 | — Pending |
 
 ---
-*Last updated: 2026-03-15 after S05 completion*
+*Last updated: 2026-03-15 after S06 completion*
 
-## Current State (Post-S05)
+## Current State (Post-S06)
 
 **Backend infrastructure complete:**
 - ✅ S01: Core Infrastructure — Database foundation with Book model and books table
@@ -85,23 +85,27 @@
 - ✅ S03: PDF Support — PDF import, batch OCR pipeline, reflow reader, progress tracking
 - ✅ S04: Annotation Foundation — Highlights, bookmarks, notes with full CRUD and 15 unit tests
 - ✅ S05: Voice Memos — Audio recording pipeline + mel-spectrogram preprocessing (9 unit tests)
+- ✅ S06: AI Enhancement — Words table schema, AI engine trait, mock implementation (9 unit tests)
 
-**Voice memo capabilities shipped:**
-- Audio recording API via JNI with 30-second hard limit
-- Microphone permission checking and request flow
-- Mel-spectrogram computation matching Moonshine specs (16kHz, 25ms window, 80 mel bins)
-- STFT with Hann window, FFT (radix-2 + DFT fallback), mel filterbank
-- Output format: `Array2<f32>` with shape `[time_frames, 80]`
+**AI enhancement capabilities shipped:**
+- Words table with `ai_generated` boolean flag for tracking AI vs manual definitions
+- CRUD operations: create, read, update, delete, query by book, query AI-generated
+- `AiEngine` trait with `generate_definition()`, `is_ready()`, `load_model()`, `unload_model()`
+- `MockAiEngine` with deterministic responses for testing and fallback
+- `WordDefinitionService<E>` high-level service for tap-to-define workflow
+- 9 unit tests proving engine lifecycle and definition generation
 
-**Next phase:** S06 AI Enhancement — Complete Moonshine model integration, build voice memo UI, integrate with reader
+**Next phase:** S07 Performance Polish — Resolve ONNX linker issue, integrate Qwen model, build tap-to-define UI
 
 **Known blockers:**
-- ONNX Runtime linker error (`__isoc23_strtoll` undefined symbol) prevents model loading
-- Java side `MainActivity` missing audio recording methods
-- Pre-existing issue with `ort-sys` dependency, not caused by S05 code
+- ONNX Runtime linker error (`__isoc23_*` undefined symbols) prevents all model loading (OCR, STT, AI)
+- Qwen3.5-0.8B model not yet acquired or integrated
+- Japanese word segmentation (MeCab/Jieba) not implemented
+- Tap-to-define UI components not built
 
-**Deferred to S06:**
-- Moonshine ONNX model integration (encoder/decoder)
-- VoiceMemoInput UI component (record/stop/edit flow)
-- Reader view voice memo button integration
-- End-to-end transcription testing
+**Deferred to S07 or later:**
+- QwenEngine Candle-based implementation
+- DefinitionPopup UI component
+- Reader tap handler for word selection
+- Model download flow from HuggingFace
+- 50-word accuracy validation (>85% target)

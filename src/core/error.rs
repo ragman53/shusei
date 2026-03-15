@@ -36,6 +36,9 @@ pub enum ShuseiError {
 
     #[error("Storage error: {0}")]
     Storage(String),
+
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl From<anyhow::Error> for ShuseiError {

@@ -27,7 +27,10 @@ Output: Working PDF import, batch OCR pipeline, reflow reader with font controls
   > After this: unit tests prove Annotation Foundation works
 - [x] **S05: Voice Memos** `risk:medium` `depends:[S04]`
   > After this: Audio recording pipeline and mel-spectrogram preprocessing implemented; model integration deferred to S06
-- [ ] **S06: AI Enhancement** `risk:medium` `depends:[S05]`
+- [x] **S06: AI Enhancement** `risk:medium` `depends:[S05]`
   > After this: unit tests prove AI Enhancement works
+
+Purpose: Implement AI-powered word definitions with Qwen3.5-0.8B, tap-to-define UI, and definition caching
+Output: Words table schema, AI engine trait, mock implementation, 9 unit tests; Qwen integration deferred due to ONNX linker issue
 - [ ] **S07: Performance Polish** `risk:medium` `depends:[S06]`
   > After this: unit tests prove Performance Polish works

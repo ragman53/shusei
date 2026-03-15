@@ -121,6 +121,22 @@ impl Database {
                 last_reviewed_at TEXT
             );
             
+            -- Words table for AI-generated definitions (単語採集)
+            CREATE TABLE IF NOT EXISTS words (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                word            TEXT NOT NULL,
+                definition      TEXT,
+                ai_generated    BOOLEAN DEFAULT FALSE,
+                source_book_id  TEXT REFERENCES books(id),
+                source_page     INTEGER,
+                context_text    TEXT,
+                created_at      INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                updated_at      INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_words_word ON words(word);
+            CREATE INDEX IF NOT EXISTS idx_words_ai ON words(ai_generated);
+            
             -- Annotations table for highlights, bookmarks, and notes
             CREATE TABLE IF NOT EXISTS annotations (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1014,6 +1030,120 @@ pub struct UpdateAnnotation {
     pub position_start: Option<i32>,
     pub position_end: Option<i32>,
     pub user_note: Option<String>,
+}
+
+// ==================== Words (AI Definitions) ====================
+
+/// Word model with AI-generated definition
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Word {
+    pub id: i64,
+    pub word: String,
+    pub definition: Option<String>,
+    pub ai_generated: bool,
+    pub source_book_id: Option<String>,
+    pub source_page: Option<i32>,
+    pub context_text: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+impl Word {
+    fn from_row(row: &Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            word: row.get(1)?,
+            definition: row.get(2)?,
+            ai_generated: row.get(3)?,
+            source_book_id: row.get(4)?,
+            source_page: row.get(5)?,
+            context_text: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
+        })
+    }
+}
+
+/// New word (for creation)
+#[derive(Debug, Clone)]
+pub struct NewWord {
+    pub word: String,
+    pub definition: Option<String>,
+    pub ai_generated: bool,
+    pub source_book_id: Option<String>,
+    pub source_page: Option<i32>,
+    pub context_text: Option<String>,
+}
+
+impl Database {
+    /// Create a new word entry
+    pub fn create_word(&self, word: &NewWord) -> Result<i64> {
+        let result = self.conn.execute(
+            r#"
+            INSERT INTO words (word, definition, ai_generated, source_book_id, source_page, context_text)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "#,
+            params![
+                word.word,
+                word.definition,
+                word.ai_generated,
+                word.source_book_id,
+                word.source_page,
+                word.context_text,
+            ],
+        )?;
+
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Get a word by ID
+    pub fn get_word(&self, id: i64) -> Result<Option<Word>> {
+        let mut stmt = self.conn.prepare("SELECT * FROM words WHERE id = ?1")?;
+        let word = stmt.query_row(params![id], |row| Word::from_row(row)).optional()?;
+        Ok(word)
+    }
+
+    /// Get a word by text
+    pub fn get_word_by_text(&self, word_text: &str) -> Result<Option<Word>> {
+        let mut stmt = self.conn.prepare("SELECT * FROM words WHERE word = ?1")?;
+        let word = stmt.query_row(params![word_text], |row| Word::from_row(row)).optional()?;
+        Ok(word)
+    }
+
+    /// Get all words for a book
+    pub fn get_words_by_book(&self, book_id: &str) -> Result<Vec<Word>> {
+        let mut stmt = self.conn.prepare("SELECT * FROM words WHERE source_book_id = ?1 ORDER BY word")?;
+        let words = stmt.query_map(params![book_id], |row| Word::from_row(row))?;
+        let words: std::result::Result<Vec<_>, _> = words.collect();
+        words.map_err(|e| e.into())
+    }
+
+    /// Update word definition (e.g., after AI generation)
+    pub fn update_word_definition(&self, id: i64, definition: &str, ai_generated: bool) -> Result<()> {
+        self.conn.execute(
+            r#"
+            UPDATE words 
+            SET definition = ?1, ai_generated = ?2, updated_at = strftime('%s', 'now')
+            WHERE id = ?3
+            "#,
+            params![definition, ai_generated, id],
+        )?;
+        Ok(())
+    }
+
+    /// Delete a word
+    pub fn delete_word(&self, id: i64) -> Result<()> {
+        self.conn.execute("DELETE FROM words WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    /// Get all AI-generated words
+    pub fn get_ai_generated_words(&self) -> Result<Vec<Word>> {
+        let mut stmt = self.conn.prepare("SELECT * FROM words WHERE ai_generated = 1 ORDER BY created_at DESC")?;
+        let words = stmt.query_map([], |row| Word::from_row(row))?;
+        let words: std::result::Result<Vec<_>, _> = words.collect();
+        words.map_err(|e| e.into())
+    }
 }
 
 #[cfg(test)]

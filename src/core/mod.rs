@@ -12,6 +12,7 @@ pub mod storage;
 pub mod models;
 pub mod state;
 pub mod pdf;
+pub mod ai;
 
 pub use error::{ShuseiError, OcrError, SttError};
 pub use ocr::OcrEngine;

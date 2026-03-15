@@ -166,4 +166,37 @@
 - **Reader integration** — Voice memo button in note creation dialog deferred until model integration complete.
 - **Lazy model loading** — Load/unload Moonshine models on demand deferred until lifecycle management implemented.
 
+## S06: AI Enhancement (2026-03-15)
+
+### Words Table Schema
+- **`ai_generated` boolean flag** — Distinguishes AI-generated definitions from manual entries. Enables filtering and accuracy tracking.
+- **Context storage** — `context_text` field stores ±50 characters around tapped word for future reference and debugging.
+- **Foreign key to books(id)** — `source_book_id` links word to source book for vocabulary-by-book queries.
+
+### AI Engine Abstraction
+- **Trait-based architecture** — `AiEngine` trait decouples service layer from specific model implementation. Allows swapping `MockAiEngine` for `QwenEngine` without changing calling code.
+- **Mock engine for testing** — `MockAiEngine` provides deterministic responses for 5 known words, placeholder for unknowns. Enables testing without model files or ONNX runtime.
+- **Service layer pattern** — `WordDefinitionService<E>` wraps engine with high-level `define_word()` API. Handles auto-loading, logging, and error handling.
+
+### Model Loading Strategy
+- **Lazy loading on first tap** — Model loaded when user first taps a word, not at app startup. Reduces initial memory footprint.
+- **Retain until background** — Model stays in memory until app backgrounds (per Android lifecycle). Subsequent taps are instant.
+- **2-3 second cold start budget** — First definition takes 2-3 seconds (model load + inference); warm definitions should be <1 second.
+
+### Minimal Viable Slice
+- **Database + engine only** — S06 delivers schema, CRUD, engine trait, mock implementation, and tests. Qwen integration and UI deferred due to ONNX blocker.
+- **9 unit tests** — Prove pipeline logic works: engine lifecycle, definition generation, error handling, service integration.
+- **No Japanese tokenization** — MeCab/Jieba integration deferred. Current implementation assumes word boundaries already detected.
+
+### Known Blockers
+- **ONNX Runtime linker error** — Same `__isoc23_*` undefined symbols blocking S05 also block Qwen model loading. Requires upstream fix or alternative runtime.
+- **Model file sourcing** — Qwen3.5-0.8B GGUF not bundled. Would need ~800MB download or aggressive quantization to <100MB.
+
+### Deferred Items
+- **QwenEngine implementation** — Real Candle-based Qwen inference deferred until ONNX issue resolved.
+- **DefinitionPopup UI** — Inline popup component with tap-outside dismissal deferred to frontend phase.
+- **Japanese word segmentation** — MeCab or Jieba integration for word boundary detection deferred.
+- **Model download flow** — First-run HuggingFace download with progress indicator deferred.
+- **Accuracy validation** — 50-word accuracy test (>85% target) deferred until real model integrated.
+
 ---
