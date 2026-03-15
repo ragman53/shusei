@@ -2,9 +2,10 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use ndarray::Array2;
 
 use crate::core::error::{SttError, Result};
-use super::Language;
+use super::{Language, AudioPreprocessor};
 
 /// STT Engine trait - abstract interface for speech-to-text
 #[async_trait]
@@ -51,6 +52,9 @@ pub struct MoonshineEngine {
     
     /// Whether the engine is initialized
     initialized: bool,
+    
+    /// Audio preprocessor (mel-spectrogram)
+    preprocessor: AudioPreprocessor,
 }
 
 impl MoonshineEngine {
@@ -60,6 +64,7 @@ impl MoonshineEngine {
             model_dir: model_dir.into(),
             language,
             initialized: false,
+            preprocessor: AudioPreprocessor::new(),
         }
     }
     
@@ -110,14 +115,11 @@ impl MoonshineEngine {
     }
     
     /// Preprocess audio for the encoder
-    fn preprocess_audio(&self, audio: &[f32]) -> Result<Vec<f32>> {
-        // TODO: Implement mel-spectrogram computation
-        // Moonshine expects mel-spectrogram input
-        
+    fn preprocess_audio(&self, audio: &[f32]) -> Result<Array2<f32>> {
         log::debug!("Preprocessing audio: {} samples", audio.len());
         
-        // Placeholder - just return the audio
-        Ok(audio.to_vec())
+        // Use mel-spectrogram preprocessor
+        self.preprocessor.preprocess(audio)
     }
 }
 

@@ -7,11 +7,13 @@ mod engine;
 mod decoder;
 #[cfg(not(target_os = "android"))]
 mod tokenizer;
+mod mel_spectrogram;
 
 pub use engine::{SttEngine, SttResult, MoonshineEngine};
 pub use decoder::{DecoderState, KvCache};
 #[cfg(not(target_os = "android"))]
 pub use tokenizer::Tokenizer;
+pub use mel_spectrogram::AudioPreprocessor;
 
 use crate::core::error::SttError;
 use serde::{Deserialize, Serialize};

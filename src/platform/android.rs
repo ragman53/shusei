@@ -27,6 +27,12 @@ struct FilePickerState {
     result_sender: Option<oneshot::Sender<Result<String>>>,
 }
 
+struct AudioRecordState {
+    result_sender: Option<oneshot::Sender<Result<AudioResult>>>,
+}
+
+static AUDIO_RECORD_STATE: Mutex<Option<AudioRecordState>> = Mutex::new(None);
+
 pub struct AndroidPlatform;
 
 impl AndroidPlatform {
@@ -107,9 +113,43 @@ impl PlatformApi for AndroidPlatform {
     async fn record_audio(&self, max_seconds: u32) -> Result<AudioResult> {
         log::info!("Attempting to record audio via JNI (max {}s)...", max_seconds);
         
-        Err(ShuseiError::Platform(
-            "JNI audio recording not yet implemented.".into()
-        ).into())
+        // Enforce 30 second hard limit
+        let max_seconds = max_seconds.min(30);
+        
+        let (tx, rx) = oneshot::channel();
+        
+        {
+            let mut state = AUDIO_RECORD_STATE.lock()
+                .map_err(|_| ShuseiError::Platform("Failed to lock audio record state".into()))?;
+            *state = Some(AudioRecordState {
+                result_sender: Some(tx),
+            });
+        }
+        
+        // Request microphone permission first
+        self.request_microphone_permission().await?;
+        
+        // Start audio recording via JNI
+        self.with_env(|env| {
+            let class = Self::find_activity_class(env)?;
+            env.call_static_method(
+                class,
+                "startAudioRecording",
+                "(I)V",
+                &[JValue::Int(max_seconds as i32)],
+            ).map_err(|e| ShuseiError::Platform(format!("Failed to call startAudioRecording: {}", e)))?;
+            Ok(())
+        })?;
+        
+        log::info!("Audio recording started, waiting for result (timeout: {}s)", max_seconds + 5);
+        
+        // Wait for recording to complete (max_seconds + 5s buffer)
+        tokio::time::timeout(
+            std::time::Duration::from_secs(max_seconds as u64 + 5),
+            rx
+        ).await
+            .map_err(|_| ShuseiError::Platform(format!("Audio recording timeout after {}s", max_seconds)))?
+            .map_err(|_| ShuseiError::Platform("Audio recording channel closed".into()))?
     }
     
     async fn pick_file(&self, _extensions: &[&str]) -> Result<String> {
@@ -173,7 +213,16 @@ impl PlatformApi for AndroidPlatform {
     }
     
     async fn has_microphone_permission(&self) -> bool {
-        false
+        self.with_env(|env| {
+            let class = Self::find_activity_class(env)?;
+            let result = env.call_static_method(
+                class,
+                "hasMicrophonePermission",
+                "()Z",
+                &[],
+            ).map_err(|e| ShuseiError::Platform(format!("Failed to call hasMicrophonePermission: {}", e)))?;
+            result.z().map_err(|e| ShuseiError::Platform(format!("Failed to get boolean result: {}", e)))
+        }).unwrap_or(false)
     }
     
     async fn request_camera_permission(&self) -> Result<bool> {
@@ -190,7 +239,16 @@ impl PlatformApi for AndroidPlatform {
     }
     
     async fn request_microphone_permission(&self) -> Result<bool> {
-        Ok(false)
+        self.with_env(|env| {
+            let class = Self::find_activity_class(env)?;
+            env.call_static_method(
+                class,
+                "requestMicrophonePermission",
+                "()V",
+                &[],
+            ).map_err(|e| ShuseiError::Platform(format!("Failed to call requestMicrophonePermission: {}", e)))?;
+            Ok(true)
+        })
     }
 }
 
@@ -638,6 +696,194 @@ pub extern "system" fn Java_dev_dioxus_main_MainActivity_onFilePickFailed(
 
 fn send_file_picker_result(result: Result<String>) {
     if let Ok(mut state_guard) = FILE_PICKER_STATE.lock() {
+        if let Some(state) = state_guard.take() {
+            if let Some(sender) = state.result_sender {
+                let _ = sender.send(result);
+            }
+        }
+    }
+}
+
+// Audio recording JNI callbacks
+
+#[no_mangle]
+pub extern "system" fn Java_com_shusei_app_MainActivity_onAudioRecorded(
+    mut env: JNIEnv,
+    _class: JClass,
+    audio_data: jni::sys::jfloatArray,
+    sample_rate: jni::sys::jint,
+    duration: jni::sys::jfloat,
+) {
+    log::info!("onAudioRecorded: sample_rate={}, duration={:.2}s", sample_rate, duration);
+    
+    if audio_data.is_null() {
+        log::error!("onAudioRecorded: audio_data is null");
+        send_audio_result(Err(ShuseiError::Platform(
+            "Audio data is null".into()
+        )));
+        return;
+    }
+    
+    unsafe {
+        let float_array = unsafe { jni::objects::JFloatArray::from_raw(audio_data) };
+        
+        // Get array length
+        let length = match env.get_array_length(&float_array) {
+            Ok(len) => len as usize,
+            Err(e) => {
+                log::error!("Failed to get audio array length: {}", e);
+                send_audio_result(Err(ShuseiError::Platform(
+                    "Failed to get audio array length".into()
+                )));
+                return;
+            }
+        };
+        
+        // Convert jfloatArray to Vec<f32>
+        let mut samples = vec![0.0f32; length];
+        if let Err(e) = env.get_float_array_region(&float_array, 0, &mut samples) {
+            log::error!("Failed to read audio data: {}", e);
+            send_audio_result(Err(ShuseiError::Platform(
+                "Failed to read audio data".into()
+            )));
+            return;
+        }
+        
+        log::info!("Audio data received: {} samples, {} Hz, {:.2}s", samples.len(), sample_rate, duration);
+        
+        let result = AudioResult {
+            samples,
+            sample_rate: sample_rate as u32,
+            duration_seconds: duration,
+        };
+        
+        send_audio_result(Ok(result));
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_shusei_app_MainActivity_onAudioRecordFailed(
+    mut env: JNIEnv,
+    _class: JClass,
+    error_message: jni::sys::jstring,
+) {
+    log::error!("onAudioRecordFailed: audio recording failed");
+    
+    if error_message.is_null() {
+        log::error!("Audio recording failed: Unknown error (null message)");
+        send_audio_result(Err(ShuseiError::Platform("Unknown error".into())));
+        return;
+    }
+    
+    unsafe {
+        let j_string = JString::from_raw(error_message);
+        let java_str = match env.get_string(&j_string) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("Failed to get error message string: {}", e);
+                send_audio_result(Err(ShuseiError::Platform(
+                    "Unknown error".into()
+                )));
+                return;
+            }
+        };
+        let error = java_str.to_str().unwrap_or("Unknown error").to_string();
+        log::error!("Audio recording failed: {}", error);
+        send_audio_result(Err(ShuseiError::Platform(error)));
+    }
+}
+
+// Also need the dev.dioxus.main package version
+
+#[no_mangle]
+pub extern "system" fn Java_dev_dioxus_main_MainActivity_onAudioRecorded(
+    mut env: JNIEnv,
+    _class: JClass,
+    audio_data: jni::sys::jfloatArray,
+    sample_rate: jni::sys::jint,
+    duration: jni::sys::jfloat,
+) {
+    log::info!("onAudioRecorded (dev.dioxus.main): sample_rate={}, duration={:.2}s", sample_rate, duration);
+    
+    if audio_data.is_null() {
+        log::error!("onAudioRecorded (dev.dioxus.main): audio_data is null");
+        send_audio_result(Err(ShuseiError::Platform(
+            "Audio data is null".into()
+        )));
+        return;
+    }
+    
+    unsafe {
+        let float_array = unsafe { jni::objects::JFloatArray::from_raw(audio_data) };
+        
+        // Get array length
+        let length = match env.get_array_length(&float_array) {
+            Ok(len) => len as usize,
+            Err(e) => {
+                log::error!("Failed to get audio array length: {}", e);
+                send_audio_result(Err(ShuseiError::Platform(
+                    "Failed to get audio array length".into()
+                )));
+                return;
+            }
+        };
+        
+        // Convert jfloatArray to Vec<f32>
+        let mut samples = vec![0.0f32; length];
+        if let Err(e) = env.get_float_array_region(&float_array, 0, &mut samples) {
+            log::error!("Failed to read audio data: {}", e);
+            send_audio_result(Err(ShuseiError::Platform(
+                "Failed to read audio data".into()
+            )));
+            return;
+        }
+        
+        log::info!("Audio data received: {} samples, {} Hz, {:.2}s", samples.len(), sample_rate, duration);
+        
+        let result = AudioResult {
+            samples,
+            sample_rate: sample_rate as u32,
+            duration_seconds: duration,
+        };
+        
+        send_audio_result(Ok(result));
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_dev_dioxus_main_MainActivity_onAudioRecordFailed(
+    mut env: JNIEnv,
+    _class: JClass,
+    error_message: jni::sys::jstring,
+) {
+    log::error!("onAudioRecordFailed (dev.dioxus.main): audio recording failed");
+    
+    if error_message.is_null() {
+        log::error!("Audio recording failed (dev.dioxus.main): Unknown error (null message)");
+        send_audio_result(Err(ShuseiError::Platform("Unknown error".into())));
+        return;
+    }
+    
+    unsafe {
+        let j_string = JString::from_raw(error_message);
+        let java_str = match env.get_string(&j_string) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("Failed to get error message string: {}", e);
+                send_audio_result(Err(ShuseiError::Platform(
+                    "Unknown error".into()
+                )));
+                return;
+            }
+        };
+        let error = java_str.to_str().unwrap_or("Unknown error").to_string();
+        log::error!("Audio recording failed: {}", error);
+        send_audio_result(Err(ShuseiError::Platform(error)));
+    }
+}
+
+fn send_audio_result(result: Result<AudioResult>) {
+    if let Ok(mut state_guard) = AUDIO_RECORD_STATE.lock() {
         if let Some(state) = state_guard.take() {
             if let Some(sender) = state.result_sender {
                 let _ = sender.send(result);
