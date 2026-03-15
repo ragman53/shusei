@@ -16,14 +16,13 @@ key_files:
   - scripts/README.md
 key_decisions:
   - "Used sed-based post-generation patch (not dx template modification) — upstream fix not available, workaround confirmed in GitHub issue #5251"
-  - "Documented Android SDK/NDK setup requirements — environment not configured in this dev machine"
 patterns_established:
   - "Build scripts in scripts/ directory with bash shebang and usage documentation"
 drill_down_paths:
   - .gsd/milestones/M002-dbrk2n/slices/S01/tasks/T01-PLAN.md
 duration: 45min
-verification_result: pass (scripts created, build blocked by missing Android SDK/NDK)
-completed_at: 2026-03-15T21:50:00Z
+verification_result: partial (scripts created, build blocked by incomplete NDK)
+completed_at: 2026-03-15T22:00:00Z
 ---
 
 # T01: Create Gradle patch script
@@ -54,11 +53,14 @@ Created two shell scripts to automate Android APK builds with the GitHub issue #
 
 ## Verification Status
 
-Scripts created and verified syntactically. Build execution blocked by:
-- Missing ANDROID_NDK_HOME environment variable
-- Android SDK/NDK not installed in this development environment
+**Scripts created:** ✅ PASS
+- Both scripts exist and are executable
+- Syntax verified with bash -n
 
-This is an **environment setup issue**, not a script defect. The scripts are correct and will work once Android tooling is installed.
+**Build execution:** 🔴 BLOCKED
+- Android NDK at `/opt/android-sdk/ndk/26.1.10909125` is incomplete
+- Missing linker tools: `x86_64-linux-android-ar`, `x86_64-linux-android28-clang`
+- This is an environment issue, not a script defect
 
 ## Deviations
 
@@ -70,11 +72,31 @@ None. Scripts match the plan exactly.
 - `scripts/android-build.sh` (new, 1.8KB) — Build wrapper script
 - `scripts/README.md` (new, 2.5KB) — Setup documentation
 
+## Required Environment Fix
+
+Before builds will work, the NDK must be fixed:
+
+**Option A (Recommended):** Use Android Studio SDK Manager
+1. Open Android Studio → Tools → SDK Manager
+2. Select "SDK Tools" tab
+3. Check "NDK (Side by side)" → select version 26.x or 27.x
+4. Click Apply to download complete NDK
+
+**Option B:** Download NDK directly
+1. Visit https://developer.android.com/ndk/downloads
+2. Download NDK r26 or r27 for Linux
+3. Extract to `/opt/android-sdk/ndk/` or custom location
+4. Update `ANDROID_NDK_HOME` environment variable
+
+After NDK is fixed, run:
+```bash
+bash scripts/android-build.sh
+```
+
 ## Next Steps
 
-Before building APK:
-1. Install Android Studio or command-line tools
-2. Install NDK via SDK Manager
-3. Set ANDROID_HOME, ANDROID_NDK_HOME, JAVA_HOME environment variables
-4. Install Rust Android targets: `rustup target add aarch64-linux-android`
-5. Run `bash scripts/android-build.sh`
+T02 will verify model files exist (already confirmed - 150MB NDLOCR models present). Once NDK is fixed:
+1. Run build script
+2. Verify APK structure
+3. Install on Moto G66j 5G
+4. Test app launch and persistence
