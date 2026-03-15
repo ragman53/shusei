@@ -137,3 +137,33 @@
 - **Highlight visual rendering** - Database stores color but reader view doesn't yet render colored backgrounds.
 - **Export/import integration** - Annotations not yet included in book export/import JSON serialization.
 
+## S05: Voice Memos (2026-03-15)
+
+### Audio Recording Architecture
+- **Float array over byte array** — Normalized PCM samples (-1.0 to 1.0) as `Vec<f32>` instead of raw bytes. Easier for DSP processing and mel-spectrogram computation.
+- **30-second hard limit** — Enforced at Rust layer with timeout (max_seconds + 5s buffer). Defense in depth with Java side also enforcing limit.
+- **Dual package namespace support** — JNI callbacks support both `com.shusei.app` and `dev.dioxus.main` packages for development flexibility.
+
+### Mel-Spectrogram Implementation
+- **From-scratch implementation** — Custom STFT, FFT (radix-2 + DFT fallback), and mel filterbank instead of external crate. Matches Moonshine specs exactly, avoids dependency issues.
+- **Moonshine-default parameters** — 16kHz sample rate, 25ms window (400 samples), 10ms hop (160 samples), 80 mel bins, 400 FFT size.
+- **2D ndarray output** — `Array2<f32>` with shape `[time_frames, 80]` instead of flat `Vec<f32>`. Proper tensor structure for model input.
+
+### Testing Strategy
+- **9 unit tests for preprocessing** — Cover parameters, conversions, edge cases, output shapes, FFT correctness. Tests compile and verify algorithm correctness.
+- **Integration tests deferred** — Full end-to-end testing blocked by pre-existing ONNX linker error (`__isoc23_strtoll` undefined symbol in `ort-sys`).
+
+### Partial Slice Completion
+- **T01-T02 completed, T03-T06 deferred** — Audio recording and preprocessing complete. Moonshine model integration, UI components, reader integration, and comprehensive testing deferred due to ONNX blocker and Java side gap.
+- **Java side implementation pending** — `MainActivity.java` needs `startAudioRecording()`, permission methods, and native callbacks for `AudioRecord` integration.
+
+### Known Blockers
+- **ONNX Runtime linker error** — `__isoc23_strtoll`, `__isoc23_strtoull`, `__isoc23_strtol` undefined symbols in `ort-sys`. Prevents loading Moonshine models and running full test suite.
+- **Model files not acquired** — Moonshine Tiny ONNX models (encoder/decoder for English and Japanese) not yet downloaded or bundled.
+
+### Deferred Items
+- **VoiceMemoInput UI component** — Recording UI with record/stop buttons, timer, transcript editor deferred to frontend phase.
+- **Reader integration** — Voice memo button in note creation dialog deferred until model integration complete.
+- **Lazy model loading** — Load/unload Moonshine models on demand deferred until lifecycle management implemented.
+
+---

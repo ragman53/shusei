@@ -75,34 +75,33 @@
 | 単語採集回数表示 | 記憶定着の可視化 | — Pending |
 
 ---
-*Last updated: 2026-03-15 after S04 completion*
+*Last updated: 2026-03-15 after S05 completion*
 
-## Current State (Post-S04)
+## Current State (Post-S05)
 
 **Backend infrastructure complete:**
 - ✅ S01: Core Infrastructure — Database foundation with Book model and books table
 - ✅ S02: Paper Book Capture — Image preprocessing, OCR engine, quality detection, book pages CRUD
 - ✅ S03: PDF Support — PDF import, batch OCR pipeline, reflow reader, progress tracking
 - ✅ S04: Annotation Foundation — Highlights, bookmarks, notes with full CRUD and 15 unit tests
+- ✅ S05: Voice Memos — Audio recording pipeline + mel-spectrogram preprocessing (9 unit tests)
 
-**Annotation capabilities shipped:**
-- `annotations` table with type discriminator (highlight/bookmark/note)
-- `AnnotationType` enum with type-safe string conversion
-- Full CRUD operations: create, read, update, delete annotations
-- Type-specific queries: `get_highlights()`, `get_bookmarks()`, `get_notes()`
-- Position range tracking for text selection (character offsets)
-- Color customization for highlights (yellow/green/pink/blue)
-- Bulk deletion by book for cleanup
+**Voice memo capabilities shipped:**
+- Audio recording API via JNI with 30-second hard limit
+- Microphone permission checking and request flow
+- Mel-spectrogram computation matching Moonshine specs (16kHz, 25ms window, 80 mel bins)
+- STFT with Hann window, FFT (radix-2 + DFT fallback), mel filterbank
+- Output format: `Array2<f32>` with shape `[time_frames, 80]`
 
-**Next phase:** S05 Voice Memos — Attach voice memos to annotations and pages
+**Next phase:** S06 AI Enhancement — Complete Moonshine model integration, build voice memo UI, integrate with reader
 
 **Known blockers:**
-- ONNX Runtime linker error (`__isoc23_strtoll` undefined symbol) prevents test execution
-- Pre-existing issue with `ort-sys` dependency, not caused by annotation code
-- Tests are structurally correct and would pass on properly configured system
+- ONNX Runtime linker error (`__isoc23_strtoll` undefined symbol) prevents model loading
+- Java side `MainActivity` missing audio recording methods
+- Pre-existing issue with `ort-sys` dependency, not caused by S05 code
 
-**Deferred to frontend phase:**
-- Annotation UI components (create/edit/delete dialogs)
-- Text selection integration for position tracking
-- Visual highlight rendering (colored backgrounds in reader)
-- Export/import integration for annotations
+**Deferred to S06:**
+- Moonshine ONNX model integration (encoder/decoder)
+- VoiceMemoInput UI component (record/stop/edit flow)
+- Reader view voice memo button integration
+- End-to-end transcription testing
