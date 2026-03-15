@@ -17,7 +17,8 @@ blocker_discovered: false
 ---
 # T06: Plan 06
 
-**# Phase 03 Plan 06: Complete OCR Pipeline Summary**
+**# Phase 03 Plan 06: Complete OCR Pipeline Summary
+**
 
 ## What Happened
 
@@ -203,3 +204,39 @@ To fully verify OCR functionality:
 
 *Summary created: 2026-03-12T15:23:00Z*
 *Plan execution time: 728 seconds (~12 minutes)*
+
+## Diagnostics
+
+**Verify model bundling:**
+```bash
+# Check model files exist and have correct sizes
+test -f assets/ocr/models/text_detection.onnx && \
+test -f assets/ocr/models/text_recognition.onnx && \
+test -f assets/ocr/models/dict.txt && \
+echo "MODELS_PRESENT=true"
+
+# Check file sizes (should be ~84MB, ~81MB, ~73KB)
+ls -lh assets/ocr/models/
+```
+
+**Check OCR text extraction:**
+```bash
+adb logcat | grep -E "detection|recognition|CTC|decode|text.*line"
+```
+Shows: detection inference results, region extraction, recognition output, CTC decoding, extracted text lines.
+
+**Monitor borrow checker solution:**
+```bash
+adb logcat | grep -E "rec_result|SessionOutputs|tensor.*extract"
+```
+Verifies tensor data extracted while session is alive (no borrow errors).
+
+**Test Japanese/Chinese OCR:**
+- Import PDF with known Japanese text
+- Check extracted text contains correct characters (not boxes or garbled)
+- Compare with original PDF content
+
+**Check model architecture:**
+- Detection output: bounding boxes [1, num_boxes, 5] (x1, y1, x2, y2, confidence)
+- Recognition output: [1, seq_len, vocab_size] (CTC logits)
+- Vocab size: ~27,000 characters (Japanese + Chinese)

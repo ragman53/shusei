@@ -63,3 +63,39 @@
 - **Quality warning UI component** - Backend complete, UI integration deferred to camera UI integration phase.
 - **Parallel OCR with tokio::spawn** - Retry logic complete, async integration deferred to UI phase.
 - **Page viewer component** - Focus on core capture → OCR → save flow first; viewer can be added later.
+
+## S03: Pdf Support (2026-03-15)
+
+### PDF Processing Architecture
+- **Batch processing (10 pages/batch)** - Balances memory usage and progress visibility. Prevents OOM on low-RAM devices while providing frequent progress updates.
+- **Stream-based concurrency over tokio::spawn** - Used `futures::stream::buffer_unordered(3)` instead of `tokio::spawn` to avoid `Send` issues with rusqlite's `Connection` type. Max 3 concurrent OCR operations.
+- **Resume support via processing_progress table** - Persists last processed page, allowing conversion to resume after app backgrounding or crashes.
+
+### OCR Engine Design
+- **ONNX Runtime (ort 2.0 RC)** - Thread-safe session management with `Arc<Mutex<Session>>` pattern. Mutex required because `session.run()` needs `&mut Session` and lifetime of `SessionOutputs` tied to session reference.
+- **Image preprocessing pipeline** - Grayscale conversion, resize to 960x960 with Lanczos3, normalize to [0.0, 1.0], return NCHW tensor [1, 1, 960, 960].
+- **PaddleOCR v5 models bundled** - text_detection.onnx (84MB), text_recognition.onnx (81MB), dict.txt (73KB). Supports Japanese and Chinese character recognition (~27,000 characters).
+
+### UI/UX Decisions
+- **Continuous scroll over pagination** - More natural for digital reading, easier to skim content. Uses scroll position / total height heuristic for current page estimation.
+- **Font size range 12-32px** - Matches CONTEXT.md requirements for comfortable reading. Default 18px, adjustable via range slider in header.
+- **Metadata review dialog** - Users can edit title/author before saving imported PDF to database. Prevents bad metadata persistence.
+- **Stage-based progress display** - Three stages: Rendering (📄 blue) → OcrProcessing (🔍 purple) → Complete (✓ green). Visual progress bar with percentage.
+
+### Simplified Progress Callback
+- **No-op progress callback in convert_pdf()** - Dioxus signals are not `Send+Sync`, but progress callback requires `Send+Sync` for async execution. Used no-op callback and generic "converting" state signal instead of real-time page updates.
+- **Rationale** - Avoids complex channel-based threading patterns, maintains clean async/await flow, user still sees conversion is in progress.
+
+### Storage Conventions
+- **PDF path convention: `pdfs/{book_id}.pdf`** - Book model doesn't store PDF path (avoids schema change). Assumes book ID matches PDF filename. Simple but may need enhancement in future slices.
+- **`.bin` extension for all images** - Format-agnostic approach; storage doesn't need to know image format.
+
+### Testing Strategy
+- **Large PDF test infrastructure** - 373-page test PDF available (`tests/large_pdf_test.pdf`, 14MB) with complete monitoring and test procedure. Awaiting human verification on Android device.
+- **Batch timing logs** - Every 10 pages in `src/core/pdf.rs` lines 365-372. Shows batch number, pages rendered, cumulative total, batch time.
+- **OCR progress logs** - Confidence tracking and page completion in `src/core/ocr/engine.rs`.
+
+### Known Issues
+- **pdfium-render linking error** - Pre-existing unresolved external `FPDFPage_TransformAnnots` prevents full library build with PDF feature on some systems. Not caused by S03.
+- **Model size** - 165MB total for OCR models may impact initial download/app size. Consider lazy loading or quantization for mobile.
+- **Inference time** - Expected 1-2 seconds per page on CPU; not yet benchmarked on target devices.

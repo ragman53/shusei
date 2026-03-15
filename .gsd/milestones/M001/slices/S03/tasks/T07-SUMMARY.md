@@ -17,7 +17,8 @@ blocker_discovered: false
 ---
 # T07: Plan 07
 
-**# Phase 03 Plan 07: Large PDF Processing Verification Summary**
+**# Phase 03 Plan 07: Large PDF Processing Verification Summary
+**
 
 ## What Happened
 
@@ -188,3 +189,48 @@ grep -q "Large PDFs.*✓ VERIFIED" .planning/phases/03-pdf-support/03-VERIFICATI
 
 _Executed: 2026-03-13T06:26:00Z_  
 _Executor: OpenCode (gsd-execute-phase)_
+
+## Diagnostics
+
+**Check large PDF test file:**
+```bash
+# Verify test PDF exists
+test -f tests/large_pdf_test.pdf && echo "TEST_PDF_READY" || echo "TEST_PDF_MISSING"
+
+# Check file size and page count
+ls -lh tests/large_pdf_test.pdf
+# Should show: 14M (373 pages)
+```
+
+**Monitor batch processing for large PDFs:**
+```bash
+adb logcat | grep -E "batch [0-9]+|rendered pages|cumulative"
+```
+Shows every 10 pages: "Batch X: rendered pages Y-Z (cumulative: N) in {time}ms"
+
+**Check memory usage during processing:**
+```bash
+adb shell dumpsys meminfo com.shusei.app | grep -E "Total|Native|Dalvik"
+# Run multiple times during conversion to check for memory growth
+```
+
+**Verify resume functionality:**
+```sql
+-- Before backgrounding app
+SELECT last_processed_page FROM processing_progress WHERE book_id = '<test_book_id>';
+
+-- After backgrounding and resuming
+SELECT last_processed_page FROM processing_progress WHERE book_id = '<test_book_id>';
+-- Should show same or higher value, not reset to 0
+```
+
+**Check test procedure documentation:**
+- File: `tests/large_pdf_test.md`
+- Contains: step-by-step testing instructions, monitoring steps, expected outcomes
+- Follow procedure for detailed human verification on Android device
+
+**Monitor for OOM or crashes:**
+```bash
+adb logcat | grep -E "OOM|OutOfMemory|FATAL|CRASH|AndroidRuntime"
+# Should show no memory-related crashes during 373-page processing
+```

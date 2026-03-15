@@ -18,8 +18,11 @@ Output: Working database schema with tested CRUD operations
 Purpose: Enable the core camera → OCR workflow by implementing the NDLOCR-Lite engine and ensuring images are properly downscaled for memory efficiency
 
 Output: Working OCR engine with image preprocessing, ready for integration with camera UI
-- [ ] **S03: Pdf Support** `risk:medium` `depends:[S02]`
+- [x] **S03: Pdf Support** `risk:medium` `depends:[S02]`
   > After this: Implement PDF import flow with file picker, metadata extraction, and library integration.
+
+Purpose: Enable PDF import, OCR conversion, and reflow reading with progress tracking and batch processing
+Output: Working PDF import, batch OCR pipeline, reflow reader with font controls, library integration with PDF badges
 - [ ] **S04: Annotation Foundation** `risk:medium` `depends:[S03]`
   > After this: unit tests prove Annotation Foundation works
 - [ ] **S05: Voice Memos** `risk:medium` `depends:[S04]`

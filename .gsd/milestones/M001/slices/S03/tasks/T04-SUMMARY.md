@@ -17,7 +17,8 @@ blocker_discovered: false
 ---
 # T04: 03-pdf-support 04
 
-**# Phase 03 Plan 04: PDF Import and Conversion UI - Summary**
+**# Phase 03 Plan 04: PDF Import and Conversion UI - Summary
+**
 
 ## What Happened
 
@@ -231,3 +232,40 @@ None - all functionality implemented and compiles successfully.
 ---
 
 *Plan execution complete - PDF import and conversion UI fully integrated.*
+
+## Diagnostics
+
+**Check PDF import flow:**
+```bash
+adb logcat | grep -E "import_pdf|metadata|PdfProcessor"
+```
+Shows: "Importing PDF from {path}", "Metadata extracted: {title}", "Book created with ID {uuid}".
+
+**Monitor conversion state:**
+```bash
+adb logcat | grep -E "convert|ConversionProgressDisplay|is_converting"
+```
+Shows conversion start, stage transitions, and completion.
+
+**Inspect database for PDF books:**
+```sql
+SELECT id, title, author, is_pdf, total_pages, created_at 
+FROM books 
+WHERE is_pdf = TRUE;
+```
+
+**Check PDF file storage:**
+```bash
+adb shell ls -lh /data/data/com.shusei.app/files/pdfs/
+# Should show: {book_id}.pdf files
+```
+
+**Verify progress display component:**
+- Stage indicator visible: 📄 Rendering / 🔍 OCR / ✓ Complete
+- Progress bar width changes with percentage
+- Current/total page count displayed
+
+**Debug metadata review dialog:**
+- Dialog should appear after file selection
+- Title/author fields editable
+- Page count read-only (extracted from PDF)

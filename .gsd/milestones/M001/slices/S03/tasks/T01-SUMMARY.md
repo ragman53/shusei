@@ -129,3 +129,25 @@ cargo check --lib
 2. **Complete database integration** - Wire PDF import to actual database instance in library UI (currently uses placeholder)
 3. **Add PDF badge to BookCard** - Visual distinction for PDF books in library list
 4. **Enable pdf feature by default** - Add `pdf` to default features in Cargo.toml once integration is complete
+
+## Diagnostics
+
+**Query PDF books:**
+```sql
+SELECT * FROM books WHERE is_pdf = TRUE;
+```
+
+**Check PDF import logs:**
+```bash
+adb logcat | grep -i "pdf\|import"
+```
+
+**Inspect PDF storage:**
+```bash
+adb shell ls -la /data/data/com.shusei.app/files/pdfs/
+```
+
+**Verify metadata extraction:**
+- Check logs for "Metadata extracted" messages
+- Title should match PDF metadata or fallback to filename
+- Page count should match actual PDF page count

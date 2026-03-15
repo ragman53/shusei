@@ -17,7 +17,8 @@ blocker_discovered: false
 ---
 # T05: 03-pdf-support 05
 
-**# Phase 03 Plan 05: OCR Inference Pipeline Summary**
+**# Phase 03 Plan 05: OCR Inference Pipeline Summary
+**
 
 ## What Happened
 
@@ -128,3 +129,37 @@ Added comprehensive tests:
 2. Implement actual output parsing based on model output format
 3. Add text region detection and bounding box extraction
 4. Integrate with PDF page rendering for end-to-end testing
+
+## Diagnostics
+
+**Check ONNX session initialization:**
+```bash
+adb logcat | grep -E "ort|ONNX|session|model.*load"
+```
+Shows: "Loading detection model from {path}", "Loading recognition model from {path}", session creation status.
+
+**Verify model files present:**
+```bash
+adb shell ls -lh /data/data/com.shusei.app/files/assets/ocr/models/
+# Should show:
+# text_detection.onnx (84M)
+# text_recognition.onnx (81M)
+# dict.txt (73K)
+```
+
+**Monitor inference pipeline:**
+```bash
+adb logcat | grep -E "preprocess|inference|tensor|OcrError"
+```
+Shows: preprocessing steps, tensor shape, inference timing, error messages.
+
+**Check thread safety:**
+```bash
+adb logcat | grep -i "mutex|lock|session.*run"
+```
+Verifies Mutex locking during inference (should see lock acquisition logs).
+
+**Test preprocessing output:**
+- Input: image bytes (JPEG/PNG)
+- Output: Array4<f32> tensor with shape [1, 1, 960, 960]
+- Normalization: pixel values in [0.0, 1.0] range

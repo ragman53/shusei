@@ -130,3 +130,32 @@ All success criteria met:
 ## Self-Check: PASSED
 
 All files exist and commits verified.
+
+## Diagnostics
+
+**Check reader view state:**
+```bash
+adb logcat | grep -i "reader\|font_size\|page.*of"
+```
+Shows font size changes and page navigation events.
+
+**Inspect page jump modal:**
+- Modal should appear when tapping page number button
+- Input validation: rejects values < 1 or > total_pages
+- Check browser console for validation errors (desktop testing)
+
+**Verify font size slider:**
+- Slider range: min=12, max=32
+- Current size displayed next to slider
+- Style applied: `font-size: {font_size}px` on content container
+
+**Check library filter state:**
+```rust
+// In library.rs, check LibraryFilter signal value
+// Should be one of: All, PdfsOnly, PhysicalOnly
+```
+
+**Test continuous scroll:**
+- Scroll position should estimate current page
+- Page number updates as user scrolls
+- May lag slightly during fast scrolling (acceptable)

@@ -150,3 +150,35 @@ Created `PdfConversionService` orchestrator:
 - Add UI components for conversion progress display
 - Test with real PDF files and OCR models
 - Performance tuning for large PDFs (100+ pages)
+
+## Diagnostics
+
+**Query conversion progress:**
+```sql
+SELECT book_id, last_processed_page, total_pages, status, updated_at 
+FROM processing_progress 
+WHERE book_id = '<book_uuid>';
+```
+
+**Check batch processing logs:**
+```bash
+adb logcat | grep -E "batch|rendering|page [0-9]+"
+```
+Look for: "Batch X: rendered pages Y-Z (cumulative: N)" every 10 pages.
+
+**Monitor OCR parallel processing:**
+```bash
+adb logcat | grep -i "ocr\|processing page"
+```
+Shows: "Processing page X with OCR" and confidence scores.
+
+**Check for resume points:**
+```sql
+SELECT last_processed_page FROM processing_progress WHERE book_id = ?;
+-- Should show last completed page, not 0
+```
+
+**Verify stage transitions:**
+- Rendering stage: Check `src/core/pdf.rs` logs for batch rendering
+- OcrProcessing stage: Check `src/core/ocr/engine.rs` logs for OCR inference
+- Complete stage: Status changes to 'completed' in processing_progress table
