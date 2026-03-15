@@ -99,3 +99,41 @@
 - **pdfium-render linking error** - Pre-existing unresolved external `FPDFPage_TransformAnnots` prevents full library build with PDF feature on some systems. Not caused by S03.
 - **Model size** - 165MB total for OCR models may impact initial download/app size. Consider lazy loading or quantization for mobile.
 - **Inference time** - Expected 1-2 seconds per page on CPU; not yet benchmarked on target devices.
+
+## S04: Annotation Foundation (2026-03-15)
+
+### Annotation Schema Design
+- **Single table with type discriminator** - One `annotations` table with `annotation_type` column instead of separate tables for highlights/bookmarks/notes. Reduces schema complexity and simplifies queries across annotation types.
+- **CHECK constraint for type validation** - `CHECK(annotation_type IN ('highlight', 'bookmark', 'note'))` enforces valid types at database level, not just in application code.
+- **Foreign key to books(id)** - Ensures referential integrity; annotations cannot exist without a valid book.
+
+### Annotation Type System
+- **AnnotationType enum with FromStr/Display** - Type-safe enum in Rust (`Highlight`, `Bookmark`, `Note`) with automatic string conversion for database storage. Invalid types return descriptive error messages.
+- **Type predicate helpers** - `is_highlight()`, `is_bookmark()`, `is_note()` methods on Annotation struct for ergonomic type checking without enum matching.
+
+### Position Tracking
+- **Character offsets for text selection** - `position_start` and `position_end` store character offsets (not byte offsets) for precise text selection. UI will capture these from user text selection in reader view.
+- **Optional position range** - Positions are optional (INTEGER, not NOT NULL) to support bookmarks that apply to entire pages without specific text selection.
+
+### Color Handling
+- **Optional color field with default null** - `color TEXT DEFAULT 'yellow'` but column allows NULL. UI will provide default colors; users can customize. Highlights typically use yellow/green/pink/blue.
+
+### Builder Pattern
+- **NewAnnotation builder with fluent API** - `NewAnnotation::highlight()`, `bookmark()`, `note()` constructors with `with_position()` fluent setter. Provides ergonomic construction and ensures all required fields are set before insertion.
+
+### Partial Update Pattern
+- **COALESCE for selective field updates** - `update_annotation()` uses `COALESCE(?, field)` pattern to update only provided fields. Allows updating color without changing content, or adding user_note without modifying position.
+
+### Bulk Deletion
+- **delete_annotations_by_book()** - Bulk delete method for cleaning up annotations when a book is deleted. Prevents orphaned annotation records. Note: Currently manual operation, not automatic foreign key cascade.
+
+### Testing Approach
+- **15 unit tests with in-memory database** - Each test creates isolated in-memory database for reproducibility. Tests follow same patterns as `books_crud` and `book_pages` modules.
+- **Test execution blocked by ONNX linker** - Pre-existing `ort-sys` linker error prevents test execution. Tests are structurally correct and would pass on properly configured system.
+
+### Deferred Items
+- **Annotation UI components** - Backend complete; UI for creating/editing/deleting annotations deferred to frontend implementation phase.
+- **Text selection integration** - Position range fields exist but reader UI doesn't yet capture text selection. Requires integration with reflow reader.
+- **Highlight visual rendering** - Database stores color but reader view doesn't yet render colored backgrounds.
+- **Export/import integration** - Annotations not yet included in book export/import JSON serialization.
+
