@@ -96,6 +96,9 @@ pub enum SttError {
     #[error("Decoder inference failed: {0}")]
     Decoder(String),
 
+    #[error("Inference failed: {0}")]
+    Inference(String),
+
     #[error("Tokenization failed: {0}")]
     Tokenization(String),
 

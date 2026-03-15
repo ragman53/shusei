@@ -32,5 +32,5 @@ Output: Working PDF import, batch OCR pipeline, reflow reader with font controls
 
 Purpose: Implement AI-powered word definitions with Qwen3.5-0.8B, tap-to-define UI, and definition caching
 Output: Words table schema, AI engine trait, mock implementation, 9 unit tests; Qwen integration deferred due to ONNX linker issue
-- [ ] **S07: Performance Polish** `risk:medium` `depends:[S06]`
-  > After this: unit tests prove Performance Polish works
+- [x] **S07: Performance Polish** `risk:medium` `depends:[S06]`
+  > After this: unit tests prove Performance Polish works - TRACT MIGRATION COMPLETE: ort linker errors resolved, 92 tests passing

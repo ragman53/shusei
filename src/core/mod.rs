@@ -13,6 +13,7 @@ pub mod models;
 pub mod state;
 pub mod pdf;
 pub mod ai;
+pub mod tract_utils;
 
 pub use error::{ShuseiError, OcrError, SttError};
 pub use ocr::OcrEngine;

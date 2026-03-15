@@ -12,7 +12,7 @@ use rayon::prelude::*;
 use crate::core::error::{Result, ShuseiError};
 use crate::core::db::Database;
 use crate::core::storage::StorageService;
-use crate::core::ocr::NdlocrEngine;
+use crate::core::ocr::{NdlocrEngine, OcrEngine};
 
 /// PDF document wrapper for hayro
 pub struct PdfDocument {

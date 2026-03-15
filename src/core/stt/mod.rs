@@ -1,15 +1,17 @@
 //! STT (Speech-to-Text) pipeline
 //!
 //! This module implements the STT pipeline using Moonshine Tiny ONNX models
-//! with the tract inference runtime.
+//! with tract inference runtime (migrated from ort in S07).
 
 mod engine;
+mod engine_tract;
 mod decoder;
 #[cfg(not(target_os = "android"))]
 mod tokenizer;
 mod mel_spectrogram;
 
-pub use engine::{SttEngine, SttResult, MoonshineEngine};
+pub use engine::{SttEngine, SttResult};
+pub use engine_tract::MoonshineEngineTract as MoonshineEngine;
 pub use decoder::{DecoderState, KvCache};
 #[cfg(not(target_os = "android"))]
 pub use tokenizer::Tokenizer;
