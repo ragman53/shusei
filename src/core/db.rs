@@ -121,6 +121,25 @@ impl Database {
                 last_reviewed_at TEXT
             );
             
+            -- Annotations table for highlights, bookmarks, and notes
+            CREATE TABLE IF NOT EXISTS annotations (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                book_id         TEXT NOT NULL REFERENCES books(id),
+                page_number     INTEGER NOT NULL,
+                annotation_type TEXT NOT NULL CHECK(annotation_type IN ('highlight', 'bookmark', 'note')),
+                content         TEXT NOT NULL,
+                color           TEXT DEFAULT 'yellow',
+                position_start  INTEGER,
+                position_end    INTEGER,
+                user_note       TEXT,
+                created_at      INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                updated_at      INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_annotations_book ON annotations(book_id);
+            CREATE INDEX IF NOT EXISTS idx_annotations_page ON annotations(page_number);
+            CREATE INDEX IF NOT EXISTS idx_annotations_type ON annotations(annotation_type);
+            
             -- Indexes for better query performance
             CREATE INDEX IF NOT EXISTS idx_sticky_notes_book ON sticky_notes(book_title);
             CREATE INDEX IF NOT EXISTS idx_sticky_notes_created ON sticky_notes(created_at DESC);
@@ -510,6 +529,144 @@ impl Database {
 
         Ok(progress)
     }
+
+    // ==================== Annotations ====================
+
+    /// Create a new annotation (highlight, bookmark, or note)
+    pub fn create_annotation(&self, annotation: &NewAnnotation) -> Result<i64> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let result = self.conn.execute(
+            r#"
+            INSERT INTO annotations (
+                book_id, page_number, annotation_type, content, 
+                color, position_start, position_end, user_note, 
+                created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            "#,
+            params![
+                annotation.book_id,
+                annotation.page_number,
+                annotation.annotation_type,
+                annotation.content,
+                annotation.color,
+                annotation.position_start,
+                annotation.position_end,
+                annotation.user_note,
+                now,
+                now,
+            ],
+        )?;
+
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Get an annotation by ID
+    pub fn get_annotation(&self, id: i64) -> Result<Option<Annotation>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM annotations WHERE id = ?1")?;
+
+        let annotation = stmt
+            .query_row(params![id], |row| Annotation::from_row(row))
+            .optional()?;
+
+        Ok(annotation)
+    }
+
+    /// Get all annotations for a book, ordered by page and position
+    pub fn get_annotations_by_book(&self, book_id: &str) -> Result<Vec<Annotation>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM annotations WHERE book_id = ?1 ORDER BY page_number ASC, position_start ASC",
+        )?;
+
+        let annotations = stmt
+            .query_map(params![book_id], |row| Annotation::from_row(row))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(annotations)
+    }
+
+    /// Get annotations by type for a book
+    pub fn get_annotations_by_type(&self, book_id: &str, annotation_type: &str) -> Result<Vec<Annotation>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM annotations WHERE book_id = ?1 AND annotation_type = ?2 ORDER BY page_number ASC, position_start ASC",
+        )?;
+
+        let annotations = stmt
+            .query_map(params![book_id, annotation_type], |row| Annotation::from_row(row))?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(annotations)
+    }
+
+    /// Get bookmarks for a book
+    pub fn get_bookmarks(&self, book_id: &str) -> Result<Vec<Annotation>> {
+        self.get_annotations_by_type(book_id, "bookmark")
+    }
+
+    /// Get highlights for a book
+    pub fn get_highlights(&self, book_id: &str) -> Result<Vec<Annotation>> {
+        self.get_annotations_by_type(book_id, "highlight")
+    }
+
+    /// Get notes for a book
+    pub fn get_notes(&self, book_id: &str) -> Result<Vec<Annotation>> {
+        self.get_annotations_by_type(book_id, "note")
+    }
+
+    /// Update an annotation
+    pub fn update_annotation(&self, id: i64, annotation: &UpdateAnnotation) -> Result<bool> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let result = self.conn.execute(
+            r#"
+            UPDATE annotations SET
+                content = COALESCE(?2, content),
+                color = COALESCE(?3, color),
+                position_start = COALESCE(?4, position_start),
+                position_end = COALESCE(?5, position_end),
+                user_note = COALESCE(?6, user_note),
+                updated_at = ?7
+            WHERE id = ?1
+            "#,
+            params![
+                id,
+                annotation.content,
+                annotation.color,
+                annotation.position_start,
+                annotation.position_end,
+                annotation.user_note,
+                now,
+            ],
+        )?;
+
+        Ok(result > 0)
+    }
+
+    /// Delete an annotation
+    pub fn delete_annotation(&self, id: i64) -> Result<bool> {
+        let result = self
+            .conn
+            .execute("DELETE FROM annotations WHERE id = ?1", params![id])?;
+
+        Ok(result > 0)
+    }
+
+    /// Delete all annotations for a book
+    pub fn delete_annotations_by_book(&self, book_id: &str) -> Result<usize> {
+        let result = self
+            .conn
+            .execute("DELETE FROM annotations WHERE book_id = ?1", params![book_id])?;
+
+        Ok(result)
+    }
 }
 
 // ==================== Data Models ====================
@@ -695,6 +852,168 @@ impl ProcessingProgress {
             updated_at: row.get(4)?,
         })
     }
+}
+
+// ==================== Annotations ====================
+
+/// Annotation type enum
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AnnotationType {
+    Highlight,
+    Bookmark,
+    Note,
+}
+
+impl std::fmt::Display for AnnotationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AnnotationType::Highlight => write!(f, "highlight"),
+            AnnotationType::Bookmark => write!(f, "bookmark"),
+            AnnotationType::Note => write!(f, "note"),
+        }
+    }
+}
+
+impl std::str::FromStr for AnnotationType {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "highlight" => Ok(AnnotationType::Highlight),
+            "bookmark" => Ok(AnnotationType::Bookmark),
+            "note" => Ok(AnnotationType::Note),
+            _ => Err(format!("Invalid annotation type: {}", s)),
+        }
+    }
+}
+
+/// Annotation model for highlights, bookmarks, and notes
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Annotation {
+    pub id: i64,
+    pub book_id: String,
+    pub page_number: i32,
+    pub annotation_type: String,
+    pub content: String,
+    pub color: Option<String>,
+    pub position_start: Option<i32>,
+    pub position_end: Option<i32>,
+    pub user_note: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+impl Annotation {
+    fn from_row(row: &Row) -> rusqlite::Result<Self> {
+        Ok(Self {
+            id: row.get(0)?,
+            book_id: row.get(1)?,
+            page_number: row.get(2)?,
+            annotation_type: row.get(3)?,
+            content: row.get(4)?,
+            color: row.get(5)?,
+            position_start: row.get(6)?,
+            position_end: row.get(7)?,
+            user_note: row.get(8)?,
+            created_at: row.get(9)?,
+            updated_at: row.get(10)?,
+        })
+    }
+
+    /// Get the annotation type as an enum
+    pub fn get_type(&self) -> std::result::Result<AnnotationType, String> {
+        self.annotation_type.parse()
+    }
+
+    /// Check if this annotation is a highlight
+    pub fn is_highlight(&self) -> bool {
+        self.annotation_type == "highlight"
+    }
+
+    /// Check if this annotation is a bookmark
+    pub fn is_bookmark(&self) -> bool {
+        self.annotation_type == "bookmark"
+    }
+
+    /// Check if this annotation is a note
+    pub fn is_note(&self) -> bool {
+        self.annotation_type == "note"
+    }
+}
+
+/// New annotation (for creation)
+#[derive(Debug, Clone)]
+pub struct NewAnnotation {
+    pub book_id: String,
+    pub page_number: i32,
+    pub annotation_type: String,
+    pub content: String,
+    pub color: Option<String>,
+    pub position_start: Option<i32>,
+    pub position_end: Option<i32>,
+    pub user_note: Option<String>,
+}
+
+impl NewAnnotation {
+    /// Create a new highlight annotation
+    pub fn highlight(book_id: String, page_number: i32, content: String, color: Option<String>) -> Self {
+        Self {
+            book_id,
+            page_number,
+            annotation_type: "highlight".to_string(),
+            content,
+            color,
+            position_start: None,
+            position_end: None,
+            user_note: None,
+        }
+    }
+
+    /// Create a new bookmark annotation
+    pub fn bookmark(book_id: String, page_number: i32, content: String) -> Self {
+        Self {
+            book_id,
+            page_number,
+            annotation_type: "bookmark".to_string(),
+            content,
+            color: None,
+            position_start: None,
+            position_end: None,
+            user_note: None,
+        }
+    }
+
+    /// Create a new note annotation
+    pub fn note(book_id: String, page_number: i32, content: String, user_note: String) -> Self {
+        Self {
+            book_id,
+            page_number,
+            annotation_type: "note".to_string(),
+            content,
+            color: None,
+            position_start: None,
+            position_end: None,
+            user_note: Some(user_note),
+        }
+    }
+
+    /// Set position range for the annotation
+    pub fn with_position(mut self, start: i32, end: i32) -> Self {
+        self.position_start = Some(start);
+        self.position_end = Some(end);
+        self
+    }
+}
+
+/// Update annotation (for partial updates)
+#[derive(Debug, Clone, Default)]
+pub struct UpdateAnnotation {
+    pub content: Option<String>,
+    pub color: Option<String>,
+    pub position_start: Option<i32>,
+    pub position_end: Option<i32>,
+    pub user_note: Option<String>,
 }
 
 #[cfg(test)]
@@ -924,6 +1243,374 @@ mod tests {
 
             let result = db.get_page(999).unwrap();
             assert!(result.is_none());
+        }
+    }
+
+    mod annotations {
+        use super::*;
+
+        #[test]
+        fn test_create_highlight_annotation() {
+            let db = Database::in_memory().unwrap();
+
+            // Create a book first
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Create a highlight annotation
+            let annotation = NewAnnotation::highlight(
+                book_id.clone(),
+                5,
+                "This is highlighted text".to_string(),
+                Some("yellow".to_string()),
+            );
+
+            let id = db.create_annotation(&annotation).unwrap();
+            assert!(id > 0);
+
+            // Verify the annotation was created
+            let retrieved = db.get_annotation(id).unwrap().unwrap();
+            assert_eq!(retrieved.book_id, book_id);
+            assert_eq!(retrieved.page_number, 5);
+            assert_eq!(retrieved.annotation_type, "highlight");
+            assert_eq!(retrieved.content, "This is highlighted text");
+            assert_eq!(retrieved.color, Some("yellow".to_string()));
+            assert!(retrieved.is_highlight());
+        }
+
+        #[test]
+        fn test_create_bookmark_annotation() {
+            let db = Database::in_memory().unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Create a bookmark annotation
+            let annotation = NewAnnotation::bookmark(
+                book_id.clone(),
+                10,
+                "Important page".to_string(),
+            );
+
+            let id = db.create_annotation(&annotation).unwrap();
+            assert!(id > 0);
+
+            // Verify the bookmark was created
+            let retrieved = db.get_annotation(id).unwrap().unwrap();
+            assert_eq!(retrieved.book_id, book_id);
+            assert_eq!(retrieved.page_number, 10);
+            assert_eq!(retrieved.annotation_type, "bookmark");
+            assert_eq!(retrieved.content, "Important page");
+            assert!(retrieved.is_bookmark());
+        }
+
+        #[test]
+        fn test_create_note_annotation() {
+            let db = Database::in_memory().unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Create a note annotation
+            let annotation = NewAnnotation::note(
+                book_id.clone(),
+                15,
+                "Quoted text".to_string(),
+                "My personal note about this".to_string(),
+            );
+
+            let id = db.create_annotation(&annotation).unwrap();
+            assert!(id > 0);
+
+            // Verify the note was created
+            let retrieved = db.get_annotation(id).unwrap().unwrap();
+            assert_eq!(retrieved.book_id, book_id);
+            assert_eq!(retrieved.page_number, 15);
+            assert_eq!(retrieved.annotation_type, "note");
+            assert_eq!(retrieved.content, "Quoted text");
+            assert_eq!(retrieved.user_note, Some("My personal note about this".to_string()));
+            assert!(retrieved.is_note());
+        }
+
+        #[test]
+        fn test_annotation_with_position() {
+            let db = Database::in_memory().unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Create annotation with position range
+            let annotation = NewAnnotation::highlight(
+                book_id.clone(),
+                3,
+                "Selected text".to_string(),
+                Some("green".to_string()),
+            ).with_position(100, 150);
+
+            let id = db.create_annotation(&annotation).unwrap();
+            let retrieved = db.get_annotation(id).unwrap().unwrap();
+
+            assert_eq!(retrieved.position_start, Some(100));
+            assert_eq!(retrieved.position_end, Some(150));
+        }
+
+        #[test]
+        fn test_get_annotations_by_book() {
+            let db = Database::in_memory().unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Create multiple annotations
+            db.create_annotation(&NewAnnotation::highlight(book_id.clone(), 1, "Text 1".to_string(), Some("yellow".to_string()))).unwrap();
+            db.create_annotation(&NewAnnotation::bookmark(book_id.clone(), 2, "Page 2".to_string())).unwrap();
+            db.create_annotation(&NewAnnotation::note(book_id.clone(), 3, "Text 3".to_string(), "Note 3".to_string())).unwrap();
+            db.create_annotation(&NewAnnotation::highlight(book_id.clone(), 5, "Text 5".to_string(), Some("pink".to_string()))).unwrap();
+
+            // Get all annotations for the book
+            let annotations = db.get_annotations_by_book(&book_id).unwrap();
+            assert_eq!(annotations.len(), 4);
+
+            // Verify ordering (by page number)
+            assert_eq!(annotations[0].page_number, 1);
+            assert_eq!(annotations[1].page_number, 2);
+            assert_eq!(annotations[2].page_number, 3);
+            assert_eq!(annotations[3].page_number, 5);
+        }
+
+        #[test]
+        fn test_get_annotations_by_type() {
+            let db = Database::in_memory().unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Create mixed annotations
+            db.create_annotation(&NewAnnotation::highlight(book_id.clone(), 1, "Highlight 1".to_string(), Some("yellow".to_string()))).unwrap();
+            db.create_annotation(&NewAnnotation::highlight(book_id.clone(), 2, "Highlight 2".to_string(), Some("green".to_string()))).unwrap();
+            db.create_annotation(&NewAnnotation::bookmark(book_id.clone(), 3, "Bookmark".to_string())).unwrap();
+            db.create_annotation(&NewAnnotation::note(book_id.clone(), 4, "Note content".to_string(), "User note".to_string())).unwrap();
+
+            // Get only highlights
+            let highlights = db.get_highlights(&book_id).unwrap();
+            assert_eq!(highlights.len(), 2);
+            assert!(highlights.iter().all(|a| a.is_highlight()));
+
+            // Get only bookmarks
+            let bookmarks = db.get_bookmarks(&book_id).unwrap();
+            assert_eq!(bookmarks.len(), 1);
+            assert!(bookmarks.iter().all(|a| a.is_bookmark()));
+
+            // Get only notes
+            let notes = db.get_notes(&book_id).unwrap();
+            assert_eq!(notes.len(), 1);
+            assert!(notes.iter().all(|a| a.is_note()));
+        }
+
+        #[test]
+        fn test_update_annotation() {
+            let db = Database::in_memory().unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Create an annotation
+            let annotation = NewAnnotation::highlight(book_id.clone(), 1, "Original text".to_string(), Some("yellow".to_string()));
+            let id = db.create_annotation(&annotation).unwrap();
+
+            // Update the annotation
+            let update = UpdateAnnotation {
+                content: Some("Updated text".to_string()),
+                color: Some("blue".to_string()),
+                user_note: Some("Added a note".to_string()),
+                ..Default::default()
+            };
+
+            let result = db.update_annotation(id, &update).unwrap();
+            assert!(result);
+
+            // Verify the update
+            let retrieved = db.get_annotation(id).unwrap().unwrap();
+            assert_eq!(retrieved.content, "Updated text");
+            assert_eq!(retrieved.color, Some("blue".to_string()));
+            assert_eq!(retrieved.user_note, Some("Added a note".to_string()));
+        }
+
+        #[test]
+        fn test_delete_annotation() {
+            let db = Database::in_memory().unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Create an annotation
+            let annotation = NewAnnotation::bookmark(book_id.clone(), 1, "Bookmark".to_string());
+            let id = db.create_annotation(&annotation).unwrap();
+
+            // Delete the annotation
+            let result = db.delete_annotation(id).unwrap();
+            assert!(result);
+
+            // Verify it's deleted
+            let retrieved = db.get_annotation(id).unwrap();
+            assert!(retrieved.is_none());
+        }
+
+        #[test]
+        fn test_delete_annotations_by_book() {
+            let db = Database::in_memory().unwrap();
+
+            // Create two books
+            let book_id_1 = db
+                .create_book(&NewBook {
+                    title: "Book 1".to_string(),
+                    author: "Author 1".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            let book_id_2 = db
+                .create_book(&NewBook {
+                    title: "Book 2".to_string(),
+                    author: "Author 2".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Create annotations for both books
+            db.create_annotation(&NewAnnotation::highlight(book_id_1.clone(), 1, "Book 1 Highlight".to_string(), Some("yellow".to_string()))).unwrap();
+            db.create_annotation(&NewAnnotation::bookmark(book_id_1.clone(), 2, "Book 1 Bookmark".to_string())).unwrap();
+            db.create_annotation(&NewAnnotation::note(book_id_2.clone(), 1, "Book 2 Note".to_string(), "Note".to_string())).unwrap();
+
+            // Delete all annotations for book 1
+            let deleted_count = db.delete_annotations_by_book(&book_id_1).unwrap();
+            assert_eq!(deleted_count, 2);
+
+            // Verify book 1 annotations are deleted
+            let book1_annotations = db.get_annotations_by_book(&book_id_1).unwrap();
+            assert_eq!(book1_annotations.len(), 0);
+
+            // Verify book 2 annotations are still there
+            let book2_annotations = db.get_annotations_by_book(&book_id_2).unwrap();
+            assert_eq!(book2_annotations.len(), 1);
+        }
+
+        #[test]
+        fn test_annotation_type_enum_conversion() {
+            // Test string to enum conversion
+            let highlight: AnnotationType = "highlight".parse().unwrap();
+            assert_eq!(highlight, AnnotationType::Highlight);
+
+            let bookmark: AnnotationType = "bookmark".parse().unwrap();
+            assert_eq!(bookmark, AnnotationType::Bookmark);
+
+            let note: AnnotationType = "note".parse().unwrap();
+            assert_eq!(note, AnnotationType::Note);
+
+            // Test enum to string conversion
+            assert_eq!(AnnotationType::Highlight.to_string(), "highlight");
+            assert_eq!(AnnotationType::Bookmark.to_string(), "bookmark");
+            assert_eq!(AnnotationType::Note.to_string(), "note");
+
+            // Test invalid type
+            let invalid: std::result::Result<AnnotationType, String> = "invalid".parse();
+            assert!(invalid.is_err());
+        }
+
+        #[test]
+        fn test_get_annotation_returns_none_for_non_existent() {
+            let db = Database::in_memory().unwrap();
+
+            let result = db.get_annotation(999).unwrap();
+            assert!(result.is_none());
+        }
+
+        #[test]
+        fn test_annotation_default_color_for_highlights() {
+            let db = Database::in_memory().unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Create highlight without specifying color
+            let annotation = NewAnnotation::highlight(
+                book_id.clone(),
+                1,
+                "Text".to_string(),
+                None,
+            );
+
+            let id = db.create_annotation(&annotation).unwrap();
+            let retrieved = db.get_annotation(id).unwrap().unwrap();
+
+            assert_eq!(retrieved.color, None);
+        }
+
+        #[test]
+        fn test_multiple_bookmarks_same_page() {
+            let db = Database::in_memory().unwrap();
+
+            let book_id = db
+                .create_book(&NewBook {
+                    title: "Test Book".to_string(),
+                    author: "Author".to_string(),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            // Create multiple bookmarks on the same page
+            db.create_annotation(&NewAnnotation::bookmark(book_id.clone(), 5, "First bookmark".to_string())).unwrap();
+            db.create_annotation(&NewAnnotation::bookmark(book_id.clone(), 5, "Second bookmark".to_string())).unwrap();
+            db.create_annotation(&NewAnnotation::bookmark(book_id.clone(), 5, "Third bookmark".to_string())).unwrap();
+
+            let bookmarks = db.get_bookmarks(&book_id).unwrap();
+            assert_eq!(bookmarks.len(), 3);
+            assert!(bookmarks.iter().all(|b| b.page_number == 5));
         }
     }
 }
