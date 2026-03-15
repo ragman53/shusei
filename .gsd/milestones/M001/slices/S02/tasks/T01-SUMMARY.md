@@ -104,6 +104,39 @@ test result: ok. 7 passed; 0 failed
 3. Add markdown generation from text regions
 4. Performance benchmarking with real book page images
 
+## Diagnostics
+
+**How to inspect what this task built:**
+
+1. **Run preprocessing tests:**
+   ```bash
+   cargo test --lib core::ocr::preprocess::tests
+   ```
+   Verifies: downscaling formula, small image passthrough, JPEG output
+
+2. **Run storage tests:**
+   ```bash
+   cargo test --lib core::storage::tests::test_save_page_image
+   ```
+   Verifies: directory creation, relative path format, content preservation
+
+3. **Check preprocessing output:**
+   ```bash
+   cargo test --lib core::ocr::preprocess -- --nocapture
+   ```
+   Inspect: output dimensions, file size, quality metrics
+
+4. **Verify file structure:**
+   ```bash
+   ls -la pages/{book_id}/
+   ```
+   Expected: `{timestamp}_{uuid}.jpg` files in book-specific directories
+
+**Key signals:**
+- Test count: 7 passing (4 preprocess + 3 storage)
+- Output format: JPEG at 85% quality
+- Downscaling threshold: 2MP (2,000,000 pixels)
+
 ---
 
 *Plan completed: 2026-03-11*

@@ -136,6 +136,39 @@ CREATE INDEX idx_book_pages_number ON book_pages(page_number);
 3. Implement save handler with book linking
 4. Create page viewer component
 
+## Diagnostics
+
+**How to inspect what this task built:**
+
+1. **Run database tests:**
+   ```bash
+   cargo test --lib core::db::tests::book_pages
+   ```
+   Verifies: save_page, get_page, get_pages_by_book operations
+
+2. **Inspect database schema:**
+   ```bash
+   sqlite3 .gsd/dev.db ".schema book_pages"
+   ```
+   Expected: image_path, ocr_markdown, ocr_text_plain, created_at columns
+
+3. **Verify indexes:**
+   ```bash
+   sqlite3 .gsd/dev.db ".indexes book_pages"
+   ```
+   Expected: idx_book_pages_book, idx_book_pages_number
+
+4. **Check BookPage struct:**
+   ```bash
+   grep -A 10 "struct BookPage" src/core/db.rs
+   ```
+   Verifies: field definitions match schema
+
+**Key signals:**
+- Test count: 4 passing
+- Schema: book_id TEXT, page_number INTEGER, image_path TEXT NOT NULL
+- Indexes: on book_id and page_number for query optimization
+
 ---
 
 *Plan completed: 2026-03-11*

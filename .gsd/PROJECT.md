@@ -75,4 +75,16 @@
 | 単語採集回数表示 | 記憶定着の可視化 | — Pending |
 
 ---
-*Last updated: 2026-03-11 after initial questioning*
+*Last updated: 2026-03-15 after S02 completion*
+
+## Current State (Post-S02)
+
+**Backend infrastructure complete:**
+- Image preprocessing pipeline with 2MP downscaling and contrast enhancement
+- Book pages database schema with CRUD operations (image_path, ocr_markdown, ocr_text_plain)
+- Quality detection algorithms (Laplacian variance for blur, brightness analysis)
+- Auto-retry logic based on OCR confidence thresholds
+
+**Next phase:** UI integration — wire up camera UI with OCR engine, add quality warnings, implement save flow
+
+**Deferred to Week 3-5:** Full tract-onnx OCR pipeline integration (requires ONNX model files)

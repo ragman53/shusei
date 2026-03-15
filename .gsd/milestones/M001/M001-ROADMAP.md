@@ -12,7 +12,7 @@
 
 Purpose: Establish the data layer that all book operations depend on
 Output: Working database schema with tested CRUD operations
-- [ ] **S02: Paper Book Capture** `risk:medium` `depends:[S01]`
+- [x] **S02: Paper Book Capture** `risk:medium` `depends:[S01]`
   > After this: Implement OCR engine and image preprocessing pipeline
 
 Purpose: Enable the core camera → OCR workflow by implementing the NDLOCR-Lite engine and ensuring images are properly downscaled for memory efficiency

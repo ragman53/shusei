@@ -164,6 +164,42 @@ if should_retry(&result) {
 4. Add retry parameter variations (thresholds, preprocessing)
 5. Manual verification of quality warnings
 
+## Diagnostics
+
+**How to inspect what this task built:**
+
+1. **Run quality detection tests:**
+   ```bash
+   cargo test --lib core::ocr::postprocess::tests
+   ```
+   Verifies: brightness calculation, quality scoring, retry logic, IOU computation
+
+2. **Check algorithm constants:**
+   ```bash
+   grep -E "(BLUR_THRESHOLD|BRIGHTNESS_|QUALITY_)" src/core/ocr/postprocess.rs
+   ```
+   Expected: BLUR_THRESHOLD = 100.0, BRIGHTNESS_MIN = 50, BRIGHTNESS_MAX = 200
+
+3. **Test with sample images:**
+   ```rust
+   // In a test or benchmark:
+   let quality = calculate_quality_score(&image_data)?;
+   println!("Quality score: {}", quality);
+   ```
+   Expected: 0.0-1.0 score, >0.7 for sharp well-lit images
+
+4. **Verify retry logic:**
+   ```bash
+   cargo test --lib core::ocr::postprocess::tests::test_should_retry -- --nocapture
+   ```
+   Verifies: confidence thresholds trigger retry correctly
+
+**Key signals:**
+- Test count: 8 passing
+- Quality thresholds: blur variance < 100 = blurry, brightness 50-200 = optimal
+- Weighting: 60% blur + 40% brightness
+- Retry thresholds: overall confidence < 0.5, critical region < 0.3
+
 ---
 
 *Plan completed: 2026-03-11*
