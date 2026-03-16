@@ -57,7 +57,7 @@ This milestone is complete only when all are true:
 - [x] **S02: Camera Book Capture** `risk:high` `depends:[S01]`
   > After this: User can create book (title/author) → capture pages via camera → OCR runs → pages saved with book linkage + page number
 
-- [ ] **S03: PDF Reflow Reader** `risk:medium` `depends:[S01]`
+- [x] **S03: PDF Reflow Reader** `risk:medium` `depends:[S01]`
   > After this: User can import PDF → convert to markdown → read with continuous scroll, font control (12-32px), progress tracking, last-read position sync
 
 - [ ] **S04: Word Collection** `risk:medium` `depends:[S03]`

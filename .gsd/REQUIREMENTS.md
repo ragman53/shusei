@@ -19,25 +19,25 @@ Use it to track what is actively in scope, what has been validated by completed 
 
 ### R002 — PDF reflow reader with progress tracking
 - Class: core-capability
-- Status: active
+- Status: validated
 - Description: User imports PDF → NDLOCR converts to markdown → continuous scroll reading with font control (12-32px), auto scroll progress detection, last-read position sync
 - Why it matters: Kindle-like reading experience for PDFs; progress tracking enables resume reading
 - Source: user
 - Primary owning slice: M002/S03
 - Supporting slices: M002/S05
-- Validation: unmapped
-- Notes: Uses existing PDF conversion pipeline from M001; progress stored in processing_progress or book_pages
+- Validation: S03 integration tests (5 tests pass: markdown rendering, word tap persistence, duplicate handling, progress auto-save, position restore)
+- Notes: pulldown-cmark for proper markdown parsing; word-level spans for tap detection; debounced progress save (500ms); localStorage for font size preference; device-level testing pending S05
 
 ### R003 — Word + example sentence collection (placeholder definition)
 - Class: primary-user-loop
-- Status: active
+- Status: validated
 - Description: User taps word in PDF/OCR text → app shows "Definition coming soon" placeholder → saves word + full sentence containing the word to vocabulary
 - Why it matters: Vocabulary learning requires context (example sentence); definition can be added later
 - Source: user
 - Primary owning slice: M002/S04
 - Supporting slices: M002/S03
-- Validation: unmapped
-- Notes: Definition deferred to M003; word + sentence saved to words table with book/page reference
+- Validation: S03 integration tests (3 tests pass: word tap saves to database, duplicate word handling, sentence extraction)
+- Notes: Definition deferred to M003 per D007; word + sentence saved to words table with book/page reference; WordExtractor::extract_sentence() for context; toast notification for feedback; device-level testing pending S05
 
 ### R004 — APK deploys on Moto G66j 5G
 - Class: operability
@@ -57,9 +57,9 @@ Use it to track what is actively in scope, what has been validated by completed 
 - Why it matters: Users expect their data to persist; core trust requirement
 - Source: inferred
 - Primary owning slice: M002/S01
-- Supporting slices: M002/S02, M002/S03
-- Validation: S02 integration tests verify book + page persistence across simulated restarts (test_create_book_and_save_page, test_camera_ocr_multiple_pages); device-level verification pending S05
-- Notes: Database persistence verified via file-based tests simulating app restart (6 tests pass); device-level verification pending physical hardware connection
+- Supporting slices: M002/S02, M002/S03, M002/S04
+- Validation: S02 integration tests verify book + page persistence; S03 tests verify word + progress persistence (test_word_tap_saves_to_database, test_progress_auto_save, test_last_position_restore); device-level verification pending S05
+- Notes: Database persistence verified via file-based tests simulating app restart (6 tests pass for S02, 5 tests for S03); position restore on mount confirms data survives component remount; device-level verification pending physical hardware connection
 
 ### R006 — Model bundling (NDLOCR, Moonshine)
 - Class: integration
@@ -147,10 +147,10 @@ Use it to track what is actively in scope, what has been validated by completed 
 | ID | Class | Status | Primary owner | Supporting | Proof |
 |---|---|---|---|---|---|
 | R001 | core-capability | validated | M002/S02 | M002/S05 | S02: 4 integration tests pass (end-to-end, multiple pages, duplicates, storage) |
-| R002 | core-capability | active | M002/S03 | M002/S05 | unmapped |
-| R003 | primary-user-loop | active | M002/S04 | M002/S03 | unmapped |
+| R002 | core-capability | validated | M002/S03 | M002/S05 | S03: 5 integration tests pass (markdown rendering, word tap, duplicate handling, progress save, position restore) |
+| R003 | primary-user-loop | validated | M002/S04 | M002/S03 | S03: 3 integration tests pass (word save, duplicate detection, sentence extraction) |
 | R004 | operability | active | M002/S01 | M002/S05 | partial: APK built, device testing pending |
-| R005 | continuity | validated | M002/S01 | M002/S02, M002/S03 | S02: integration tests verify persistence across simulated restarts |
+| R005 | continuity | validated | M002/S01 | M002/S02, M002/S03, M002/S04 | S02: 6 tests verify book/page persistence; S03: 5 tests verify word/progress persistence |
 | R006 | integration | active | M002/S05 | M002/S02, M002/S03 | unmapped |
 | R007 | operability | validated | M002/S01 | none | S01: patch script + APK build success |
 | R008 | differentiator | deferred | none | none | unmapped |
@@ -163,7 +163,7 @@ Use it to track what is actively in scope, what has been validated by completed 
 
 - Active requirements: 7
 - Mapped to slices: 7
-- Validated: 3 (R001, R005, R007)
+- Validated: 5 (R001, R002, R003, R005, R007)
 - Partial validation: 1 (R004 - pending device testing)
 - Unmapped active requirements: 0
 - Deferred: 3
