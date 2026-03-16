@@ -1743,4 +1743,176 @@ mod tests {
             assert!(bookmarks.iter().all(|b| b.page_number == 5));
         }
     }
+
+    mod books {
+        use super::*;
+        use std::path::Path;
+
+        #[test]
+        fn test_create_book_persists_to_file() {
+            let db_path = "/tmp/shusei_test_books_persist.db";
+            
+            // Remove old test DB if exists
+            if Path::new(db_path).exists() {
+                std::fs::remove_file(db_path).unwrap();
+            }
+            
+            // Session 1: Create database and insert book
+            {
+                let db = Database::open(db_path).unwrap();
+                
+                let book = NewBook {
+                    title: "Test Book T04".to_string(),
+                    author: "Test Author".to_string(),
+                    ..Default::default()
+                };
+                
+                let book_id = db.create_book(&book).unwrap();
+                assert!(!book_id.is_empty());
+                
+                // Verify it exists in this session
+                let books = db.get_all_books().unwrap();
+                assert_eq!(books.len(), 1);
+                assert_eq!(books[0].title, "Test Book T04");
+            }
+            
+            // Session 2: Reopen database and verify book persists
+            {
+                let db = Database::open(db_path).unwrap();
+                
+                let books = db.get_all_books().unwrap();
+                assert_eq!(books.len(), 1, "Book should persist after database reopen");
+                assert_eq!(books[0].title, "Test Book T04");
+                assert_eq!(books[0].author, "Test Author");
+            }
+            
+            // Cleanup
+            std::fs::remove_file(db_path).unwrap();
+        }
+
+        #[test]
+        fn test_create_multiple_books() {
+            let db = Database::in_memory().unwrap();
+            
+            // Create multiple books
+            let book1 = NewBook {
+                title: "Book One".to_string(),
+                author: "Author A".to_string(),
+                ..Default::default()
+            };
+            let book2 = NewBook {
+                title: "Book Two".to_string(),
+                author: "Author B".to_string(),
+                ..Default::default()
+            };
+            let book3 = NewBook {
+                title: "Book Three".to_string(),
+                author: "Author C".to_string(),
+                is_pdf: true,
+                pdf_path: Some("/path/to/book.pdf".to_string()),
+                ..Default::default()
+            };
+            
+            let id1 = db.create_book(&book1).unwrap();
+            let id2 = db.create_book(&book2).unwrap();
+            let id3 = db.create_book(&book3).unwrap();
+            
+            // Verify all books exist
+            let books = db.get_all_books().unwrap();
+            assert_eq!(books.len(), 3);
+            
+            // Verify sorted by title
+            assert_eq!(books[0].title, "Book One");
+            assert_eq!(books[1].title, "Book Three");
+            assert_eq!(books[2].title, "Book Two");
+            
+            // Verify PDF book has correct flags
+            let pdf_book = books.iter().find(|b| b.title == "Book Three").unwrap();
+            assert!(pdf_book.is_pdf);
+            assert_eq!(pdf_book.pdf_path, Some("/path/to/book.pdf".to_string()));
+            
+            // Cleanup IDs (not needed for in-memory, but good practice)
+            let _ = (id1, id2, id3);
+        }
+
+        #[test]
+        fn test_get_book_by_id() {
+            let db = Database::in_memory().unwrap();
+            
+            let book = NewBook {
+                title: "Specific Book".to_string(),
+                author: "Specific Author".to_string(),
+                ..Default::default()
+            };
+            
+            let book_id = db.create_book(&book).unwrap();
+            
+            // Retrieve by ID
+            let retrieved = db.get_book(&book_id).unwrap().unwrap();
+            assert_eq!(retrieved.id, book_id);
+            assert_eq!(retrieved.title, "Specific Book");
+            assert_eq!(retrieved.author, "Specific Author");
+        }
+
+        #[test]
+        fn test_get_book_returns_none_for_non_existent() {
+            let db = Database::in_memory().unwrap();
+            
+            let result = db.get_book("non-existent-id").unwrap();
+            assert!(result.is_none());
+        }
+
+        #[test]
+        fn test_update_book() {
+            let db = Database::in_memory().unwrap();
+            
+            let book = NewBook {
+                title: "Original Title".to_string(),
+                author: "Original Author".to_string(),
+                ..Default::default()
+            };
+            
+            let book_id = db.create_book(&book).unwrap();
+            
+            // Update the book
+            let mut updated_book = db.get_book(&book_id).unwrap().unwrap();
+            updated_book.title = "Updated Title".to_string();
+            updated_book.author = "Updated Author".to_string();
+            updated_book.pages_captured = 10;
+            
+            let result = db.update_book(&updated_book).unwrap();
+            assert!(result);
+            
+            // Verify update
+            let retrieved = db.get_book(&book_id).unwrap().unwrap();
+            assert_eq!(retrieved.title, "Updated Title");
+            assert_eq!(retrieved.author, "Updated Author");
+            assert_eq!(retrieved.pages_captured, 10);
+        }
+
+        #[test]
+        fn test_delete_book() {
+            let db = Database::in_memory().unwrap();
+            
+            let book = NewBook {
+                title: "To Delete".to_string(),
+                author: "Author".to_string(),
+                ..Default::default()
+            };
+            
+            let book_id = db.create_book(&book).unwrap();
+            
+            // Delete the book
+            let result = db.delete_book(&book_id).unwrap();
+            assert!(result);
+            
+            // Verify it's deleted
+            let retrieved = db.get_book(&book_id).unwrap();
+            assert!(retrieved.is_none());
+            
+            // Verify count
+            let books = db.get_all_books().unwrap();
+            assert_eq!(books.len(), 0);
+        }
+    }
 }

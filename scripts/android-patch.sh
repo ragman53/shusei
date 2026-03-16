@@ -21,20 +21,20 @@ if [ ! -d "$ANDROID_DIR" ]; then
     exit 1
 fi
 
-# Fix 1: Update Java version from 8 to 21
-echo "[1/3] Fixing Java version (1.8 → 21)..."
-sed -i 's/VERSION_1_8/VERSION_21/g' "$ANDROID_DIR/build.gradle.kts"
-sed -i 's/jvmTarget = "1.8"/jvmTarget = "21"/g' "$ANDROID_DIR/build.gradle.kts"
+# Fix 1: Update Java version from 8 to 17
+echo "[1/3] Fixing Java version (1.8 → 17)..."
+sed -i 's/VERSION_1_8/VERSION_17/g' "$ANDROID_DIR/app/build.gradle.kts"
+sed -i 's/jvmTarget = "1.8"/jvmTarget = "17"/g' "$ANDROID_DIR/app/build.gradle.kts"
 
 # Fix 2: Remove deprecated manifest attribute
 echo "[2/3] Removing deprecated manifest attributes..."
-sed -i 's/ android:extractNativeLibs="false"//g' "$ANDROID_DIR/src/main/AndroidManifest.xml"
+sed -i 's/ android:extractNativeLibs="false"//g' "$ANDROID_DIR/app/src/main/AndroidManifest.xml"
 
 # Fix 3: Disable lint tasks that crash with AGP 8.8+
 echo "[3/3] Disabling broken lint tasks..."
-# Add lint configuration to build.gradle.kts to skip lint on release builds
-if ! grep -q "lint {" "$ANDROID_DIR/build.gradle.kts"; then
-    cat >> "$ANDROID_DIR/build.gradle.kts" << 'EOF'
+# Add lint configuration to app/build.gradle.kts to skip lint on release builds
+if ! grep -q "lint {" "$ANDROID_DIR/app/build.gradle.kts"; then
+    cat >> "$ANDROID_DIR/app/build.gradle.kts" << 'EOF'
 
 android {
     lint {
@@ -43,7 +43,7 @@ android {
     }
 }
 EOF
-    echo "  Added lint configuration to build.gradle.kts"
+    echo "  Added lint configuration to app/build.gradle.kts"
 else
     echo "  Lint configuration already present"
 fi

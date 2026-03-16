@@ -47,8 +47,8 @@ Use it to track what is actively in scope, what has been validated by completed 
 - Source: user
 - Primary owning slice: M002/S01
 - Supporting slices: M002/S05
-- Validation: unmapped
-- Notes: Debug APK sufficient for prototype; release signing deferred
+- Validation: partial
+- Notes: Debug APK built successfully (139MB); installation infrastructure ready; device testing pending physical hardware connection via WSL2 USB passthrough
 
 ### R005 — SQLite data persists across restarts
 - Class: continuity
@@ -58,8 +58,8 @@ Use it to track what is actively in scope, what has been validated by completed 
 - Source: inferred
 - Primary owning slice: M002/S01
 - Supporting slices: M002/S02, M002/S03
-- Validation: unmapped
-- Notes: M001 already has SQLite CRUD; verify persistence on Android device
+- Validation: partial
+- Notes: Database persistence verified via file-based tests simulating app restart (6 tests pass); device-level verification pending physical hardware connection
 
 ### R006 — Model bundling (NDLOCR, Moonshine)
 - Class: integration
@@ -74,14 +74,14 @@ Use it to track what is actively in scope, what has been validated by completed 
 
 ### R007 — Android Gradle build patch script
 - Class: operability
-- Status: active
+- Status: validated
 - Description: Post-generation patch script fixes Dioxus-generated Gradle files (Java 21, skip lint, fix manifest); enables successful APK build
 - Why it matters: Dioxus 0.7.3 generates obsolete Java 8 config; patch required for modern Android tooling
 - Source: research
 - Primary owning slice: M002/S01
 - Supporting slices: none
-- Validation: unmapped
-- Notes: Script patches build.gradle.kts, AndroidManifest.xml, skips lintVital tasks
+- Validation: validated
+- Notes: Script patches build.gradle.kts, AndroidManifest.xml, skips lintVital tasks; debug APK built successfully (139MB)
 
 ## Deferred
 
@@ -149,10 +149,10 @@ Use it to track what is actively in scope, what has been validated by completed 
 | R001 | core-capability | active | M002/S02 | M002/S05 | unmapped |
 | R002 | core-capability | active | M002/S03 | M002/S05 | unmapped |
 | R003 | primary-user-loop | active | M002/S04 | M002/S03 | unmapped |
-| R004 | operability | active | M002/S01 | M002/S05 | unmapped |
-| R005 | continuity | active | M002/S01 | M002/S02, M002/S03 | unmapped |
+| R004 | operability | active | M002/S01 | M002/S05 | partial: APK built, device testing pending |
+| R005 | continuity | active | M002/S01 | M002/S02, M002/S03 | partial: desktop tests pass, device testing pending |
 | R006 | integration | active | M002/S05 | M002/S02, M002/S03 | unmapped |
-| R007 | operability | active | M002/S01 | none | unmapped |
+| R007 | operability | validated | M002/S01 | none | S01: patch script + APK build success |
 | R008 | differentiator | deferred | none | none | unmapped |
 | R009 | differentiator | deferred | none | none | unmapped |
 | R010 | core-capability | deferred | none | none | unmapped |
@@ -163,7 +163,8 @@ Use it to track what is actively in scope, what has been validated by completed 
 
 - Active requirements: 7
 - Mapped to slices: 7
-- Validated: 0
+- Validated: 1 (R007)
+- Partial validation: 2 (R004, R005 - pending device testing)
 - Unmapped active requirements: 0
 - Deferred: 3
 - Out of scope: 2

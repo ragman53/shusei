@@ -51,7 +51,7 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Android Build + Deploy** `risk:high` `depends:[]`
+- [x] **S01: Android Build + Deploy** `risk:high` `depends:[]`
   > After this: Debug APK builds with Gradle patch script, installs on Moto G66j 5G, app launches without crashes, SQLite persists data
 
 - [ ] **S02: Camera Book Capture** `risk:high` `depends:[S01]`

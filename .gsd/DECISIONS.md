@@ -13,3 +13,5 @@
 | D005 | M002 | build | Gradle patch approach | Post-generation patch script (Java 21, skip lint, fix manifest) | Dioxus 0.7.3 generates obsolete Java 8 config; upstream fix not available; workaround confirmed in GitHub issue #5251 | Yes — if Dioxus fixes templates |
 | D006 | M002 | device | Target device for testing | Motorola Moto G66j 5G (mid-range) | Real-world performance validation on mid-range hardware; ensures app works for typical users, not just flagship devices | No |
 | D007 | M002 | word-collection | Word definition source | Placeholder in M002, dictionary/AI in M003 | Separates concerns: M002 proves word+sentence save works; M003 adds definition quality | No |
+| D008 | M002 | build | Java/Kotlin target version | Java 17 (matching installed JDK) | System has OpenJDK 17; Java 21 not available; ensures build reproducibility without requiring JDK upgrade | Yes — if JDK 21 installed |
+| D009 | M002 | sdk | Android SDK installation | Separate SDK from NDK | NDK-only ANDROID_HOME insufficient for gradle build; installed command-line tools + platform-tools + platform-33 + build-tools-34.0.0 | No |
