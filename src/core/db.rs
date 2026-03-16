@@ -1157,6 +1157,14 @@ impl Database {
         let words: std::result::Result<Vec<_>, _> = words.collect();
         words.map_err(|e| e.into())
     }
+
+    /// Get all words ordered by created_at DESC
+    pub fn get_all_words(&self) -> Result<Vec<Word>> {
+        let mut stmt = self.conn.prepare("SELECT * FROM words ORDER BY created_at DESC")?;
+        let words = stmt.query_map([], |row| Word::from_row(row))?;
+        let words: std::result::Result<Vec<_>, _> = words.collect();
+        words.map_err(|e| e.into())
+    }
 }
 
 #[cfg(test)]

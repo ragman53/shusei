@@ -83,7 +83,7 @@ blocker_discovered: false
 
 ## Tasks
 
-- [ ] **T01: Connect Vocabulary Page to Database** `est:1h`
+- [x] **T01: Connect Vocabulary Page to Database** `est:1h`
   - Why: VocabPage currently loads empty data; must connect to actual words table
   - Files: `src/ui/vocab.rs`, `src/core/db.rs`
   - Do: Add `get_all_words()` method to Database; update VocabPage to load words on mount; replace VocabularyEntry with Word struct or create adapter
