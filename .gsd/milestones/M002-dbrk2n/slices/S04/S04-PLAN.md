@@ -90,7 +90,7 @@ blocker_discovered: false
   - Verify: `cargo test --lib vocab::test_vocab_loads_from_database`
   - Done when: VocabPage displays words from database with word text, context sentence, source reference
 
-- [ ] **T02: Implement Word Delete with Confirmation** `est:45m`
+- [x] **T02: Implement Word Delete with Confirmation** `est:45m`
   - Why: WordCard has delete button placeholder; must add confirmation to prevent accidental deletion
   - Files: `src/ui/vocab.rs`
   - Do: Add confirmation dialog component; wire delete button to show dialog; call `db.delete_word()` on confirm; show toast on success
