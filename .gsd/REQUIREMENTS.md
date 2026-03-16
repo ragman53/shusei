@@ -8,14 +8,14 @@ Use it to track what is actively in scope, what has been validated by completed 
 
 ### R001 — Camera book capture with page linkage
 - Class: core-capability
-- Status: active
+- Status: validated
 - Description: User creates a book (title/author) → captures pages via camera → OCR runs → pages saved with book linkage and page number
 - Why it matters: Paper book workflow is core value proposition — users need to photograph pages and have them organized by book
 - Source: user
 - Primary owning slice: M002/S02
 - Supporting slices: M002/S05
-- Validation: unmapped
-- Notes: Page number entered manually; OCR runs via NDLOCR; pages stored in book_pages table
+- Validation: S02 integration tests (4 tests pass: end-to-end flow, multiple pages, duplicate detection, storage organization)
+- Notes: Page number entered manually; OCR runs via NDLOCR; pages stored in book_pages table; device-level JNI camera testing pending S05
 
 ### R002 — PDF reflow reader with progress tracking
 - Class: core-capability
@@ -52,13 +52,13 @@ Use it to track what is actively in scope, what has been validated by completed 
 
 ### R005 — SQLite data persists across restarts
 - Class: continuity
-- Status: active
+- Status: validated
 - Description: Books, pages, words, annotations saved to SQLite survive app restart; last-read position restored
 - Why it matters: Users expect their data to persist; core trust requirement
 - Source: inferred
 - Primary owning slice: M002/S01
 - Supporting slices: M002/S02, M002/S03
-- Validation: partial
+- Validation: S02 integration tests verify book + page persistence across simulated restarts (test_create_book_and_save_page, test_camera_ocr_multiple_pages); device-level verification pending S05
 - Notes: Database persistence verified via file-based tests simulating app restart (6 tests pass); device-level verification pending physical hardware connection
 
 ### R006 — Model bundling (NDLOCR, Moonshine)
@@ -146,11 +146,11 @@ Use it to track what is actively in scope, what has been validated by completed 
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
 |---|---|---|---|---|---|
-| R001 | core-capability | active | M002/S02 | M002/S05 | unmapped |
+| R001 | core-capability | validated | M002/S02 | M002/S05 | S02: 4 integration tests pass (end-to-end, multiple pages, duplicates, storage) |
 | R002 | core-capability | active | M002/S03 | M002/S05 | unmapped |
 | R003 | primary-user-loop | active | M002/S04 | M002/S03 | unmapped |
 | R004 | operability | active | M002/S01 | M002/S05 | partial: APK built, device testing pending |
-| R005 | continuity | active | M002/S01 | M002/S02, M002/S03 | partial: desktop tests pass, device testing pending |
+| R005 | continuity | validated | M002/S01 | M002/S02, M002/S03 | S02: integration tests verify persistence across simulated restarts |
 | R006 | integration | active | M002/S05 | M002/S02, M002/S03 | unmapped |
 | R007 | operability | validated | M002/S01 | none | S01: patch script + APK build success |
 | R008 | differentiator | deferred | none | none | unmapped |
@@ -163,8 +163,8 @@ Use it to track what is actively in scope, what has been validated by completed 
 
 - Active requirements: 7
 - Mapped to slices: 7
-- Validated: 1 (R007)
-- Partial validation: 2 (R004, R005 - pending device testing)
+- Validated: 3 (R001, R005, R007)
+- Partial validation: 1 (R004 - pending device testing)
 - Unmapped active requirements: 0
 - Deferred: 3
 - Out of scope: 2
