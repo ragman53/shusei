@@ -54,7 +54,7 @@ This milestone is complete only when all are true:
 - [x] **S01: Android Build + Deploy** `risk:high` `depends:[]`
   > After this: Debug APK builds with Gradle patch script, installs on Moto G66j 5G, app launches without crashes, SQLite persists data
 
-- [ ] **S02: Camera Book Capture** `risk:high` `depends:[S01]`
+- [x] **S02: Camera Book Capture** `risk:high` `depends:[S01]`
   > After this: User can create book (title/author) → capture pages via camera → OCR runs → pages saved with book linkage + page number
 
 - [ ] **S03: PDF Reflow Reader** `risk:medium` `depends:[S01]`

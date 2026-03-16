@@ -50,6 +50,9 @@ pub enum Route {
     #[route("/camera")]
     Camera,
 
+    #[route("/camera/:book_id")]
+    CameraBook { book_id: String },
+
     #[route("/notes")]
     Notes,
 
@@ -129,6 +132,14 @@ fn Home() -> Element {
 fn Camera() -> Element {
     rsx! {
         CameraPage {}
+    }
+}
+
+/// Camera book page wrapper with book_id
+#[component]
+fn CameraBook(book_id: String) -> Element {
+    rsx! {
+        CameraPage { book_id }
     }
 }
 

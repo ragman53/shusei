@@ -492,6 +492,19 @@ impl Database {
         Ok(pages)
     }
 
+    /// Get page count for a book
+    pub fn get_page_count(&self, book_id: &str) -> Result<i32> {
+        let count: i32 = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM book_pages WHERE book_id = ?1",
+                params![book_id],
+                |row| row.get(0),
+            )?;
+
+        Ok(count)
+    }
+
     // ==================== Processing Progress ====================
 
     /// Create progress tracking record for a book
@@ -1374,6 +1387,65 @@ mod tests {
             let result = db.get_page(999).unwrap();
             assert!(result.is_none());
         }
+
+        #[test]
+        fn test_create_book_and_save_page() {
+            // This test verifies the complete flow:
+            // 1. Create a book
+            // 2. Save a page with OCR results
+            // 3. Verify page is linked to book
+            // 4. Verify pages_captured count updates
+            
+            let db = Database::in_memory().unwrap();
+            
+            // Step 1: Create book
+            let book_id = db.create_book(&NewBook {
+                title: "Test Book".to_string(),
+                author: "Test Author".to_string(),
+                ..Default::default()
+            }).unwrap();
+            
+            // Verify book created
+            let book = db.get_book(&book_id).unwrap().unwrap();
+            assert_eq!(book.title, "Test Book");
+            assert_eq!(book.pages_captured, 0);
+            
+            // Step 2: Save page with OCR results
+            let new_page = NewBookPage {
+                book_id: book_id.clone(),
+                page_number: 1,
+                image_path: "pages/test/page1.jpg".to_string(),
+                ocr_markdown: "# Page 1\nこれはテストです。".to_string(),
+                ocr_text_plain: "これはテストです。".to_string(),
+                confidence: Some(0.92),
+            };
+            
+            let page_id = db.save_page(&new_page).unwrap();
+            assert!(page_id > 0);
+            
+            // Step 3: Verify page saved and linked to book
+            let page = db.get_page(page_id).unwrap().unwrap();
+            assert_eq!(page.book_id, book_id);
+            assert_eq!(page.page_number, 1);
+            assert_eq!(page.ocr_text_plain, "これはテストです。");
+            assert_eq!(page.confidence, Some(0.92));
+            
+            // Step 4: Verify pages can be retrieved by book_id
+            let pages = db.get_pages_by_book(&book_id).unwrap();
+            assert_eq!(pages.len(), 1);
+            assert_eq!(pages[0].page_number, 1);
+            
+            // Step 5: Update pages_captured count
+            let mut book = db.get_book(&book_id).unwrap().unwrap();
+            book.pages_captured = 1;
+            db.update_book(&book).unwrap();
+            
+            // Verify update
+            let updated_book = db.get_book(&book_id).unwrap().unwrap();
+            assert_eq!(updated_book.pages_captured, 1);
+            
+            log::info!("✅ test_create_book_and_save_page passed: book_id={}, page_id={}", book_id, page_id);
+        }
     }
 
     mod annotations {
@@ -1913,6 +1985,145 @@ mod tests {
             // Verify count
             let books = db.get_all_books().unwrap();
             assert_eq!(books.len(), 0);
+        }
+
+        #[test]
+        fn test_create_book_and_save_page() {
+            let db = Database::in_memory().unwrap();
+            
+            // Step 1: Create a book
+            let new_book = NewBook {
+                title: "Test Book for Camera Flow".to_string(),
+                author: "Test Author".to_string(),
+                ..Default::default()
+            };
+            
+            let book_id = db.create_book(&new_book).unwrap();
+            assert!(!book_id.is_empty(), "Book ID should not be empty");
+            
+            // Verify book was created
+            let book = db.get_book(&book_id).unwrap().unwrap();
+            assert_eq!(book.title, "Test Book for Camera Flow");
+            assert_eq!(book.author, "Test Author");
+            assert_eq!(book.pages_captured, 0);
+            
+            // Step 2: Save a page to the book (simulating camera capture + OCR)
+            let new_page = crate::core::db::NewBookPage {
+                book_id: book_id.clone(),
+                page_number: 1,
+                image_path: "pages/test_book/page1.jpg".to_string(),
+                ocr_markdown: "# Page 1\n\nThis is the OCR result from page 1.".to_string(),
+                ocr_text_plain: "Page 1 This is the OCR result from page 1.".to_string(),
+                confidence: Some(0.95),
+            };
+            
+            let page_id = db.save_page(&new_page).unwrap();
+            assert!(page_id > 0, "Page ID should be positive");
+            
+            // Verify page was saved
+            let page = db.get_page(page_id).unwrap().unwrap();
+            assert_eq!(page.book_id, book_id);
+            assert_eq!(page.page_number, 1);
+            assert!(page.ocr_text_plain.contains("OCR result"));
+            assert_eq!(page.confidence, Some(0.95));
+            
+            // Step 3: Verify we can get all pages for the book
+            let pages = db.get_pages_by_book(&book_id).unwrap();
+            assert_eq!(pages.len(), 1);
+            assert_eq!(pages[0].page_number, 1);
+            
+            // Step 4: Save a second page
+            let new_page2 = crate::core::db::NewBookPage {
+                book_id: book_id.clone(),
+                page_number: 2,
+                image_path: "pages/test_book/page2.jpg".to_string(),
+                ocr_markdown: "# Page 2\n\nMore OCR content.".to_string(),
+                ocr_text_plain: "Page 2 More OCR content.".to_string(),
+                confidence: Some(0.88),
+            };
+            
+            let page_id2 = db.save_page(&new_page2).unwrap();
+            assert!(page_id2 > 0);
+            
+            // Verify both pages exist and are sorted
+            let all_pages = db.get_pages_by_book(&book_id).unwrap();
+            assert_eq!(all_pages.len(), 2);
+            assert_eq!(all_pages[0].page_number, 1);
+            assert_eq!(all_pages[1].page_number, 2);
+        }
+
+        #[test]
+        fn test_get_page_count_returns_correct_count() {
+            let db = Database::in_memory().unwrap();
+            
+            // Create a book
+            let book_id = db.create_book(&NewBook {
+                title: "Test Book".to_string(),
+                author: "Author".to_string(),
+                ..Default::default()
+            }).unwrap();
+            
+            // Initially, page count should be 0
+            let count = db.get_page_count(&book_id).unwrap();
+            assert_eq!(count, 0, "Initial page count should be 0");
+            
+            // Save first page
+            db.save_page(&NewBookPage {
+                book_id: book_id.clone(),
+                page_number: 1,
+                image_path: "pages/test/img1.jpg".to_string(),
+                ocr_markdown: "Page 1".to_string(),
+                ocr_text_plain: "Page 1".to_string(),
+                confidence: Some(0.9),
+            }).unwrap();
+            
+            // Count should be 1
+            let count = db.get_page_count(&book_id).unwrap();
+            assert_eq!(count, 1, "Page count should be 1 after saving first page");
+            
+            // Save second page
+            db.save_page(&NewBookPage {
+                book_id: book_id.clone(),
+                page_number: 2,
+                image_path: "pages/test/img2.jpg".to_string(),
+                ocr_markdown: "Page 2".to_string(),
+                ocr_text_plain: "Page 2".to_string(),
+                confidence: Some(0.85),
+            }).unwrap();
+            
+            // Count should be 2
+            let count = db.get_page_count(&book_id).unwrap();
+            assert_eq!(count, 2, "Page count should be 2 after saving second page");
+            
+            // Save third page
+            db.save_page(&NewBookPage {
+                book_id: book_id.clone(),
+                page_number: 3,
+                image_path: "pages/test/img3.jpg".to_string(),
+                ocr_markdown: "Page 3".to_string(),
+                ocr_text_plain: "Page 3".to_string(),
+                confidence: None,
+            }).unwrap();
+            
+            // Count should be 3
+            let count = db.get_page_count(&book_id).unwrap();
+            assert_eq!(count, 3, "Page count should be 3 after saving third page");
+        }
+
+        #[test]
+        fn test_get_page_count_returns_zero_for_book_without_pages() {
+            let db = Database::in_memory().unwrap();
+            
+            // Create a book without any pages
+            let book_id = db.create_book(&NewBook {
+                title: "Empty Book".to_string(),
+                author: "Author".to_string(),
+                ..Default::default()
+            }).unwrap();
+            
+            // Page count should be 0
+            let count = db.get_page_count(&book_id).unwrap();
+            assert_eq!(count, 0, "Page count should be 0 for book without pages");
         }
     }
 }

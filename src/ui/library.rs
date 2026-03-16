@@ -530,6 +530,23 @@ pub fn LibraryScreen() -> Element {
 pub fn BookCard(book: Book) -> Element {
     let navigator = use_navigator();
     
+    // Page count signal
+    let mut page_count = use_signal(|| 0i32);
+    let book_id = book.id.clone();
+    
+    // Load page count on mount
+    use_effect(move || {
+        let book_id = book_id.clone();
+        spawn(async move {
+            if let Ok(db) = Database::open("shusei.db") {
+                if let Ok(count) = db.get_page_count(&book_id) {
+                    page_count.set(count);
+                    log::debug!("Book card rendered: {} pages", count);
+                }
+            }
+        });
+    });
+    
     // Calculate conversion progress
     let progress = if let Some(total) = book.total_pages {
         if total > 0 {
@@ -544,6 +561,7 @@ pub fn BookCard(book: Book) -> Element {
     // Check if conversion is needed
     let needs_conversion = book.is_pdf && book.total_pages.map(|t| t > 0).unwrap_or(false) && book.pages_captured < book.total_pages.unwrap_or(0);
     let convert_book_id = book.id.clone();
+    let capture_book_id = book.id.clone();
     
     rsx! {
         div {
@@ -564,6 +582,30 @@ pub fn BookCard(book: Book) -> Element {
             }
             
             p { class: "text-gray-600 text-sm mb-2", "by {book.author}" }
+            
+            // Page count badge and Capture Pages button
+            div { class: "flex items-center justify-between mt-2",
+                // Page count badge
+                span {
+                    class: "inline-flex items-center px-2 py-1 rounded-md text-sm font-medium bg-gray-100 text-gray-700",
+                    if page_count() > 0 {
+                        "📄 {page_count()} pages"
+                    } else {
+                        "No pages yet"
+                    }
+                }
+                
+                // Capture Pages button
+                button {
+                    class: "bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-1 rounded-lg transition-colors",
+                    onclick: move |e| {
+                        e.stop_propagation();
+                        log::debug!("Navigating to camera for book_id={}", capture_book_id);
+                        navigator.push(Route::CameraBook { book_id: capture_book_id.clone() });
+                    },
+                    "📷 Capture Pages"
+                }
+            }
             
             // Conversion progress
             if book.is_pdf && book.total_pages.is_some() {

@@ -7,18 +7,60 @@ use dioxus::prelude::*;
 use dioxus_router::use_navigator;
 
 use crate::app::Route;
+use crate::core::db::{Database, NewBook};
 
 /// Add book form component with modal styling
 #[component]
 pub fn AddBookForm() -> Element {
     let mut title = use_signal(|| String::new());
     let mut author = use_signal(|| String::new());
+    let mut error_message = use_signal(|| Option::<String>::None);
+    let mut is_saving = use_signal(|| false);
     let navigator = use_navigator();
 
     let handle_submit = move |_| {
-        // TODO: Implement actual book creation
-        // For now, just navigate back to library
-        navigator.push(Route::BookList);
+        let title_val = title();
+        let author_val = author();
+        
+        // Validate inputs
+        if title_val.is_empty() || author_val.is_empty() {
+            error_message.set(Some("Title and author are required".to_string()));
+            return;
+        }
+        
+        is_saving.set(true);
+        error_message.set(None);
+        
+        spawn(async move {
+            // Create book in database
+            match Database::open("shusei.db") {
+                Ok(db) => {
+                    let new_book = NewBook {
+                        title: title_val.clone(),
+                        author: author_val.clone(),
+                        ..Default::default()
+                    };
+                    
+                    match db.create_book(&new_book) {
+                        Ok(book_id) => {
+                            log::info!("Book created: id={}, title={}", book_id, title_val);
+                            // Navigate to camera page with book_id
+                            navigator.push(Route::CameraBook { book_id });
+                        }
+                        Err(e) => {
+                            log::error!("Book creation failed: {}", e);
+                            error_message.set(Some(format!("Failed to save book: {}", e)));
+                            is_saving.set(false);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("Database open failed: {}", e);
+                    error_message.set(Some(format!("Database error: {}", e)));
+                    is_saving.set(false);
+                }
+            }
+        });
     };
 
     let is_valid = !title().is_empty() && !author().is_empty();
@@ -27,6 +69,13 @@ pub fn AddBookForm() -> Element {
         div { class: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4",
             div { class: "bg-white rounded-lg p-6 w-full max-w-md",
                 h2 { class: "text-xl font-bold mb-4", "Add New Book" }
+
+                // Error message
+                if let Some(error) = error_message() {
+                    div { class: "bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4",
+                        "{error}"
+                    }
+                }
 
                 form {
                     onsubmit: handle_submit,
@@ -69,8 +118,12 @@ pub fn AddBookForm() -> Element {
                         button {
                             r#type: "submit",
                             class: "flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg disabled:opacity-50",
-                            disabled: !is_valid,
-                            "Add Book"
+                            disabled: !is_valid || is_saving(),
+                            if is_saving() {
+                                "Saving..."
+                            } else {
+                                "Add Book"
+                            }
                         }
                         button {
                             r#type: "button",

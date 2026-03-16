@@ -15,3 +15,7 @@
 | D007 | M002 | word-collection | Word definition source | Placeholder in M002, dictionary/AI in M003 | Separates concerns: M002 proves word+sentence save works; M003 adds definition quality | No |
 | D008 | M002 | build | Java/Kotlin target version | Java 17 (matching installed JDK) | System has OpenJDK 17; Java 21 not available; ensures build reproducibility without requiring JDK upgrade | Yes — if JDK 21 installed |
 | D009 | M002 | sdk | Android SDK installation | Separate SDK from NDK | NDK-only ANDROID_HOME insufficient for gradle build; installed command-line tools + platform-tools + platform-33 + build-tools-34.0.0 | No |
+| D010 | M002 | architecture | Book creation navigation pattern | Save to database first, then navigate to `/camera/:book_id` | Ensures book_id exists before camera page loads; avoids race conditions; uses Option<String> for book_id prop to support both route patterns | No |
+| D011 | M002 | architecture | OCR engine initialization | Initialize in use_effect on camera page mount with loading state | Async initialization (2-5s) requires loading indicator; disables "Run OCR" button until ready; prevents errors from premature processing | No |
+| D012 | M002 | architecture | Page count display pattern | Async page count loading in BookCard component via get_page_count() | Avoids blocking UI; fetches on mount; updates when returning to library; separate query rather than JOIN for simplicity | Yes — if performance issues with many books |
+
