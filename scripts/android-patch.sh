@@ -31,7 +31,7 @@ echo "[2/3] Removing deprecated manifest attributes..."
 sed -i 's/ android:extractNativeLibs="false"//g' "$ANDROID_DIR/app/src/main/AndroidManifest.xml"
 
 # Fix 3: Disable lint tasks that crash with AGP 8.8+
-echo "[3/3] Disabling broken lint tasks..."
+echo "[3/5] Disabling broken lint tasks..."
 # Add lint configuration to app/build.gradle.kts to skip lint on release builds
 if ! grep -q "lint {" "$ANDROID_DIR/app/build.gradle.kts"; then
     cat >> "$ANDROID_DIR/app/build.gradle.kts" << 'EOF'
@@ -40,12 +40,30 @@ android {
     lint {
         checkReleaseBuilds = false
         abortOnError = false
+        disable.addAll(listOf("LintError", "MissingDefaultResource", "UnusedResources", "All"))
     }
 }
 EOF
     echo "  Added lint configuration to app/build.gradle.kts"
 else
     echo "  Lint configuration already present"
+fi
+
+# Fix 4: Copy assets to Android project for bundling in APK
+echo "[4/4] Copying assets to Android project..."
+ASSETS_SRC="$PROJECT_ROOT/assets"
+ASSETS_DEST="$ANDROID_DIR/app/src/main/assets"
+
+if [ -d "$ASSETS_SRC" ]; then
+    mkdir -p "$ASSETS_DEST"
+    cp -r "$ASSETS_SRC"/* "$ASSETS_DEST"/
+    echo "  Copied assets from $ASSETS_SRC to $ASSETS_DEST"
+    
+    # Show what was copied
+    echo "  Assets copied:"
+    find "$ASSETS_DEST" -type f -exec ls -lh {} \; | awk '{print "    " $5 " " $9}'
+else
+    echo "  WARNING: Assets directory not found at $ASSETS_SRC"
 fi
 
 echo "=== Patch Complete ==="

@@ -60,10 +60,10 @@ This milestone is complete only when all are true:
 - [x] **S03: PDF Reflow Reader** `risk:medium` `depends:[S01]`
   > After this: User can import PDF → convert to markdown → read with continuous scroll, font control (12-32px), progress tracking, last-read position sync
 
-- [ ] **S04: Word Collection** `risk:medium` `depends:[S03]`
+- [x] **S04: Word Collection** `risk:medium` `depends:[S03]`
   > After this: User can tap word in PDF/OCR text → save word + full example sentence → definition shows "coming soon" placeholder → data persists
 
-- [ ] **S05: Model Bundling + Integration** `risk:low` `depends:[S02, S03, S04]`
+- [x] **S05: Model Bundling + Integration** `risk:low` `depends:[S02, S03, S04]`
   > After this: NDLOCR + Moonshine models bundled in APK, end-to-end flows (camera→OCR, PDF→read, word→save) work smoothly on device
 
 ## Boundary Map

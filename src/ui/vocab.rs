@@ -5,6 +5,7 @@
 use dioxus::prelude::*;
 
 use crate::core::db::{Database, Word};
+use crate::core::vocab::{export_vocabulary_words, ExportFormat};
 
 /// Toast notification type
 #[derive(Clone, Copy, PartialEq)]
@@ -105,6 +106,52 @@ pub fn VocabPage() -> Element {
         });
     };
     
+    // Filter words based on search query
+    let filtered_words: Vec<Word> = {
+        let words = words();
+        let query = search_query().to_lowercase();
+        if query.is_empty() {
+            words.clone()
+        } else {
+            words.into_iter().filter(|w| w.word.to_lowercase().contains(&query)).collect()
+        }
+    };
+    
+    // Export handlers
+    let mut export_markdown_handler = {
+        let words = filtered_words.clone();
+        move |_| {
+            if words.is_empty() {
+                show_toast_fn("No words to export".to_string(), ToastType::Info);
+                return;
+            }
+            
+            let markdown = export_vocabulary_words(&words, ExportFormat::Markdown);
+            log::info!("Exported {} words as Markdown", words.len());
+            show_toast_fn(format!("Exported {} words as Markdown", words.len()), ToastType::Success);
+            
+            // For now, log the output (in a real app, this would save to file or clipboard)
+            log::debug!("Markdown output:\n{}", markdown);
+        }
+    };
+    
+    let mut export_csv_handler = {
+        let words = filtered_words.clone();
+        move |_| {
+            if words.is_empty() {
+                show_toast_fn("No words to export".to_string(), ToastType::Info);
+                return;
+            }
+            
+            let csv = export_vocabulary_words(&words, ExportFormat::Csv);
+            log::info!("Exported {} words as CSV", words.len());
+            show_toast_fn(format!("Exported {} words as CSV", words.len()), ToastType::Success);
+            
+            // For now, log the output (in a real app, this would save to file or clipboard)
+            log::debug!("CSV output:\n{}", csv);
+        }
+    };
+    
     // Load vocabulary on mount
     use_effect(move || {
         spawn(async move {
@@ -182,18 +229,12 @@ pub fn VocabPage() -> Element {
                 div { class: "flex gap-2",
                     button {
                         class: "flex-1 bg-gray-200 text-gray-800 p-2 rounded-lg",
-                        onclick: move |_| {
-                            // TODO: Export as Markdown
-                            log::info!("Export MD clicked");
-                        },
+                        onclick: move |_| export_markdown_handler(()),
                         "📄 Markdown"
                     }
                     button {
                         class: "flex-1 bg-gray-200 text-gray-800 p-2 rounded-lg",
-                        onclick: move |_| {
-                            // TODO: Export as CSV
-                            log::info!("Export CSV clicked");
-                        },
+                        onclick: move |_| export_csv_handler(()),
                         "📊 CSV"
                     }
                 }
@@ -437,5 +478,50 @@ mod tests {
         assert_eq!(words_after[0].word, "keep");
         
         log::info!("✅ test_word_delete_with_multiple_words passed: selective delete works");
+    }
+    
+    #[test]
+    fn test_export_functions() {
+        use crate::core::vocab::{export_vocabulary_words, ExportFormat};
+        
+        // Create test words
+        let words = vec![
+            Word {
+                id: 1,
+                word: "export_test".to_string(),
+                definition: Some("Test definition".to_string()),
+                ai_generated: false,
+                source_book_id: Some("test_book".to_string()),
+                source_page: Some(5),
+                context_text: Some("This is an export test.".to_string()),
+                created_at: 1000,
+                updated_at: 1000,
+            },
+        ];
+        
+        // Test Markdown export
+        let md = export_vocabulary_words(&words, ExportFormat::Markdown);
+        assert!(md.contains("# Vocabulary List"));
+        assert!(md.contains("## export_test"));
+        assert!(md.contains("**Definition**: Test definition"));
+        assert!(md.contains("**Example**: This is an export test."));
+        log::info!("✅ Markdown export test passed");
+        
+        // Test CSV export
+        let csv = export_vocabulary_words(&words, ExportFormat::Csv);
+        assert!(csv.contains("word,definition,example_sentence,source_book_id,source_page"));
+        assert!(csv.contains("\"export_test\",\"Test definition\",\"This is an export test.\",\"test_book\",\"5\""));
+        log::info!("✅ CSV export test passed");
+        
+        // Test JSON export
+        let json = export_vocabulary_words(&words, ExportFormat::Json);
+        assert!(json.contains("\"word\": \"export_test\""));
+        log::info!("✅ JSON export test passed");
+        
+        // Test empty list
+        let empty: Vec<Word> = vec![];
+        let md_empty = export_vocabulary_words(&empty, ExportFormat::Markdown);
+        assert_eq!(md_empty, "# Vocabulary List\n\n");
+        log::info!("✅ Empty export test passed");
     }
 }

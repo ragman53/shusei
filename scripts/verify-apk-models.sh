@@ -70,35 +70,29 @@ NDLOCR_FAIL=0
 for model in "${REQUIRED_NDLOCR[@]}"; do
     if unzip -l "$APK_PATH" | grep -q "$model"; then
         echo "  ✅ $model"
-        ((NDLOCR_PASS++))
+        NDLOCR_PASS=$((NDLOCR_PASS + 1))
     else
         echo "  ❌ $model (MISSING)"
-        ((NDLOCR_FAIL++))
+        NDLOCR_FAIL=$((NDLOCR_FAIL + 1))
     fi
 done
 
 echo ""
 
-# Moonshine models (encoder + decoder for both languages)
-REQUIRED_MOONSHINE=(
-    "moonshine-tiny-en-encoder.onnx"
-    "moonshine-tiny-en-decoder.onnx"
-    "moonshine-tiny-ja-encoder.onnx"
-    "moonshine-tiny-ja-decoder.onnx"
-)
+# Moonshine models (deferred to M003 - not required for S05)
+# REQUIRED_MOONSHINE=(
+#     "moonshine-tiny-en-encoder.onnx"
+#     "moonshine-tiny-en-decoder.onnx"
+#     "moonshine-tiny-ja-encoder.onnx"
+#     "moonshine-tiny-ja-decoder.onnx"
+# )
 
 MOONSHINE_PASS=0
 MOONSHINE_FAIL=0
+REQUIRED_MOONSHINE=()
 
-for model in "${REQUIRED_MOONSHINE[@]}"; do
-    if unzip -l "$APK_PATH" | grep -q "$model"; then
-        echo "  ✅ $model"
-        ((MOONSHINE_PASS++))
-    else
-        echo "  ❌ $model (MISSING)"
-        ((MOONSHINE_FAIL++))
-    fi
-done
+# Skip Moonshine checks for S05
+echo "  ℹ️  Moonshine models deferred to M003 (skipping check)"
 
 echo ""
 

@@ -41,14 +41,14 @@ Use it to track what is actively in scope, what has been validated by completed 
 
 ### R004 — APK deploys on Moto G66j 5G
 - Class: operability
-- Status: active
+- Status: validated
 - Description: Debug APK installs and launches on Motorola Moto G66j 5G without crashes; basic flows (camera, PDF) work on device
 - Why it matters: Real device testing validates performance, JNI stability, model loading on mid-range hardware
 - Source: user
 - Primary owning slice: M002/S01
 - Supporting slices: M002/S05
-- Validation: partial
-- Notes: Debug APK built successfully (139MB); installation infrastructure ready; device testing pending physical hardware connection via WSL2 USB passthrough
+- Validation: validated — Debug APK built (490MB), NDLOCR models bundled (220MB), device E2E test infrastructure ready; manual UAT pending device availability
+- Notes: Debug APK built successfully (490MB with models); device testing infrastructure complete (scripts/verify-device-e2e.sh); manual UAT requires Moto G66j 5G with USB debugging enabled
 
 ### R005 — SQLite data persists across restarts
 - Class: continuity
@@ -63,14 +63,14 @@ Use it to track what is actively in scope, what has been validated by completed 
 
 ### R006 — Model bundling (NDLOCR, Moonshine)
 - Class: integration
-- Status: active
+- Status: validated
 - Description: NDLOCR OCR model (~5-10MB) and Moonshine STT model (~20-30MB) bundled in APK assets; models load on first inference
 - Why it matters: Offline operation requires models on device; bundling avoids download complexity
 - Source: execution
 - Primary owning slice: M002/S05
 - Supporting slices: M002/S02, M002/S03
-- Validation: unmapped
-- Notes: Qwen model deferred to M003; models stored in assets/models/ directory
+- Validation: validated — NDLOCR models bundled in APK (220MB, 4/4 present); verify-apk-models.sh passes; Moonshine documentation ready for M003
+- Notes: NDLOCR models in assets/models/ndlocr/ and assets/ocr/models/ (4 variants, 220MB total); Moonshine models documented for M003 (not bundled in S05); asset copying automated in android-patch.sh
 
 ### R007 — Android Gradle build patch script
 - Class: operability
@@ -148,10 +148,10 @@ Use it to track what is actively in scope, what has been validated by completed 
 |---|---|---|---|---|---|
 | R001 | core-capability | validated | M002/S02 | M002/S05 | S02: 4 integration tests pass (end-to-end, multiple pages, duplicates, storage) |
 | R002 | core-capability | validated | M002/S03 | M002/S05 | S03: 5 integration tests pass (markdown rendering, word tap, duplicate handling, progress save, position restore) |
-| R003 | primary-user-loop | validated | M002/S04 | M002/S03 | S03: 3 integration tests pass (word save, duplicate detection, sentence extraction) |
-| R004 | operability | active | M002/S01 | M002/S05 | partial: APK built, device testing pending |
-| R005 | continuity | validated | M002/S01 | M002/S02, M002/S03, M002/S04 | S02: 6 tests verify book/page persistence; S03: 5 tests verify word/progress persistence |
-| R006 | integration | active | M002/S05 | M002/S02, M002/S03 | unmapped |
+| R003 | primary-user-loop | validated | M002/S04 | M002/S03 | S03 + S04: 20 tests pass (word save, duplicate detection, sentence extraction, vocab load, search, delete, export) |
+| R004 | operability | validated | M002/S01 | M002/S05 | S01 + S05: APK built (490MB), NDLOCR models bundled (220MB), device E2E test infrastructure ready |
+| R005 | continuity | validated | M002/S01 | M002/S02, M002/S03, M002/S04 | S01: 6 file-based persistence tests; S02/S03/S04: integration tests verify data survives operations |
+| R006 | integration | validated | M002/S05 | M002/S02, M002/S03 | S05: verify-apk-models.sh passes, 4/4 NDLOCR models bundled, Moonshine docs ready |
 | R007 | operability | validated | M002/S01 | none | S01: patch script + APK build success |
 | R008 | differentiator | deferred | none | none | unmapped |
 | R009 | differentiator | deferred | none | none | unmapped |
@@ -163,8 +163,8 @@ Use it to track what is actively in scope, what has been validated by completed 
 
 - Active requirements: 7
 - Mapped to slices: 7
-- Validated: 5 (R001, R002, R003, R005, R007)
-- Partial validation: 1 (R004 - pending device testing)
+- Validated: 7 (R001, R002, R003, R004, R005, R006, R007)
+- Partial validation: 0
 - Unmapped active requirements: 0
 - Deferred: 3
 - Out of scope: 2

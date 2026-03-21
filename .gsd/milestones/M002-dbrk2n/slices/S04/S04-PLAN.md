@@ -97,7 +97,7 @@ blocker_discovered: false
   - Verify: `cargo test --lib vocab::test_word_delete_with_confirmation`
   - Done when: Delete shows confirmation dialog, removes word from database, shows success toast
 
-- [ ] **T03: Wire Export Functionality** `est:30m`
+- [x] **T03: Wire Export Functionality** `est:30m`
   - Why: Export buttons have TODO handlers; must connect to existing export_vocabulary() functions
   - Files: `src/ui/vocab.rs`, `src/core/vocab.rs`
   - Do: Import export_vocabulary(), ExportFormat; wire Markdown/CSV buttons to export functions; show toast with export confirmation

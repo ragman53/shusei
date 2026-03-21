@@ -5,6 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::core::db::Word;
 use crate::core::error::Result;
 
 /// Vocabulary entry
@@ -163,6 +164,15 @@ pub fn export_vocabulary(entries: &[VocabularyEntry], format: ExportFormat) -> S
     }
 }
 
+/// Export vocabulary list (Word struct version)
+pub fn export_vocabulary_words(words: &[Word], format: ExportFormat) -> String {
+    match format {
+        ExportFormat::Markdown => export_markdown_words(words),
+        ExportFormat::Csv => export_csv_words(words),
+        ExportFormat::Json => export_json_words(words),
+    }
+}
+
 fn export_markdown(entries: &[VocabularyEntry]) -> String {
     let mut md = String::from("# Vocabulary List\n\n");
     
@@ -176,6 +186,30 @@ fn export_markdown(entries: &[VocabularyEntry]) -> String {
         }
         if let Some(book) = &entry.source_book {
             md.push_str(&format!("**Source**: {} (p.{})\n", book, entry.source_page.unwrap_or(0)));
+        }
+        md.push('\n');
+    }
+    
+    md
+}
+
+fn export_markdown_words(words: &[Word]) -> String {
+    let mut md = String::from("# Vocabulary List\n\n");
+    
+    for word in words {
+        md.push_str(&format!("## {}\n", word.word));
+        if let Some(definition) = &word.definition {
+            md.push_str(&format!("**Definition**: {}\n", definition));
+        }
+        if let Some(context) = &word.context_text {
+            md.push_str(&format!("**Example**: {}\n", context));
+        }
+        if let Some(book_id) = &word.source_book_id {
+            if let Some(page) = word.source_page {
+                md.push_str(&format!("**Source**: Book {} (p.{})\n", book_id, page));
+            } else {
+                md.push_str(&format!("**Source**: Book {}\n", book_id));
+            }
         }
         md.push('\n');
     }
@@ -202,13 +236,36 @@ fn export_csv(entries: &[VocabularyEntry]) -> String {
     csv
 }
 
+fn export_csv_words(words: &[Word]) -> String {
+    let mut csv = String::from("word,definition,example_sentence,source_book_id,source_page\n");
+    
+    for word in words {
+        let definition = word.definition.as_deref().unwrap_or("");
+        let example = word.context_text.as_deref().unwrap_or("");
+        let book_id = word.source_book_id.as_deref().unwrap_or("");
+        let page = word.source_page.unwrap_or(0);
+        
+        csv.push_str(&format!(
+            "\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
+            word.word, definition, example, book_id, page
+        ));
+    }
+    
+    csv
+}
+
 fn export_json(entries: &[VocabularyEntry]) -> String {
     serde_json::to_string_pretty(entries).unwrap_or_else(|_| "[]".to_string())
+}
+
+fn export_json_words(words: &[Word]) -> String {
+    serde_json::to_string_pretty(words).unwrap_or_else(|_| "[]".to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::db::{Database, NewBook, NewWord};
     
     #[test]
     fn test_extract_english_words() {
@@ -227,5 +284,130 @@ mod tests {
         
         let sentence = extractor.extract_sentence(text, "test");
         assert_eq!(sentence, Some("This is a test".to_string()));
+    }
+    
+    #[test]
+    fn test_export_markdown_words() {
+        // Create test words
+        let words = vec![
+            Word {
+                id: 1,
+                word: "test".to_string(),
+                definition: Some("A procedure intended to establish the quality".to_string()),
+                ai_generated: false,
+                source_book_id: Some("book1".to_string()),
+                source_page: Some(10),
+                context_text: Some("This is a test sentence.".to_string()),
+                created_at: 1000,
+                updated_at: 1000,
+            },
+            Word {
+                id: 2,
+                word: "vocabulary".to_string(),
+                definition: Some("A body of words".to_string()),
+                ai_generated: false,
+                source_book_id: None,
+                source_page: None,
+                context_text: Some("Building vocabulary is important.".to_string()),
+                created_at: 2000,
+                updated_at: 2000,
+            },
+        ];
+        
+        let md = export_markdown_words(&words);
+        
+        assert!(md.contains("# Vocabulary List"));
+        assert!(md.contains("## test"));
+        assert!(md.contains("## vocabulary"));
+        assert!(md.contains("**Definition**: A procedure intended to establish the quality"));
+        assert!(md.contains("**Example**: This is a test sentence."));
+        assert!(md.contains("**Source**: Book book1 (p.10)"));
+        assert!(md.contains("**Definition**: A body of words"));
+    }
+    
+    #[test]
+    fn test_export_csv_words() {
+        let words = vec![
+            Word {
+                id: 1,
+                word: "test".to_string(),
+                definition: Some("A procedure".to_string()),
+                ai_generated: false,
+                source_book_id: Some("book1".to_string()),
+                source_page: Some(10),
+                context_text: Some("Test sentence.".to_string()),
+                created_at: 1000,
+                updated_at: 1000,
+            },
+        ];
+        
+        let csv = export_csv_words(&words);
+        
+        assert!(csv.contains("word,definition,example_sentence,source_book_id,source_page"));
+        assert!(csv.contains("\"test\",\"A procedure\",\"Test sentence.\",\"book1\",\"10\""));
+    }
+    
+    #[test]
+    fn test_export_json_words() {
+        let words = vec![
+            Word {
+                id: 1,
+                word: "test".to_string(),
+                definition: Some("A procedure".to_string()),
+                ai_generated: true,
+                source_book_id: None,
+                source_page: None,
+                context_text: None,
+                created_at: 1000,
+                updated_at: 1000,
+            },
+        ];
+        
+        let json = export_json_words(&words);
+        
+        assert!(json.contains("\"word\": \"test\""));
+        assert!(json.contains("\"definition\": \"A procedure\""));
+        assert!(json.contains("\"ai_generated\": true"));
+    }
+    
+    #[test]
+    fn test_export_vocabulary_words() {
+        let words = vec![
+            Word {
+                id: 1,
+                word: "test".to_string(),
+                definition: Some("Definition".to_string()),
+                ai_generated: false,
+                source_book_id: None,
+                source_page: None,
+                context_text: None,
+                created_at: 1000,
+                updated_at: 1000,
+            },
+        ];
+        
+        // Test all formats
+        let md = export_vocabulary_words(&words, ExportFormat::Markdown);
+        assert!(md.contains("## test"));
+        
+        let csv = export_vocabulary_words(&words, ExportFormat::Csv);
+        assert!(csv.contains("\"test\""));
+        
+        let json = export_vocabulary_words(&words, ExportFormat::Json);
+        assert!(json.contains("\"word\": \"test\""));
+    }
+    
+    #[test]
+    fn test_export_empty_list() {
+        let words: Vec<Word> = vec![];
+        
+        let md = export_markdown_words(&words);
+        assert_eq!(md, "# Vocabulary List\n\n");
+        
+        let csv = export_csv_words(&words);
+        assert_eq!(csv, "word,definition,example_sentence,source_book_id,source_page\n");
+        
+        let json = export_json_words(&words);
+        assert_eq!(json, "[]");
     }
 }
