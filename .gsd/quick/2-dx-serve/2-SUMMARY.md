@@ -56,7 +56,10 @@
 - ✅ Gradle bundling completes successfully
 - ✅ APK generated at expected location
 - ✅ Device detected via `adb devices` (ZY32LNFZ8W - moto g66j 5G)
-- ⚠️ APK installation via ADB tested but slow due to large APK size (271MB)
+- ⚠️ APK installation via ADB is slow due to large debug APK size (271MB)
+  - Debug builds bundle all Rust dependencies and symbols
+  - For faster iteration, consider release builds or optimize APK size
+  - ADB install timeout (300s) may occur with large APKs on slower connections
 - ⚠️ `dx serve --android` auto-deploy behavior may require additional configuration
 
 ## Additional Notes
