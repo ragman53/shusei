@@ -7,13 +7,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Set NDK environment
-export ANDROID_HOME="$HOME/android-ndk/android-ndk-r26d"
-export ANDROID_NDK_HOME="$ANDROID_HOME"
-export PATH="$PATH:$ANDROID_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
-export CC_aarch64_linux_android="$ANDROID_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang -march=armv8.2-a+fp16"
-export CC_x86_64_linux_android="$ANDROID_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang"
-export AR_x86_64_linux_android="$ANDROID_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
-export AR_aarch64_linux_android="$ANDROID_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+export ANDROID_HOME="/home/devuser/android-sdk"
+export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+export PATH="$PATH:$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+export CC_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang -march=armv8.2-a+fp16"
+export CC_x86_64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android21-clang"
+export AR_x86_64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+export AR_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
 
 RELEASE_MODE=false
 if [ "$1" == "--release" ]; then
@@ -48,10 +48,10 @@ echo "[3/3] Building APK with gradlew..."
 cd "$ANDROID_DIR"
 
 if [ "$RELEASE_MODE" = true ]; then
-    ./gradlew assembleRelease -x lintVitalAnalyzeRelease -x lintVitalRelease -x lintVitalReportRelease || true
+    ./gradlew assembleRelease || true
     APK_PATH="$ANDROID_DIR/app/build/outputs/apk/release/app-release.apk"
 else
-    ./gradlew assembleDebug -x lintVitalAnalyzeDebug -x lintVitalDebug -x lintVitalReportDebug || true
+    ./gradlew assembleDebug || true
     APK_PATH="$ANDROID_DIR/app/build/outputs/apk/debug/app-debug.apk"
 fi
 

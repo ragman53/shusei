@@ -21,10 +21,28 @@ if [ ! -d "$ANDROID_DIR" ]; then
     exit 1
 fi
 
-# Fix 1: Update Java version from 8 to 17
-echo "[1/5] Fixing Java version (1.8 → 17)..."
+# Fix 1: Update Java version from 8 to 17 and SDK versions
+echo "[1/5] Fixing Java version (1.8 → 17) and SDK versions..."
 sed -i 's/VERSION_1_8/VERSION_17/g' "$ANDROID_DIR/app/build.gradle.kts"
 sed -i 's/jvmTarget = "1.8"/jvmTarget = "17"/g' "$ANDROID_DIR/app/build.gradle.kts"
+# Update compileSdk and targetSdk to 36
+sed -i 's/compileSdk = [0-9]*/compileSdk = 36/g' "$ANDROID_DIR/app/build.gradle.kts"
+sed -i 's/targetSdk = [0-9]*/targetSdk = 36/g' "$ANDROID_DIR/app/build.gradle.kts"
+
+# Add Java toolchain configuration to match Kotlin
+if ! grep -q "toolchain" "$ANDROID_DIR/app/build.gradle.kts"; then
+    # Add java toolchain configuration after android block
+    cat >> "$ANDROID_DIR/app/build.gradle.kts" << 'EOF'
+
+android {
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+EOF
+    echo "  Added Java toolchain configuration"
+fi
 
 # Fix 2: Remove deprecated manifest attribute
 echo "[2/5] Removing deprecated manifest attributes..."
