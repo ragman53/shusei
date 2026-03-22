@@ -18,4 +18,5 @@
 | D010 | M002 | architecture | Book creation navigation pattern | Save to database first, then navigate to `/camera/:book_id` | Ensures book_id exists before camera page loads; avoids race conditions; uses Option<String> for book_id prop to support both route patterns | No |
 | D011 | M002 | architecture | OCR engine initialization | Initialize in use_effect on camera page mount with loading state | Async initialization (2-5s) requires loading indicator; disables "Run OCR" button until ready; prevents errors from premature processing | No |
 | D012 | M002 | architecture | Page count display pattern | Async page count loading in BookCard component via get_page_count() | Avoids blocking UI; fetches on mount; updates when returning to library; separate query rather than JOIN for simplicity | Yes — if performance issues with many books |
+| D013 | M003 | language | Android native implementation language | Kotlin | Dioxus generates Kotlin templates; same JVM performance as Java; modern Android standard; concise syntax; no impact on Rust performance (thin glue code only) | No |
 

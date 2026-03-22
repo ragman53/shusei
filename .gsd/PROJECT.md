@@ -65,4 +65,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 
 - [x] M001: Backend Infrastructure — Database, OCR, STT, AI engines, 92 tests passing
 - [x] M002: Android Prototype — Camera capture (S02, 4 tests), PDF reader (S03, 5 tests), word collection (S04, 17 tests), APK deploy (S01), model bundling (S05); 35+ integration tests passing; 7/7 requirements validated; MILESTONE COMPLETE
-- [ ] M003: Dictionary Integration — JMdict/WordNet bundling, AI definitions, full word-tap experience, voice memo recording
+- [ ] M003: Android Stability — Kotlin camera implementation, file picker, asset access, integration verification on physical device
