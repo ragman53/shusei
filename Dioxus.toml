@@ -32,6 +32,9 @@ resizable = true
 icon = ["assets/icon.png"]
 
 # Android configuration
+[android]
+target = "aarch64-linux-android"
+
 [bundle]
 identifier = "com.shusei.app"
 publisher = "shusei"

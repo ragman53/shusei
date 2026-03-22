@@ -93,6 +93,7 @@ moonshine-test = []  # Enable Moonshine tract compatibility tests
 [lib]
 name = "shusei"
 path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "shusei"
@@ -108,6 +109,7 @@ strip = true
 [profile.dev]
 opt-level = 0
 debug = true
+panic = "abort"
 
 [patch.crates-io]
 esaxx-rs = { path = "patches/esaxx-rs" }
