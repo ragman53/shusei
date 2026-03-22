@@ -63,10 +63,12 @@ All 5 slices delivered with comprehensive verification infrastructure. ARM64-nat
 - Verification scripts: verify-s01-camera.sh, verify-s02-file-picker.sh, verify-s03-asset.sh, verify-s04-integration.sh, verify-s05-arm64.sh
 - **M003 VERIFICATION PASSED** — All three flows (camera, file picker, demo PDF) stable on ARM64 device
 
-**Next phase: M004 — AI Definition Integration**
-- [ ] AI definition feature: Qwen3.5-0.8B integration for word definitions
-- [ ] Dictionary bundling: JMdict + WordNet offline dictionary lookup
-- [ ] Voice memo feature: Moonshine STT integration for voice-to-text
+**Next phase: M004 — Tauri + Leptos Migration**
+- [ ] Tauri v2 + Leptos v0.7 project setup
+- [ ] Database plugin migration to Tauri architecture
+- [ ] OCR engine integration with Tauri backend
+- [ ] UI component migration to Leptos signals
+- [ ] Android APK build and deployment
 
 ## Capability Contract
 
@@ -77,4 +79,5 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M001: Backend Infrastructure — Database, OCR, STT, AI engines, 92 tests passing
 - [x] M002: Android Prototype — Camera capture (S02, 4 tests), PDF reader (S03, 5 tests), word collection (S04, 17 tests), APK deploy (S01), model bundling (S05); 35+ integration tests passing; 7/7 requirements validated; MILESTONE COMPLETE
 - [x] M003: Android Stability — Kotlin camera implementation, file picker, asset access, integration verification on physical device; ARM64-native APK (149MB) installs on Moto G66j 5G; M003 VERIFICATION PASSED; MILESTONE COMPLETE
-- [ ] M004: AI Definition Integration — AI word definitions, dictionary bundling, voice memo feature
+- [ ] M004: Tauri + Leptos Migration — Tauri v2 setup, Leptos frontend, database plugin, OCR integration, Android APK
+- [ ] M005: AI Definition Integration — AI word definitions, dictionary bundling, voice memo feature
