@@ -19,4 +19,6 @@
 | D011 | M002 | architecture | OCR engine initialization | Initialize in use_effect on camera page mount with loading state | Async initialization (2-5s) requires loading indicator; disables "Run OCR" button until ready; prevents errors from premature processing | No |
 | D012 | M002 | architecture | Page count display pattern | Async page count loading in BookCard component via get_page_count() | Avoids blocking UI; fetches on mount; updates when returning to library; separate query rather than JOIN for simplicity | Yes — if performance issues with many books |
 | D013 | M003 | language | Android native implementation language | Kotlin | Dioxus generates Kotlin templates; same JVM performance as Java; modern Android standard; concise syntax; no impact on Rust performance (thin glue code only) | No |
+| D014 | M003 | camera | Camera API choice | CameraX over Camera2 | Simpler lifecycle management, cleaner API, automatic compatibility across Android versions; sufficient control for page capture use case | Yes — if advanced camera features needed |
+| D015 | M003 | camera | Image capture method | In-memory via ByteArrayOutputStream | Avoids file I/O and storage permissions; JPEG bytes passed directly to Rust via JNI; eliminates temporary file cleanup | Yes — if file-based workflow required |
 

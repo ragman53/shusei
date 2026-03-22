@@ -51,11 +51,22 @@ All 5 slices delivered with 35+ integration tests passing (117 lib tests + 26 in
 - Word collection: Vocabulary list with search, delete confirmation, export (S04, 9 tests pass)
 - Model bundling: NDLOCR models verified in APK (6 ONNX files, 230MB), Moonshine documentation ready for M003 (S05)
 
-**Next phase: M003 — Dictionary Integration**
-- Moonshine STT model bundling (encoder.onnx, decoder.onnx from Hugging Face)
-- Voice memo recording UI + JNI integration
-- JMdict/WordNet dictionary bundling
-- AI definitions with Qwen or dictionary lookup
+**M003 COMPLETE — Android Stability verified on ARM64 device**
+
+All 5 slices delivered with comprehensive verification infrastructure. ARM64-native APK (149MB) builds successfully and installs on Moto G66j 5G without crashes.
+
+**Android stability summary:**
+- CameraX JNI bridge: In-memory image capture with onImageCaptured callback to Rust
+- PDF file picker: Storage Access Framework with onFilePicked callback to Rust
+- Asset bundling: Demo PDF bundled in APK, copied to app files directory
+- ARM64 build: NDK ABI filter + CARGO_BUILD_TARGET=aarch64-linux-android
+- Verification scripts: verify-s01-camera.sh, verify-s02-file-picker.sh, verify-s03-asset.sh, verify-s04-integration.sh, verify-s05-arm64.sh
+- **M003 VERIFICATION PASSED** — All three flows (camera, file picker, demo PDF) stable on ARM64 device
+
+**Next phase: M004 — AI Definition Integration**
+- [ ] AI definition feature: Qwen3.5-0.8B integration for word definitions
+- [ ] Dictionary bundling: JMdict + WordNet offline dictionary lookup
+- [ ] Voice memo feature: Moonshine STT integration for voice-to-text
 
 ## Capability Contract
 
@@ -65,4 +76,5 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 
 - [x] M001: Backend Infrastructure — Database, OCR, STT, AI engines, 92 tests passing
 - [x] M002: Android Prototype — Camera capture (S02, 4 tests), PDF reader (S03, 5 tests), word collection (S04, 17 tests), APK deploy (S01), model bundling (S05); 35+ integration tests passing; 7/7 requirements validated; MILESTONE COMPLETE
-- [ ] M003: Android Stability — Kotlin camera implementation, file picker, asset access, integration verification on physical device
+- [x] M003: Android Stability — Kotlin camera implementation, file picker, asset access, integration verification on physical device; ARM64-native APK (149MB) installs on Moto G66j 5G; M003 VERIFICATION PASSED; MILESTONE COMPLETE
+- [ ] M004: AI Definition Integration — AI word definitions, dictionary bundling, voice memo feature
