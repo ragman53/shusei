@@ -79,6 +79,9 @@ tokenizers = "0.20"  # STT tokenizer (Phase 5 - desktop only for now)
 # Android-only dependencies
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
+ndk = "0.9"
+ndk-context = "0.1"
+libc = "0.2"
 
 [features]
 default = []
