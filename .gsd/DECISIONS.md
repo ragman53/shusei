@@ -21,4 +21,5 @@
 | D013 | M003 | language | Android native implementation language | Kotlin | Dioxus generates Kotlin templates; same JVM performance as Java; modern Android standard; concise syntax; no impact on Rust performance (thin glue code only) | No |
 | D014 | M003 | camera | Camera API choice | CameraX over Camera2 | Simpler lifecycle management, cleaner API, automatic compatibility across Android versions; sufficient control for page capture use case | Yes — if advanced camera features needed |
 | D015 | M003 | camera | Image capture method | In-memory via ByteArrayOutputStream | Avoids file I/O and storage permissions; JPEG bytes passed directly to Rust via JNI; eliminates temporary file cleanup | Yes — if file-based workflow required |
+| D016 | M003 | framework | Dioxus WryActivity JNI workaround | Manual JNI bindings in `src/platform/android_bindings.rs` | Dioxus 0.7.3 bug: tao::android_binding! called inside start_app() function body prevents symbol export; manual bindings provide immediate fix without forking framework; isolated module for easy removal when upstream fixed | Yes — when Dioxus fixes the bug |
 

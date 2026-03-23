@@ -61,8 +61,17 @@ This milestone is complete only when all are true:
 - [x] **S04: Integration Verification** `risk:low` `depends:[S01, S02, S03]`
   > After this: すべての機能が実機でクラッシュせず動作することが検証済み
 
-- [ ] **S05: ARM64 APK Build and Device Verification** `risk:low` `depends:[S01, S02, S03, S04]`
+- [x] **S05: ARM64 APK Build and Device Verification** `risk:low` `depends:[S01, S02, S03, S04]`
   > After this: APK built for arm64-v8a architecture installs on Moto G66j 5G, all three flows (camera, file picker, demo PDF) verified on device with "M003 VERIFICATION PASSED" status
+
+- [x] **S06: Dioxus Android Framework Investigation** `risk:medium` `depends:[S05]`
+  > After this: Root cause of missing WryActivity JNI symbols identified; fix path determined (dependency, build config, or framework issue)
+
+- [ ] **S07: JNI Symbol Fix** `risk:high` `depends:[S06]`
+  > After this: App launches on Moto G66j 5G without UnsatisfiedLinkError; WryActivity bindings present in native library
+
+- [ ] **S08: Full UAT Execution** `risk:low` `depends:[S07]`
+  > After this: All three flows (camera, file picker, demo PDF) verified on device with "M003 VERIFICATION PASSED" status; all five success criteria met
 
 ## Boundary Map
 

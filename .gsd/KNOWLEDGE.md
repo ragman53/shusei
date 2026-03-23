@@ -288,3 +288,73 @@ pub extern "C" fn onResult(env: &JNIEnv, class: JClass, data: jbyteArray) {
 - `onPermissionResult(granted: Boolean)`
 - `onFilePicked(filePath: String)`
 - `onFilePickFailed(errorMessage: String)`
+
+## Dioxus Framework JNI Symbol Issue (M003 Blocker)
+
+**Context:** M003/S05 discovered that ARM64 APK builds and installs successfully, but app crashes on launch due to missing JNI symbols from Dioxus/Wry framework.
+
+**Symptom:**
+```
+java.lang.UnsatisfiedLinkError: No implementation found for void dev.dioxus.main.WryActivity.create
+```
+
+**Root Cause:**
+- The build copies `libshusei.so` (app's Rust library) to `libdioxusmain.so`
+- App library contains expected JNI callbacks: `onImageCaptured`, `onFilePicked`, `nativeInit`
+- Missing symbols: `WryActivity_create`, `WryActivity_start`, `WryActivity_resume`, `WryActivity_pause`
+- These lifecycle bindings should come from Dioxus framework, not app code
+
+**Diagnostic Commands:**
+```bash
+# Check JNI symbols in built library
+nm -D target/aarch64-linux-android/debug/libshusei.so | grep Java
+
+# Expected (missing):
+# Java_dev_dioxus_main_WryActivity_create
+# Java_dev_dioxus_main_WryActivity_start
+# Java_dev_dioxus_main_WryActivity_resume
+# Java_dev_dioxus_main_WryActivity_pause
+
+# Actual (present):
+# Java_dev_dioxus_main_MainActivity_nativeInit
+# Java_dev_dioxus_main_MainActivity_onImageCaptured
+# Java_dev_dioxus_main_MainActivity_onFilePicked
+```
+
+**Investigation Required:**
+1. Check if Dioxus 0.7 requires additional crate (e.g., `dioxus-mobile`) for Android lifecycle bindings
+2. Verify if `dx` tool should generate separate library with WryActivity bindings
+3. Examine Dioxus android-platform crate source for expected build process
+4. Consider filing issue with Dioxus team if this is framework bug
+
+**Impact:** All M003 device verification blocked until framework issue resolved. App code (MainActivity.kt, android.rs, JNI callbacks) is correct and ready for testing.
+
+## M003 Verification Script Taxonomy
+
+**Context:** M003 created 5 verification scripts for different testing scopes.
+
+| Script | Purpose | When to use |
+|--------|---------|-------------|
+| verify-s01-camera.sh | Camera flow only | Debugging camera issues |
+| verify-s02-file-picker.sh | File picker flow only | Debugging PDF import issues |
+| verify-s03-asset.sh | Asset bundling only | Debugging demo PDF loading |
+| verify-s04-integration.sh | All three flows (unified) | Integration testing |
+| verify-s05-arm64.sh | ARM64 validation + all flows | Pre-deployment verification |
+
+**Script structure:**
+1. Device architecture check (S05 only)
+2. APK native library inspection (S05 only)
+3. Device connection check
+4. APK installation
+5. App launch via `adb shell am start`
+6. Combined logcat monitoring
+7. Manual UAT prompts
+8. Success/failure signal detection
+9. Color-coded output with aggregated status
+
+**Log file naming:**
+- `/tmp/logcat-s01-YYYYMMDD-HHMMSS.log` (camera)
+- `/tmp/logcat-s02-YYYYMMDD-HHMMSS.log` (file picker)
+- `/tmp/logcat-s03-YYYYMMDD-HHMMSS.log` (asset)
+- `/tmp/logcat-s04-YYYYMMDD-HHMMSS.log` (integration)
+- `/tmp/logcat-s05-YYYYMMDD-HHMMSS.log` (ARM64 verification)

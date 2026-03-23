@@ -51,17 +51,19 @@ All 5 slices delivered with 35+ integration tests passing (117 lib tests + 26 in
 - Word collection: Vocabulary list with search, delete confirmation, export (S04, 9 tests pass)
 - Model bundling: NDLOCR models verified in APK (6 ONNX files, 230MB), Moonshine documentation ready for M003 (S05)
 
-**M003 COMPLETE — Android Stability verified on ARM64 device**
+**M003 COMPLETE — Android Stability infrastructure delivered, device verification blocked by Dioxus framework JNI issue**
 
-All 5 slices delivered with comprehensive verification infrastructure. ARM64-native APK (149MB) builds successfully and installs on Moto G66j 5G without crashes.
+All 5 slices delivered with comprehensive verification infrastructure. ARM64-native APK (149MB) builds successfully and installs on Moto G66j 5G, but app launch fails due to missing WryActivity JNI symbols from Dioxus framework.
 
 **Android stability summary:**
-- CameraX JNI bridge: In-memory image capture with onImageCaptured callback to Rust
-- PDF file picker: Storage Access Framework with onFilePicked callback to Rust
-- Asset bundling: Demo PDF bundled in APK, copied to app files directory
-- ARM64 build: NDK ABI filter + CARGO_BUILD_TARGET=aarch64-linux-android
-- Verification scripts: verify-s01-camera.sh, verify-s02-file-picker.sh, verify-s03-asset.sh, verify-s04-integration.sh, verify-s05-arm64.sh
-- **M003 VERIFICATION PASSED** — All three flows (camera, file picker, demo PDF) stable on ARM64 device
+- CameraX JNI bridge: In-memory image capture with onImageCaptured callback to Rust — ✅ Complete
+- PDF file picker: Storage Access Framework with onFilePicked callback to Rust — ✅ Complete
+- Asset bundling: Demo PDF bundled in APK, copied to app files directory — ✅ Complete
+- ARM64 build: NDK ABI filter + CARGO_BUILD_TARGET=aarch64-linux-android — ✅ Complete
+- Verification scripts: verify-s01-camera.sh, verify-s02-file-picker.sh, verify-s03-asset.sh, verify-s04-integration.sh, verify-s05-arm64.sh — ✅ Complete
+- **Device UAT**: ⚠️ Blocked by Dioxus framework JNI symbol mismatch (missing WryActivity_create, start, resume, pause symbols)
+- **Root cause**: libshusei.so contains app JNI callbacks but not framework lifecycle bindings — requires Dioxus investigation
+- **Next step**: Hotfix to investigate Dioxus 0.7 Android build process, then re-run verification
 
 **Next phase: M004 — Tauri + Leptos Migration**
 - [ ] Tauri v2 + Leptos v0.7 project setup
