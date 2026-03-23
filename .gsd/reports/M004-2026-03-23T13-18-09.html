@@ -1,0 +1,2576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSD Report — M004 — M004</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-0:#0f1115;--bg-1:#16181d;--bg-2:#1e2028;--bg-3:#272a33;
+  --border-1:#2b2e38;--border-2:#3b3f4c;
+  --text-0:#ededef;--text-1:#a1a1aa;--text-2:#71717a;
+  --accent:#5e6ad2;--accent-subtle:rgba(94,106,210,.12);
+  --ok:#22c55e;--ok-subtle:rgba(34,197,94,.12);--warn:#ef4444;--caution:#eab308;
+  /* Chart palette — 6 hues for bar charts */
+  --c0:#5e6ad2;--c1:#e5796d;--c2:#14b8a6;--c3:#a78bfa;--c4:#f59e0b;--c5:#10b981;
+  /* Token breakdown — 4 distinct hues */
+  --tk-input:#5e6ad2;--tk-output:#e5796d;--tk-cache-r:#2dd4bf;--tk-cache-w:#64748b;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono','Fira Code',ui-monospace,SFMono-Regular,monospace;
+}
+html{scroll-behavior:smooth;font-size:13px}
+body{background:var(--bg-0);color:var(--text-0);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:12px;background:var(--bg-3);padding:1px 5px;border-radius:3px}
+.mono{font-family:var(--mono);font-size:12px}
+.muted{color:var(--text-2)}
+.accent{color:var(--accent)}
+.sep{color:var(--border-2);margin:0 4px}
+.empty{color:var(--text-2);padding:8px 0;font-size:13px}
+.indent{padding-left:12px}
+.num{font-variant-numeric:tabular-nums;text-align:right}
+
+/* Status dots — geometric, no emoji */
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;vertical-align:middle}
+.dot-sm{width:6px;height:6px}
+.dot-complete{background:var(--ok);opacity:.6}
+.dot-active{background:var(--accent)}
+.dot-pending{background:transparent;border:1.5px solid var(--border-2)}
+.dot-parked{background:var(--warn);opacity:.5}
+
+/* Header */
+header{background:var(--bg-1);border-bottom:1px solid var(--border-1);padding:12px 32px;position:sticky;top:0;z-index:200}
+.header-inner{display:flex;align-items:center;gap:16px;max-width:1280px;margin:0 auto}
+.branding{display:flex;align-items:baseline;gap:6px;flex-shrink:0}
+.logo{font-size:18px;font-weight:800;letter-spacing:-.5px;color:var(--text-0)}
+.version{font-size:10px;color:var(--text-2);font-family:var(--mono)}
+.header-meta{flex:1;min-width:0}
+.header-meta h1{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.header-path{font-size:11px;color:var(--text-2);font-family:var(--mono);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.header-right{text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.generated{font-size:11px;color:var(--text-2)}
+.back-link{font-size:12px;color:var(--text-1)}
+.back-link:hover{color:var(--accent)}
+
+/* TOC nav */
+.toc{background:var(--bg-1);border-bottom:1px solid var(--border-1);overflow-x:auto}
+.toc ul{display:flex;list-style:none;max-width:1280px;margin:0 auto;padding:0 32px}
+.toc a{display:inline-block;padding:8px 12px;color:var(--text-2);font-size:12px;font-weight:500;border-bottom:2px solid transparent;transition:color .12s,border-color .12s;white-space:nowrap;text-decoration:none}
+.toc a:hover{color:var(--text-0);border-bottom-color:var(--border-2)}
+.toc a.active{color:var(--text-0);border-bottom-color:var(--accent)}
+
+/* Layout */
+main{max-width:1280px;margin:0 auto;padding:32px;display:flex;flex-direction:column;gap:48px}
+section{scroll-margin-top:82px}
+section>h2{font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-1);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border-1);display:flex;align-items:center;gap:8px}
+h3{font-size:13px;font-weight:600;color:var(--text-1);margin:20px 0 8px}
+.count{font-size:11px;font-weight:500;color:var(--text-2);background:var(--bg-3);border-radius:3px;padding:1px 6px}
+.count-warn{color:var(--caution)}
+
+/* KV grid (stats/metrics) */
+.kv-grid{display:flex;flex-wrap:wrap;gap:1px;background:var(--border-1);border:1px solid var(--border-1);border-radius:4px;overflow:hidden;margin-bottom:16px}
+.kv{background:var(--bg-1);padding:10px 16px;display:flex;flex-direction:column;gap:2px;min-width:110px;flex:1}
+.kv-val{font-size:18px;font-weight:600;color:var(--text-0);font-variant-numeric:tabular-nums}
+.kv-lbl{font-size:10px;color:var(--text-2);text-transform:uppercase;letter-spacing:.4px}
+
+/* Progress bar */
+.progress-wrap{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.progress-track{flex:1;height:4px;background:var(--bg-3);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:var(--accent);border-radius:2px}
+.progress-label{font-size:12px;font-weight:600;color:var(--text-1);min-width:40px;text-align:right}
+.active-info{font-size:12px;color:var(--text-1);margin-bottom:4px}
+.activity-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-1);padding:6px 0}
+
+/* Tables */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{color:var(--text-2);font-weight:500;padding:6px 12px;text-align:left;border-bottom:1px solid var(--border-1);font-size:11px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.tbl td{padding:6px 12px;border-bottom:1px solid var(--border-1);vertical-align:top}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover td{background:var(--accent-subtle)}
+.tbl-kv td:first-child{color:var(--text-2);width:180px}
+.table-scroll{overflow-x:auto;border:1px solid var(--border-1);border-radius:4px}
+.table-scroll .tbl{border:none}
+
+/* Health */
+.h-ok td:first-child{color:var(--text-1)}
+.h-caution td{color:var(--caution)}
+.h-warn td{color:var(--warn)}
+
+/* Labels */
+.label{font-size:10px;font-weight:500;color:var(--accent);text-transform:uppercase;letter-spacing:.4px}
+.risk{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0}
+.risk-low{color:var(--text-2)}
+.risk-medium{color:var(--caution)}
+.risk-high{color:var(--warn)}
+.risk-unknown{color:var(--text-2)}
+
+/* Tags */
+.tag-row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.tag{font-size:11px;font-family:var(--mono);color:var(--text-2);background:var(--bg-3);border-radius:3px;padding:1px 6px}
+
+/* Verification */
+.verif{font-size:12px;color:var(--text-1);padding:4px 0;margin-bottom:6px}
+.verif-blocker{color:var(--warn)}
+
+/* Detail blocks */
+.detail-block{font-size:12px;color:var(--text-2);margin-bottom:6px}
+.detail-label{font-weight:600;color:var(--text-1);display:block;margin-bottom:2px}
+.detail-block ul{padding-left:16px;margin-top:2px}
+.detail-block li{margin-bottom:1px}
+
+/* Progress tree */
+.ms-block{border:1px solid var(--border-1);border-radius:4px;overflow:hidden;margin-bottom:8px}
+.ms-summary{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;list-style:none;background:var(--bg-1);user-select:none;font-size:13px}
+.ms-summary:hover{background:var(--bg-2)}
+.ms-summary::-webkit-details-marker{display:none}
+.ms-id{font-weight:600}
+.ms-title{flex:1;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ms-body{padding:6px 12px 8px 24px;display:flex;flex-direction:column;gap:4px}
+
+.sl-block{border:1px solid var(--border-1);border-radius:3px;overflow:hidden}
+.sl-summary{display:flex;align-items:center;gap:6px;padding:6px 10px;cursor:pointer;list-style:none;background:var(--bg-2);font-size:12px;user-select:none}
+.sl-summary:hover{background:var(--bg-3)}
+.sl-summary::-webkit-details-marker{display:none}
+.sl-crit{border-left:2px solid var(--accent)}
+.sl-deps::before{content:'\2190 ';color:var(--border-2)}
+.sl-detail{padding:8px 12px;background:var(--bg-0);border-top:1px solid var(--border-1)}
+
+.task-list{list-style:none;padding:4px 0 0;display:flex;flex-direction:column;gap:2px}
+.task-row{display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 6px;border-radius:2px}
+
+/* Dep graph */
+.dep-block{margin-bottom:28px}
+.dep-legend{display:flex;gap:14px;font-size:12px;color:var(--text-2);margin-bottom:8px;align-items:center}
+.dep-legend span{display:flex;align-items:center;gap:4px}
+.dep-wrap{overflow-x:auto;background:var(--bg-1);border:1px solid var(--border-1);border-radius:4px;padding:16px}
+.dep-svg{display:block}
+.edge{fill:none;stroke:var(--border-2);stroke-width:1.5}
+.edge-crit{stroke:var(--accent);stroke-width:2}
+.node rect{fill:var(--bg-2);stroke:var(--border-2);stroke-width:1}
+.n-done rect{fill:var(--ok-subtle);stroke:rgba(34,197,94,.4)}
+.n-active rect{fill:var(--accent-subtle);stroke:var(--accent)}
+.n-crit rect{stroke:var(--accent)!important;stroke-width:1.5!important}
+.n-id{font-family:var(--mono);font-size:10px;fill:var(--text-1);font-weight:600;text-anchor:middle}
+.n-title{font-size:9px;fill:var(--text-2);text-anchor:middle}
+.n-active .n-id{fill:var(--accent)}
+
+/* Metrics */
+.token-block{background:var(--bg-1);border:1px solid var(--border-1);border-radius:4px;padding:14px;margin-bottom:16px}
+.token-bar{display:flex;height:16px;border-radius:2px;overflow:hidden;gap:1px;margin-bottom:8px}
+.tseg{height:100%;min-width:2px}
+.seg-1{background:var(--tk-input)}
+.seg-2{background:var(--tk-output)}
+.seg-3{background:var(--tk-cache-r)}
+.seg-4{background:var(--tk-cache-w)}
+.token-legend{display:flex;flex-wrap:wrap;gap:12px}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2)}
+.leg-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.chart-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:16px}
+.chart-block{background:var(--bg-1);border:1px solid var(--border-1);border-radius:4px;padding:14px}
+.bar-row{display:grid;grid-template-columns:120px 1fr 68px;align-items:center;gap:6px;margin-bottom:2px}
+.bar-lbl{font-size:12px;color:var(--text-2);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{height:14px;background:var(--bg-3);border-radius:2px;overflow:hidden}
+.bar-fill{height:100%;border-radius:2px;background:var(--c0)}
+.bar-c0{background:var(--c0)}.bar-c1{background:var(--c1)}.bar-c2{background:var(--c2)}
+.bar-c3{background:var(--c3)}.bar-c4{background:var(--c4)}.bar-c5{background:var(--c5)}
+.bar-val{font-size:11px;font-variant-numeric:tabular-nums;color:var(--text-1)}
+.bar-sub{font-size:10px;color:var(--text-2);padding-left:128px;margin-bottom:6px}
+
+/* Changelog */
+.cl-entry{border-bottom:1px solid var(--border-1);padding:12px 0}
+.cl-entry:last-child{border-bottom:none}
+.cl-header{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.cl-title{flex:1;font-weight:500}
+.cl-date{margin-left:auto;white-space:nowrap}
+.cl-liner{font-size:13px;color:var(--text-1);margin-bottom:6px}
+.files-detail summary{font-size:12px;cursor:pointer}
+.file-list{list-style:none;padding-left:10px;margin-top:4px;display:flex;flex-direction:column;gap:2px}
+.file-list li{font-size:12px;color:var(--text-1)}
+
+/* Footer */
+footer{border-top:1px solid var(--border-1);padding:20px 32px;margin-top:40px}
+.footer-inner{display:flex;align-items:center;gap:6px;justify-content:center;font-size:11px;color:var(--text-2)}
+
+/* Executive summary & ETA */
+.exec-summary{font-size:13px;color:var(--text-1);margin-bottom:12px;line-height:1.7}
+.eta-line{font-size:12px;color:var(--accent);margin-top:4px}
+
+/* Cost over time chart */
+.cost-svg{display:block;margin:8px 0;background:var(--bg-1);border:1px solid var(--border-1);border-radius:4px}
+.cost-line{fill:none;stroke:var(--accent);stroke-width:2}
+.cost-area{fill:var(--accent-subtle);stroke:none}
+.cost-axis{fill:var(--text-2);font-family:var(--mono);font-size:10px}
+.cost-grid{stroke:var(--border-1);stroke-width:1;stroke-dasharray:4,4}
+
+/* Budget burndown */
+.burndown-wrap{background:var(--bg-1);border:1px solid var(--border-1);border-radius:4px;padding:14px;margin-bottom:16px}
+.burndown-bar{display:flex;height:20px;border-radius:3px;overflow:hidden;gap:1px;margin-bottom:8px}
+.burndown-spent{background:var(--accent);height:100%}
+.burndown-projected{background:var(--caution);height:100%;opacity:.6}
+.burndown-overshoot{background:var(--warn);height:100%;opacity:.7}
+.burndown-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--text-2)}
+.burndown-legend span{display:flex;align-items:center;gap:4px}
+.burndown-dot{display:inline-block;width:8px;height:8px;border-radius:2px}
+
+/* Blockers */
+.blocker-card{border-left:3px solid var(--warn);background:var(--bg-1);border-radius:0 4px 4px 0;padding:10px 14px;margin-bottom:8px}
+.blocker-id{font-family:var(--mono);font-size:12px;color:var(--warn);margin-bottom:2px}
+.blocker-text{font-size:12px;color:var(--text-1)}
+.blocker-risk{font-size:11px;color:var(--caution);margin-top:2px}
+
+/* Gantt */
+.gantt-wrap{overflow-x:auto;background:var(--bg-1);border:1px solid var(--border-1);border-radius:4px;padding:16px;margin-top:16px}
+.gantt-svg{display:block}
+.gantt-bar-done{fill:var(--ok);opacity:.7}
+.gantt-bar-active{fill:var(--accent)}
+.gantt-bar-pending{fill:var(--border-2)}
+.gantt-label{fill:var(--text-2);font-family:var(--mono);font-size:10px}
+.gantt-axis{fill:var(--text-2);font-family:var(--mono);font-size:9px}
+
+/* Interactive */
+.tl-filter{display:block;width:100%;padding:6px 10px;margin-bottom:8px;background:var(--bg-2);border:1px solid var(--border-1);border-radius:4px;color:var(--text-0);font-size:12px;font-family:var(--font);outline:none}
+.tl-filter:focus{border-color:var(--accent)}
+.tl-filter::placeholder{color:var(--text-2)}
+.sec-toggle{background:none;border:1px solid var(--border-2);color:var(--text-2);width:20px;height:20px;border-radius:3px;cursor:pointer;font-size:14px;line-height:1;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.sec-toggle:hover{border-color:var(--text-1);color:var(--text-1)}
+.theme-toggle{background:var(--bg-3);border:1px solid var(--border-2);color:var(--text-1);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-family:var(--font)}
+.theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Light theme */
+.light-theme{--bg-0:#fff;--bg-1:#fafafa;--bg-2:#f5f5f5;--bg-3:#ebebeb;--border-1:#e5e5e5;--border-2:#d4d4d4;--text-0:#1a1a1a;--text-1:#525252;--text-2:#a3a3a3;--accent:#4f46e5;--accent-subtle:rgba(79,70,229,.08);--ok:#16a34a;--ok-subtle:rgba(22,163,74,.08);--warn:#dc2626;--caution:#ca8a04;--c0:#4f46e5;--c1:#dc2626;--c2:#0d9488;--c3:#7c3aed;--c4:#d97706;--c5:#059669;--tk-input:#4f46e5;--tk-output:#dc2626;--tk-cache-r:#0d9488;--tk-cache-w:#64748b}
+
+/* Responsive */
+@media(max-width:768px){
+  header{padding:10px 16px}
+  .header-inner{flex-wrap:wrap;gap:8px}
+  .header-meta h1{font-size:13px}
+  main{padding:16px}
+  .kv-grid{gap:1px}
+  .kv{min-width:80px;padding:8px 10px}
+  .kv-val{font-size:14px}
+  .chart-row{grid-template-columns:1fr}
+  .toc ul{padding:0 16px}
+  .toc a{padding:6px 8px;font-size:11px}
+  .bar-row{grid-template-columns:80px 1fr 56px}
+  .ms-body{padding-left:12px}
+}
+@media(max-width:480px){
+  .kv{min-width:60px;padding:6px 8px}
+  .kv-val{font-size:12px}
+  .kv-lbl{font-size:9px}
+  .bar-row{grid-template-columns:60px 1fr 48px}
+  .bar-lbl{font-size:10px}
+  .toc ul{flex-wrap:wrap}
+  .header-right{display:none}
+  .gantt-wrap{overflow-x:auto}
+}
+
+/* Print */
+@media print{
+  header,nav.toc{position:static}
+  body{background:#fff;color:#1a1a1a}
+  :root{--bg-0:#fff;--bg-1:#fafafa;--bg-2:#f5f5f5;--bg-3:#ebebeb;--border-1:#e5e5e5;--border-2:#d4d4d4;--text-0:#1a1a1a;--text-1:#525252;--text-2:#a3a3a3;--accent:#4f46e5;--ok:#16a34a;--ok-subtle:rgba(22,163,74,.08);--c0:#4f46e5;--c1:#dc2626;--c2:#0d9488;--c3:#7c3aed;--c4:#d97706;--c5:#059669;--tk-input:#4f46e5;--tk-output:#dc2626;--tk-cache-r:#0d9488;--tk-cache-w:#64748b}
+  section{page-break-inside:avoid}
+  .table-scroll{overflow:visible}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="branding">
+      <span class="logo">GSD</span>
+      <span class="version">v2.42.0</span>
+    </div>
+    <div class="header-meta">
+      <h1>M004 <span class="sep">/</span> <span class="mono accent">M004</span></h1>
+      <span class="header-path">/home/devuser/develop/shusei/.gsd/worktrees/M004</span>
+    </div>
+    <div class="header-right">
+      <a class="back-link" href="index.html">All Reports</a>
+      <div class="generated">Mon, Mar 23, 2026, 10:18 PM GMT+9</div>
+    </div>
+  </div>
+</header>
+<nav class="toc" aria-label="Report sections">
+  <ul>
+    <li><a href="#summary">Summary</a></li>
+    <li><a href="#blockers">Blockers</a></li>
+    <li><a href="#progress">Progress</a></li>
+    <li><a href="#timeline">Timeline</a></li>
+    <li><a href="#depgraph">Dependencies</a></li>
+    <li><a href="#metrics">Metrics</a></li>
+    <li><a href="#health">Health</a></li>
+    <li><a href="#changelog">Changelog</a></li>
+    <li><a href="#knowledge">Knowledge</a></li>
+    <li><a href="#captures">Captures</a></li>
+    <li><a href="#stats">Artifacts</a></li>
+    <li><a href="#discussion">Planning</a></li>
+  </ul>
+</nav>
+<main>
+
+<section id="summary">
+  <h2>Summary</h2>
+  
+    <p class="exec-summary">M004 is 72% complete across 4 milestones. $0.0000 spent. Currently executing M003/S07.</p>
+    <div class="kv-grid"><div class="kv"><span class="kv-val">2/4</span><span class="kv-lbl">Milestones</span></div><div class="kv"><span class="kv-val">18/25</span><span class="kv-lbl">Slices</span></div><div class="kv"><span class="kv-val">planning</span><span class="kv-lbl">Phase</span></div><div class="kv"><span class="kv-val">$0.0000</span><span class="kv-lbl">Cost</span></div><div class="kv"><span class="kv-val">27.89M</span><span class="kv-lbl">Tokens</span></div><div class="kv"><span class="kv-val">2h 57m</span><span class="kv-lbl">Duration</span></div><div class="kv"><span class="kv-val">1311</span><span class="kv-lbl">Tool calls</span></div><div class="kv"><span class="kv-val">54</span><span class="kv-lbl">Units</span></div><div class="kv"><span class="kv-val">7</span><span class="kv-lbl">Remaining</span></div><div class="kv"><span class="kv-val">18.2/hr</span><span class="kv-lbl">Rate</span></div><div class="kv"><span class="kv-val">$0.0000</span><span class="kv-lbl">Cost/slice</span></div><div class="kv"><span class="kv-val">21.3k</span><span class="kv-lbl">Tokens/tool</span></div><div class="kv"><span class="kv-val">88.4%</span><span class="kv-lbl">Cache hit</span></div><div class="kv"><span class="kv-val">M004</span><span class="kv-lbl">Scope</span></div></div>
+    <div class="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" style="width:72%"></div></div>
+      <span class="progress-label">72%</span>
+    </div>
+    <div class="active-info">
+      Executing <span class="mono">M003/S07</span> — JNI Symbol Fix
+    </div>
+    
+    <div class="eta-line">ETA: ~23m 6s remaining (7 slices at 18.2/hr)</div>
+  
+</section>
+
+<section id="blockers">
+  <h2>Blockers</h2>
+  
+    <div class="blocker-card">
+      <div class="blocker-id">M003/S07</div>
+      <div class="blocker-text">High risk — incomplete</div>
+    </div>
+    <div class="blocker-card">
+      <div class="blocker-id">M004/S04</div>
+      <div class="blocker-text">High risk — incomplete</div>
+    </div>
+    <div class="blocker-card">
+      <div class="blocker-id">M004/S05</div>
+      <div class="blocker-text">High risk — incomplete</div>
+    </div>
+</section>
+
+<section id="progress">
+  <h2>Progress</h2>
+  
+      <details class="ms-block" open>
+        <summary class="ms-summary ms-complete">
+          <span class="dot dot-complete"></span>
+          <span class="mono ms-id">M001</span>
+          <span class="ms-title">Migration</span>
+          <span class="muted">7/7</span>
+          
+          
+        </summary>
+        <div class="ms-body">
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S01</span>
+        <span class="muted">Core Infrastructure</span>
+        <span class="risk risk-medium">medium</span>
+        
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: Book model with serde serialization (src/core/models.rs)</span><span class="tag">provides: Books table schema with WAL mode (src/core/db.rs)</span><span class="tag">provides: CRUD operations for books (create, read, update, delete)</span><span class="tag">provides: Filesystem storage for cover photos (src/core/storage.rs)</span><span class="tag">provides: Library UI with book list display (src/ui/library.rs)</span><span class="tag">provides: Add book modal form with validation (src/ui/add_book.rs)</span><span class="tag">provides: Android lifecycle handling with state persistence (src/core/state.rs)</span><span class="tag">provides: JNI memory management for onPause/onResume (src/platform/android.rs)</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Filesystem storage over SQLite BLOBs to avoid memory issues on low-RAM Android devices</li><li>Relative paths stored in database (not absolute) for portability</li><li>JSON file for state persistence over SharedPreferences for cross-platform compatibility</li><li>JNI frame management using PushLocalFrame/PopLocalFrame to prevent native memory leaks</li><li>Modal overlay pattern for AddBookForm to keep users in library context</li><li>Form validation computed from signal state rather than on submit for better UX</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Parameterized SQL queries (no SQL injection risk)</li><li>Relative path storage for all filesystem operations</li><li>JSON serialization for state persistence</li><li>JNI memory management pattern for Android lifecycle handlers</li><li>Dioxus 0.7 router pattern with explicit () return in event handlers</li><li>Component composition with BookCard and LibraryScreen</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S02</span>
+        <span class="muted">Paper Book Capture</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S01</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: OCR preprocessing pipeline with 2MP downscaling</span><span class="tag">provides: Book pages database schema with CRUD operations</span><span class="tag">provides: Image quality detection algorithms (blur/brightness)</span><span class="tag">provides: Auto-retry logic based on OCR confidence</span><span class="tag">requires: Core database infrastructure with books table and storage service</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>2MP downscaling limit for memory efficiency</li><li>Laplacian variance for blur detection (threshold: 100.0)</li><li>Separate ocr_markdown and ocr_text_plain columns</li><li>60/40 blur/brightness quality weighting</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Preprocessing pipeline before OCR engine</li><li>Quality-based retry logic for robustness</li><li>Relative path storage organized by book_id</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S03</span>
+        <span class="muted">Pdf Support</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S02</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: PDF import with metadata extraction</span><span class="tag">provides: Batch OCR processing with progress tracking</span><span class="tag">provides: Reflow reading UI with font controls</span><span class="tag">provides: Library integration with PDF badges and filters</span><span class="tag">requires: OCR engine foundation, image preprocessing pipeline</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Batch size of 10 pages balances memory usage and progress visibility</li><li>Stream-based concurrency (buffer_unordered) over tokio::spawn to avoid Send issues with rusqlite</li><li>Continuous scroll over pagination for natural reading flow</li><li>Simplified progress callback (no-op) due to Send+Sync constraints with Dioxus signals</li><li>PDF path convention (pdfs/{book_id}.pdf) avoids schema changes</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Stage-based progress reporting (Rendering → OcrProcessing → Complete)</li><li>Resume support via processing_progress table</li><li>Metadata review dialog before database persistence</li><li>Mutex-wrapped ONNX sessions for thread-safe inference</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S04</span>
+        <span class="muted">Annotation Foundation</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S03</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: Annotation database schema with highlights, bookmarks, and notes</span><span class="tag">provides: Annotation models with type-safe enum and builder pattern</span><span class="tag">provides: Full CRUD operations for annotations</span><span class="tag">provides: 15 unit tests proving annotation foundation works</span><span class="tag">requires: PDF import, book pages with OCR, processing progress tracking</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Single annotations table with type discriminator over separate tables for each type</li><li>CHECK constraint for type validation at database level</li><li>Position range (start/end) stored as character offsets for text selection</li><li>Color field optional with default null (UI will provide defaults)</li><li>Bulk delete by book_id for clean book deletion cascade</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Type discriminator pattern (annotation_type string with enum conversion)</li><li>Builder pattern for NewAnnotation construction</li><li>Partial update pattern with COALESCE in UPDATE statements</li><li>Type-specific convenience methods (get_highlights, get_bookmarks, get_notes)</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S05</span>
+        <span class="muted">Voice Memos</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S04</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        
+        <div class="verif ">
+        untested
+       </div>
+        
+        
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S06</span>
+        <span class="muted">AI Enhancement</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S05</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        
+        <div class="verif ">
+        untested
+       </div>
+        
+        
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary sl-crit">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S07</span>
+        <span class="muted">Performance Polish</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S06</span>
+        <span class="label">critical</span>
+        
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: Tract-based ONNX inference for OCR and STT</span><span class="tag">provides: Resolution of ort linker errors</span><span class="tag">provides: Memory-efficient inference pipeline</span><span class="tag">requires: AI Enhancement foundation</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Migrate from ort to tract-onnx to resolve linker issues</li><li>Use type alias (NdlocrEngineTract as NdlocrEngine) to maintain API compatibility</li><li>Add default trait method for process_pages_parallel to avoid breaking changes</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Tract-based inference as the standard for ONNX models</li><li>Shared utility module for tract operations</li><li>Error handling with anyhow::Context for tract operations</li></ul></div>
+        
+      </div>
+    </details></div>
+      </details>
+      <details class="ms-block" open>
+        <summary class="ms-summary ms-complete">
+          <span class="dot dot-complete"></span>
+          <span class="mono ms-id">M002-dbrk2n</span>
+          <span class="ms-title">Android Prototype</span>
+          <span class="muted">5/5</span>
+          
+          
+        </summary>
+        <div class="ms-body">
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S01</span>
+        <span class="muted">Android Build + Deploy</span>
+        <span class="risk risk-high">high</span>
+        
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: Book model with serde serialization (src/core/models.rs)</span><span class="tag">provides: Books table schema with WAL mode (src/core/db.rs)</span><span class="tag">provides: CRUD operations for books (create, read, update, delete)</span><span class="tag">provides: Filesystem storage for cover photos (src/core/storage.rs)</span><span class="tag">provides: Library UI with book list display (src/ui/library.rs)</span><span class="tag">provides: Add book modal form with validation (src/ui/add_book.rs)</span><span class="tag">provides: Android lifecycle handling with state persistence (src/core/state.rs)</span><span class="tag">provides: JNI memory management for onPause/onResume (src/platform/android.rs)</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Filesystem storage over SQLite BLOBs to avoid memory issues on low-RAM Android devices</li><li>Relative paths stored in database (not absolute) for portability</li><li>JSON file for state persistence over SharedPreferences for cross-platform compatibility</li><li>JNI frame management using PushLocalFrame/PopLocalFrame to prevent native memory leaks</li><li>Modal overlay pattern for AddBookForm to keep users in library context</li><li>Form validation computed from signal state rather than on submit for better UX</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Parameterized SQL queries (no SQL injection risk)</li><li>Relative path storage for all filesystem operations</li><li>JSON serialization for state persistence</li><li>JNI memory management pattern for Android lifecycle handlers</li><li>Dioxus 0.7 router pattern with explicit () return in event handlers</li><li>Component composition with BookCard and LibraryScreen</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S02</span>
+        <span class="muted">Camera Book Capture</span>
+        <span class="risk risk-high">high</span>
+        <span class="muted sl-deps">S01</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: OCR preprocessing pipeline with 2MP downscaling</span><span class="tag">provides: Book pages database schema with CRUD operations</span><span class="tag">provides: Image quality detection algorithms (blur/brightness)</span><span class="tag">provides: Auto-retry logic based on OCR confidence</span><span class="tag">requires: Core database infrastructure with books table and storage service</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>2MP downscaling limit for memory efficiency</li><li>Laplacian variance for blur detection (threshold: 100.0)</li><li>Separate ocr_markdown and ocr_text_plain columns</li><li>60/40 blur/brightness quality weighting</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Preprocessing pipeline before OCR engine</li><li>Quality-based retry logic for robustness</li><li>Relative path storage organized by book_id</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S03</span>
+        <span class="muted">PDF Reflow Reader</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S01</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: PDF import with metadata extraction</span><span class="tag">provides: Batch OCR processing with progress tracking</span><span class="tag">provides: Reflow reading UI with font controls</span><span class="tag">provides: Library integration with PDF badges and filters</span><span class="tag">requires: OCR engine foundation, image preprocessing pipeline</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Batch size of 10 pages balances memory usage and progress visibility</li><li>Stream-based concurrency (buffer_unordered) over tokio::spawn to avoid Send issues with rusqlite</li><li>Continuous scroll over pagination for natural reading flow</li><li>Simplified progress callback (no-op) due to Send+Sync constraints with Dioxus signals</li><li>PDF path convention (pdfs/{book_id}.pdf) avoids schema changes</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Stage-based progress reporting (Rendering → OcrProcessing → Complete)</li><li>Resume support via processing_progress table</li><li>Metadata review dialog before database persistence</li><li>Mutex-wrapped ONNX sessions for thread-safe inference</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S04</span>
+        <span class="muted">Word Collection</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S03</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: Annotation database schema with highlights, bookmarks, and notes</span><span class="tag">provides: Annotation models with type-safe enum and builder pattern</span><span class="tag">provides: Full CRUD operations for annotations</span><span class="tag">provides: 15 unit tests proving annotation foundation works</span><span class="tag">requires: PDF import, book pages with OCR, processing progress tracking</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Single annotations table with type discriminator over separate tables for each type</li><li>CHECK constraint for type validation at database level</li><li>Position range (start/end) stored as character offsets for text selection</li><li>Color field optional with default null (UI will provide defaults)</li><li>Bulk delete by book_id for clean book deletion cascade</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Type discriminator pattern (annotation_type string with enum conversion)</li><li>Builder pattern for NewAnnotation construction</li><li>Partial update pattern with COALESCE in UPDATE statements</li><li>Type-specific convenience methods (get_highlights, get_bookmarks, get_notes)</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S05</span>
+        <span class="muted">Model Bundling + Integration</span>
+        <span class="risk risk-low">low</span>
+        <span class="muted sl-deps">S02, S03, S04</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        
+        <div class="verif ">
+        untested
+       </div>
+        
+        
+        
+      </div>
+    </details></div>
+      </details>
+      <details class="ms-block" open>
+        <summary class="ms-summary ms-active">
+          <span class="dot dot-active"></span>
+          <span class="mono ms-id">M003</span>
+          <span class="ms-title">Android Stability</span>
+          <span class="muted">6/8</span>
+          
+          
+        </summary>
+        <div class="ms-body">
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S01</span>
+        <span class="muted">Kotlin Camera Implementation</span>
+        <span class="risk risk-high">high</span>
+        
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: Book model with serde serialization (src/core/models.rs)</span><span class="tag">provides: Books table schema with WAL mode (src/core/db.rs)</span><span class="tag">provides: CRUD operations for books (create, read, update, delete)</span><span class="tag">provides: Filesystem storage for cover photos (src/core/storage.rs)</span><span class="tag">provides: Library UI with book list display (src/ui/library.rs)</span><span class="tag">provides: Add book modal form with validation (src/ui/add_book.rs)</span><span class="tag">provides: Android lifecycle handling with state persistence (src/core/state.rs)</span><span class="tag">provides: JNI memory management for onPause/onResume (src/platform/android.rs)</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Filesystem storage over SQLite BLOBs to avoid memory issues on low-RAM Android devices</li><li>Relative paths stored in database (not absolute) for portability</li><li>JSON file for state persistence over SharedPreferences for cross-platform compatibility</li><li>JNI frame management using PushLocalFrame/PopLocalFrame to prevent native memory leaks</li><li>Modal overlay pattern for AddBookForm to keep users in library context</li><li>Form validation computed from signal state rather than on submit for better UX</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Parameterized SQL queries (no SQL injection risk)</li><li>Relative path storage for all filesystem operations</li><li>JSON serialization for state persistence</li><li>JNI memory management pattern for Android lifecycle handlers</li><li>Dioxus 0.7 router pattern with explicit () return in event handlers</li><li>Component composition with BookCard and LibraryScreen</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S02</span>
+        <span class="muted">Kotlin File Picker Implementation</span>
+        <span class="risk risk-medium">medium</span>
+        
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: OCR preprocessing pipeline with 2MP downscaling</span><span class="tag">provides: Book pages database schema with CRUD operations</span><span class="tag">provides: Image quality detection algorithms (blur/brightness)</span><span class="tag">provides: Auto-retry logic based on OCR confidence</span><span class="tag">requires: Core database infrastructure with books table and storage service</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>2MP downscaling limit for memory efficiency</li><li>Laplacian variance for blur detection (threshold: 100.0)</li><li>Separate ocr_markdown and ocr_text_plain columns</li><li>60/40 blur/brightness quality weighting</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Preprocessing pipeline before OCR engine</li><li>Quality-based retry logic for robustness</li><li>Relative path storage organized by book_id</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S03</span>
+        <span class="muted">Asset Access Fix</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S01</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: PDF import with metadata extraction</span><span class="tag">provides: Batch OCR processing with progress tracking</span><span class="tag">provides: Reflow reading UI with font controls</span><span class="tag">provides: Library integration with PDF badges and filters</span><span class="tag">requires: OCR engine foundation, image preprocessing pipeline</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Batch size of 10 pages balances memory usage and progress visibility</li><li>Stream-based concurrency (buffer_unordered) over tokio::spawn to avoid Send issues with rusqlite</li><li>Continuous scroll over pagination for natural reading flow</li><li>Simplified progress callback (no-op) due to Send+Sync constraints with Dioxus signals</li><li>PDF path convention (pdfs/{book_id}.pdf) avoids schema changes</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Stage-based progress reporting (Rendering → OcrProcessing → Complete)</li><li>Resume support via processing_progress table</li><li>Metadata review dialog before database persistence</li><li>Mutex-wrapped ONNX sessions for thread-safe inference</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S04</span>
+        <span class="muted">Integration Verification</span>
+        <span class="risk risk-low">low</span>
+        <span class="muted sl-deps">S01, S02, S03</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: Annotation database schema with highlights, bookmarks, and notes</span><span class="tag">provides: Annotation models with type-safe enum and builder pattern</span><span class="tag">provides: Full CRUD operations for annotations</span><span class="tag">provides: 15 unit tests proving annotation foundation works</span><span class="tag">requires: PDF import, book pages with OCR, processing progress tracking</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Single annotations table with type discriminator over separate tables for each type</li><li>CHECK constraint for type validation at database level</li><li>Position range (start/end) stored as character offsets for text selection</li><li>Color field optional with default null (UI will provide defaults)</li><li>Bulk delete by book_id for clean book deletion cascade</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Type discriminator pattern (annotation_type string with enum conversion)</li><li>Builder pattern for NewAnnotation construction</li><li>Partial update pattern with COALESCE in UPDATE statements</li><li>Type-specific convenience methods (get_highlights, get_bookmarks, get_notes)</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S05</span>
+        <span class="muted">ARM64 APK Build and Device Verification</span>
+        <span class="risk risk-low">low</span>
+        <span class="muted sl-deps">S01, S02, S03, S04</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        
+        <div class="verif ">
+        untested
+       </div>
+        
+        
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-complete dot-sm"></span>
+        <span class="mono muted">S06</span>
+        <span class="muted">Dioxus Android Framework Investigation</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S05</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        
+        <div class="verif ">
+        untested
+       </div>
+        
+        
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary sl-crit">
+        <span class="dot dot-active dot-sm"></span>
+        <span class="mono muted">S07</span>
+        <span class="accent">JNI Symbol Fix</span>
+        <span class="risk risk-high">high</span>
+        <span class="muted sl-deps">S06</span>
+        <span class="label">critical</span>
+        
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: Tract-based ONNX inference for OCR and STT</span><span class="tag">provides: Resolution of ort linker errors</span><span class="tag">provides: Memory-efficient inference pipeline</span><span class="tag">requires: AI Enhancement foundation</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Migrate from ort to tract-onnx to resolve linker issues</li><li>Use type alias (NdlocrEngineTract as NdlocrEngine) to maintain API compatibility</li><li>Add default trait method for process_pages_parallel to avoid breaking changes</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Tract-based inference as the standard for ONNX models</li><li>Shared utility module for tract operations</li><li>Error handling with anyhow::Context for tract operations</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary sl-crit">
+        <span class="dot dot-pending dot-sm"></span>
+        <span class="mono muted">S08</span>
+        <span class="">Full UAT Execution</span>
+        <span class="risk risk-low">low</span>
+        <span class="muted sl-deps">S07</span>
+        <span class="label">critical</span>
+        
+      </summary>
+      <div class="sl-detail">
+        
+        
+        
+        
+        
+      </div>
+    </details></div>
+      </details>
+      <details class="ms-block" >
+        <summary class="ms-summary ms-pending">
+          <span class="dot dot-pending"></span>
+          <span class="mono ms-id">M004</span>
+          <span class="ms-title">Tauri + Leptos Migration</span>
+          <span class="muted">0/5</span>
+          <span class="label">critical path</span>
+          
+        </summary>
+        <div class="ms-body">
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-pending dot-sm"></span>
+        <span class="mono muted">S01</span>
+        <span class="">Tauri Project Setup</span>
+        <span class="risk risk-low">low</span>
+        
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: Book model with serde serialization (src/core/models.rs)</span><span class="tag">provides: Books table schema with WAL mode (src/core/db.rs)</span><span class="tag">provides: CRUD operations for books (create, read, update, delete)</span><span class="tag">provides: Filesystem storage for cover photos (src/core/storage.rs)</span><span class="tag">provides: Library UI with book list display (src/ui/library.rs)</span><span class="tag">provides: Add book modal form with validation (src/ui/add_book.rs)</span><span class="tag">provides: Android lifecycle handling with state persistence (src/core/state.rs)</span><span class="tag">provides: JNI memory management for onPause/onResume (src/platform/android.rs)</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Filesystem storage over SQLite BLOBs to avoid memory issues on low-RAM Android devices</li><li>Relative paths stored in database (not absolute) for portability</li><li>JSON file for state persistence over SharedPreferences for cross-platform compatibility</li><li>JNI frame management using PushLocalFrame/PopLocalFrame to prevent native memory leaks</li><li>Modal overlay pattern for AddBookForm to keep users in library context</li><li>Form validation computed from signal state rather than on submit for better UX</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Parameterized SQL queries (no SQL injection risk)</li><li>Relative path storage for all filesystem operations</li><li>JSON serialization for state persistence</li><li>JNI memory management pattern for Android lifecycle handlers</li><li>Dioxus 0.7 router pattern with explicit () return in event handlers</li><li>Component composition with BookCard and LibraryScreen</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-pending dot-sm"></span>
+        <span class="mono muted">S02</span>
+        <span class="">Leptos Frontend Integration</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S01</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: OCR preprocessing pipeline with 2MP downscaling</span><span class="tag">provides: Book pages database schema with CRUD operations</span><span class="tag">provides: Image quality detection algorithms (blur/brightness)</span><span class="tag">provides: Auto-retry logic based on OCR confidence</span><span class="tag">requires: Core database infrastructure with books table and storage service</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>2MP downscaling limit for memory efficiency</li><li>Laplacian variance for blur detection (threshold: 100.0)</li><li>Separate ocr_markdown and ocr_text_plain columns</li><li>60/40 blur/brightness quality weighting</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Preprocessing pipeline before OCR engine</li><li>Quality-based retry logic for robustness</li><li>Relative path storage organized by book_id</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-pending dot-sm"></span>
+        <span class="mono muted">S03</span>
+        <span class="">Database Plugin Migration</span>
+        <span class="risk risk-medium">medium</span>
+        <span class="muted sl-deps">S01</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: PDF import with metadata extraction</span><span class="tag">provides: Batch OCR processing with progress tracking</span><span class="tag">provides: Reflow reading UI with font controls</span><span class="tag">provides: Library integration with PDF badges and filters</span><span class="tag">requires: OCR engine foundation, image preprocessing pipeline</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Batch size of 10 pages balances memory usage and progress visibility</li><li>Stream-based concurrency (buffer_unordered) over tokio::spawn to avoid Send issues with rusqlite</li><li>Continuous scroll over pagination for natural reading flow</li><li>Simplified progress callback (no-op) due to Send+Sync constraints with Dioxus signals</li><li>PDF path convention (pdfs/{book_id}.pdf) avoids schema changes</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Stage-based progress reporting (Rendering → OcrProcessing → Complete)</li><li>Resume support via processing_progress table</li><li>Metadata review dialog before database persistence</li><li>Mutex-wrapped ONNX sessions for thread-safe inference</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-pending dot-sm"></span>
+        <span class="mono muted">S04</span>
+        <span class="">OCR Engine Integration</span>
+        <span class="risk risk-high">high</span>
+        <span class="muted sl-deps">S01, S03</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        <div class="tag-row"><span class="tag">provides: Annotation database schema with highlights, bookmarks, and notes</span><span class="tag">provides: Annotation models with type-safe enum and builder pattern</span><span class="tag">provides: Full CRUD operations for annotations</span><span class="tag">provides: 15 unit tests proving annotation foundation works</span><span class="tag">requires: PDF import, book pages with OCR, processing progress tracking</span></div>
+        <div class="verif ">
+        passed
+       </div>
+        <div class="detail-block"><span class="detail-label">Decisions</span><ul><li>Single annotations table with type discriminator over separate tables for each type</li><li>CHECK constraint for type validation at database level</li><li>Position range (start/end) stored as character offsets for text selection</li><li>Color field optional with default null (UI will provide defaults)</li><li>Bulk delete by book_id for clean book deletion cascade</li></ul></div>
+        <div class="detail-block"><span class="detail-label">Patterns</span><ul><li>Type discriminator pattern (annotation_type string with enum conversion)</li><li>Builder pattern for NewAnnotation construction</li><li>Partial update pattern with COALESCE in UPDATE statements</li><li>Type-specific convenience methods (get_highlights, get_bookmarks, get_notes)</li></ul></div>
+        
+      </div>
+    </details>
+    <details class="sl-block">
+      <summary class="sl-summary ">
+        <span class="dot dot-pending dot-sm"></span>
+        <span class="mono muted">S05</span>
+        <span class="">Android Build + Deploy</span>
+        <span class="risk risk-high">high</span>
+        <span class="muted sl-deps">S02, S03, S04</span>
+        
+        <span class="muted">+2 slack</span>
+      </summary>
+      <div class="sl-detail">
+        
+        <div class="verif ">
+        untested
+       </div>
+        
+        
+        
+      </div>
+    </details></div>
+      </details>
+</section>
+
+<section id="timeline">
+  <h2>Timeline</h2>
+  
+    <div class="table-scroll">
+      <table class="tbl">
+        <thead><tr>
+          <th>#</th><th>Type</th><th>ID</th><th>Model</th>
+          <th>Started</th><th>Duration</th><th>Cost</th>
+          <th>Tokens</th><th>Tools</th><th>Tier</th><th>Routed</th><th>Trunc</th><th>CHF</th>
+        </tr></thead>
+        <tbody>
+      <tr>
+        <td class="muted">1</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:13 PM</td>
+        <td>2m 15s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">429.5k</td>
+        <td class="num">20</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">2</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:15 PM</td>
+        <td>3m 17s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">491.1k</td>
+        <td class="num">22</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">3</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:19 PM</td>
+        <td>2m 16s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">388.0k</td>
+        <td class="num">22</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">4</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:21 PM</td>
+        <td>3m 4s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">486.7k</td>
+        <td class="num">23</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">5</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:24 PM</td>
+        <td>2m 56s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">412.7k</td>
+        <td class="num">24</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">6</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:27 PM</td>
+        <td>3m 31s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">508.0k</td>
+        <td class="num">23</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">7</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:31 PM</td>
+        <td>4m 54s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">494.9k</td>
+        <td class="num">20</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">8</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:36 PM</td>
+        <td>3m 45s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">557.4k</td>
+        <td class="num">30</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">9</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:39 PM</td>
+        <td>2m 45s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">420.0k</td>
+        <td class="num">20</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">10</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:42 PM</td>
+        <td>3m 47s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">678.6k</td>
+        <td class="num">27</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">11</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:46 PM</td>
+        <td>3m 26s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">603.6k</td>
+        <td class="num">30</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">12</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:49 PM</td>
+        <td>4m 15s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">785.0k</td>
+        <td class="num">29</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">13</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:54 PM</td>
+        <td>3m 37s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">737.4k</td>
+        <td class="num">29</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">14</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 07:57 PM</td>
+        <td>3m 20s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">523.6k</td>
+        <td class="num">23</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">15</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:01 PM</td>
+        <td>3m 9s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">487.8k</td>
+        <td class="num">21</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">16</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:04 PM</td>
+        <td>2m 59s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">491.6k</td>
+        <td class="num">21</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">17</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:07 PM</td>
+        <td>3m 8s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">426.3k</td>
+        <td class="num">21</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">18</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:10 PM</td>
+        <td>3m 22s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">472.9k</td>
+        <td class="num">27</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">19</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:13 PM</td>
+        <td>2m 32s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">349.0k</td>
+        <td class="num">16</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">20</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:16 PM</td>
+        <td>2m 21s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">292.7k</td>
+        <td class="num">17</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">21</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:18 PM</td>
+        <td>2m 46s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">375.4k</td>
+        <td class="num">20</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">22</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:21 PM</td>
+        <td>3m 0s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">359.0k</td>
+        <td class="num">21</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">23</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:24 PM</td>
+        <td>3m 15s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">624.3k</td>
+        <td class="num">30</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">24</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:27 PM</td>
+        <td>2m 17s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">449.5k</td>
+        <td class="num">26</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">25</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:30 PM</td>
+        <td>2m 56s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">435.4k</td>
+        <td class="num">21</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">26</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:33 PM</td>
+        <td>3m 20s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">555.2k</td>
+        <td class="num">31</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">27</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:36 PM</td>
+        <td>9m 21s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">734.8k</td>
+        <td class="num">33</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">28</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:45 PM</td>
+        <td>3m 32s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">538.5k</td>
+        <td class="num">25</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">29</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:49 PM</td>
+        <td>2m 40s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">386.7k</td>
+        <td class="num">21</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">30</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:52 PM</td>
+        <td>3m 59s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">703.6k</td>
+        <td class="num">26</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">31</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:56 PM</td>
+        <td>2m 15s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">368.2k</td>
+        <td class="num">17</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">32</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 08:58 PM</td>
+        <td>3m 55s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">502.2k</td>
+        <td class="num">24</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">33</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:02 PM</td>
+        <td>2m 18s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">352.3k</td>
+        <td class="num">19</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">34</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:04 PM</td>
+        <td>3m 26s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">560.0k</td>
+        <td class="num">28</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">35</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:08 PM</td>
+        <td>3m 21s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">405.1k</td>
+        <td class="num">20</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">36</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:11 PM</td>
+        <td>2m 10s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">457.4k</td>
+        <td class="num">22</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">37</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:13 PM</td>
+        <td>3m 46s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">621.0k</td>
+        <td class="num">26</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">38</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:17 PM</td>
+        <td>2m 56s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">444.2k</td>
+        <td class="num">22</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">39</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:20 PM</td>
+        <td>2m 20s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">369.3k</td>
+        <td class="num">20</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">40</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:22 PM</td>
+        <td>2m 36s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">572.6k</td>
+        <td class="num">23</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">41</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:25 PM</td>
+        <td>2m 55s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">411.8k</td>
+        <td class="num">18</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">42</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:28 PM</td>
+        <td>2m 33s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">525.3k</td>
+        <td class="num">25</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">43</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:30 PM</td>
+        <td>4m 44s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">570.4k</td>
+        <td class="num">28</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">44</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:35 PM</td>
+        <td>3m 6s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">563.5k</td>
+        <td class="num">25</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">45</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:38 PM</td>
+        <td>3m 57s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">852.7k</td>
+        <td class="num">31</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">46</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:42 PM</td>
+        <td>3m 4s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">511.2k</td>
+        <td class="num">25</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">47</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:45 PM</td>
+        <td>2m 2s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">392.6k</td>
+        <td class="num">22</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">48</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:47 PM</td>
+        <td>3m 3s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">422.9k</td>
+        <td class="num">23</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">49</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:50 PM</td>
+        <td>2m 41s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">516.0k</td>
+        <td class="num">23</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">50</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:53 PM</td>
+        <td>4m 7s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">659.4k</td>
+        <td class="num">29</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">51</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 09:57 PM</td>
+        <td>3m 31s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">568.2k</td>
+        <td class="num">29</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">52</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 10:01 PM</td>
+        <td>3m 6s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">540.2k</td>
+        <td class="num">29</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">53</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 10:04 PM</td>
+        <td>3m 19s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">650.7k</td>
+        <td class="num">27</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td class="muted">54</td>
+        <td class="mono">plan-slice</td>
+        <td class="mono muted">M003/S07</td>
+        <td>qwen3.5-plus</td>
+        <td class="muted">Mar 23, 2026, 10:07 PM</td>
+        <td>4m 23s</td>
+        <td class="num">$0.0000</td>
+        <td class="num">856.1k</td>
+        <td class="num">37</td>
+        <td class="mono"></td>
+        <td></td>
+        <td class="num"></td>
+        <td></td>
+      </tr></tbody>
+      </table>
+    </div>
+</section>
+
+<section id="depgraph">
+  <h2>Dependencies</h2>
+  
+    <div class="dep-block">
+      <h3>M001: Migration</h3>
+      <div class="dep-legend">
+    <span><span class="dot dot-complete dot-sm"></span> done</span>
+    <span><span class="dot dot-active dot-sm"></span> active</span>
+    <span><span class="dot dot-pending dot-sm"></span> pending</span>
+    <span><span class="dot dot-parked dot-sm"></span> parked</span>
+  </div>
+      <div class="dep-wrap">
+        <svg class="dep-svg" viewBox="0 0 1286 80" width="1286" height="80">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="var(--border-2)"/>
+            </marker>
+            <marker id="arr-crit" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="var(--accent)"/>
+            </marker>
+          </defs>
+          <path d="M150,40 C178,40 178,40 206,40" class="edge" marker-end="url(#arr)"/><path d="M336,40 C364,40 364,40 392,40" class="edge" marker-end="url(#arr)"/><path d="M522,40 C550,40 550,40 578,40" class="edge" marker-end="url(#arr)"/><path d="M708,40 C736,40 736,40 764,40" class="edge" marker-end="url(#arr)"/><path d="M894,40 C922,40 922,40 950,40" class="edge" marker-end="url(#arr)"/><path d="M1080,40 C1108,40 1108,40 1136,40" class="edge" marker-end="url(#arr)"/>
+          <g class="node n-done" transform="translate(20,20)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S01</text>
+      <text x="65" y="30" class="n-title">Core Infrastructu…</text>
+      <title>S01: Core Infrastructure</title>
+    </g><g class="node n-done" transform="translate(206,20)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S02</text>
+      <text x="65" y="30" class="n-title">Paper Book Capture</text>
+      <title>S02: Paper Book Capture</title>
+    </g><g class="node n-done" transform="translate(392,20)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S03</text>
+      <text x="65" y="30" class="n-title">Pdf Support</text>
+      <title>S03: Pdf Support</title>
+    </g><g class="node n-done" transform="translate(578,20)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S04</text>
+      <text x="65" y="30" class="n-title">Annotation Founda…</text>
+      <title>S04: Annotation Foundation</title>
+    </g><g class="node n-done" transform="translate(764,20)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S05</text>
+      <text x="65" y="30" class="n-title">Voice Memos</text>
+      <title>S05: Voice Memos</title>
+    </g><g class="node n-done" transform="translate(950,20)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S06</text>
+      <text x="65" y="30" class="n-title">AI Enhancement</text>
+      <title>S06: AI Enhancement</title>
+    </g><g class="node n-done n-crit" transform="translate(1136,20)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S07</text>
+      <text x="65" y="30" class="n-title">Performance Polish</text>
+      <title>S07: Performance Polish</title>
+    </g>
+        </svg>
+      </div>
+    </div>
+    <div class="dep-block">
+      <h3>M002-dbrk2n: Android Prototype</h3>
+      <div class="dep-legend">
+    <span><span class="dot dot-complete dot-sm"></span> done</span>
+    <span><span class="dot dot-active dot-sm"></span> active</span>
+    <span><span class="dot dot-pending dot-sm"></span> pending</span>
+    <span><span class="dot dot-parked dot-sm"></span> parked</span>
+  </div>
+      <div class="dep-wrap">
+        <svg class="dep-svg" viewBox="0 0 728 134" width="728" height="134">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="var(--border-2)"/>
+            </marker>
+            <marker id="arr-crit" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="var(--accent)"/>
+            </marker>
+          </defs>
+          <path d="M150,67 C178,67 178,40 206,40" class="edge" marker-end="url(#arr)"/><path d="M150,67 C178,67 178,94 206,94" class="edge" marker-end="url(#arr)"/><path d="M336,94 C364,94 364,67 392,67" class="edge" marker-end="url(#arr)"/><path d="M336,40 C457,40 457,67 578,67" class="edge" marker-end="url(#arr)"/><path d="M336,94 C457,94 457,67 578,67" class="edge" marker-end="url(#arr)"/><path d="M522,67 C550,67 550,67 578,67" class="edge" marker-end="url(#arr)"/>
+          <g class="node n-done" transform="translate(20,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S01</text>
+      <text x="65" y="30" class="n-title">Android Build + D…</text>
+      <title>S01: Android Build + Deploy</title>
+    </g><g class="node n-done" transform="translate(206,20)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S02</text>
+      <text x="65" y="30" class="n-title">Camera Book Captu…</text>
+      <title>S02: Camera Book Capture</title>
+    </g><g class="node n-done" transform="translate(206,74)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S03</text>
+      <text x="65" y="30" class="n-title">PDF Reflow Reader</text>
+      <title>S03: PDF Reflow Reader</title>
+    </g><g class="node n-done" transform="translate(392,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S04</text>
+      <text x="65" y="30" class="n-title">Word Collection</text>
+      <title>S04: Word Collection</title>
+    </g><g class="node n-done" transform="translate(578,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S05</text>
+      <text x="65" y="30" class="n-title">Model Bundling + …</text>
+      <title>S05: Model Bundling + Integration</title>
+    </g>
+        </svg>
+      </div>
+    </div>
+    <div class="dep-block">
+      <h3>M003: Android Stability</h3>
+      <div class="dep-legend">
+    <span><span class="dot dot-complete dot-sm"></span> done</span>
+    <span><span class="dot dot-active dot-sm"></span> active</span>
+    <span><span class="dot dot-pending dot-sm"></span> pending</span>
+    <span><span class="dot dot-parked dot-sm"></span> parked</span>
+  </div>
+      <div class="dep-wrap">
+        <svg class="dep-svg" viewBox="0 0 1286 134" width="1286" height="134">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="var(--border-2)"/>
+            </marker>
+            <marker id="arr-crit" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="var(--accent)"/>
+            </marker>
+          </defs>
+          <path d="M150,40 C178,40 178,67 206,67" class="edge" marker-end="url(#arr)"/><path d="M150,40 C271,40 271,67 392,67" class="edge" marker-end="url(#arr)"/><path d="M150,94 C271,94 271,67 392,67" class="edge" marker-end="url(#arr)"/><path d="M336,67 C364,67 364,67 392,67" class="edge" marker-end="url(#arr)"/><path d="M150,40 C364,40 364,67 578,67" class="edge" marker-end="url(#arr)"/><path d="M150,94 C364,94 364,67 578,67" class="edge" marker-end="url(#arr)"/><path d="M336,67 C457,67 457,67 578,67" class="edge" marker-end="url(#arr)"/><path d="M522,67 C550,67 550,67 578,67" class="edge" marker-end="url(#arr)"/><path d="M708,67 C736,67 736,67 764,67" class="edge" marker-end="url(#arr)"/><path d="M894,67 C922,67 922,67 950,67" class="edge" marker-end="url(#arr)"/><path d="M1080,67 C1108,67 1108,67 1136,67" class="edge edge-crit" marker-end="url(#arr-crit)"/>
+          <g class="node n-done" transform="translate(20,20)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S01</text>
+      <text x="65" y="30" class="n-title">Kotlin Camera Imp…</text>
+      <title>S01: Kotlin Camera Implementation</title>
+    </g><g class="node n-done" transform="translate(20,74)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S02</text>
+      <text x="65" y="30" class="n-title">Kotlin File Picke…</text>
+      <title>S02: Kotlin File Picker Implementation</title>
+    </g><g class="node n-done" transform="translate(206,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S03</text>
+      <text x="65" y="30" class="n-title">Asset Access Fix</text>
+      <title>S03: Asset Access Fix</title>
+    </g><g class="node n-done" transform="translate(392,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S04</text>
+      <text x="65" y="30" class="n-title">Integration Verif…</text>
+      <title>S04: Integration Verification</title>
+    </g><g class="node n-done" transform="translate(578,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S05</text>
+      <text x="65" y="30" class="n-title">ARM64 APK Build a…</text>
+      <title>S05: ARM64 APK Build and Device Verification</title>
+    </g><g class="node n-done" transform="translate(764,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S06</text>
+      <text x="65" y="30" class="n-title">Dioxus Android Fr…</text>
+      <title>S06: Dioxus Android Framework Investigation</title>
+    </g><g class="node n-active n-crit" transform="translate(950,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S07</text>
+      <text x="65" y="30" class="n-title">JNI Symbol Fix</text>
+      <title>S07: JNI Symbol Fix</title>
+    </g><g class="node n-pending n-crit" transform="translate(1136,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S08</text>
+      <text x="65" y="30" class="n-title">Full UAT Execution</text>
+      <title>S08: Full UAT Execution</title>
+    </g>
+        </svg>
+      </div>
+    </div>
+    <div class="dep-block">
+      <h3>M004: Tauri + Leptos Migration</h3>
+      <div class="dep-legend">
+    <span><span class="dot dot-complete dot-sm"></span> done</span>
+    <span><span class="dot dot-active dot-sm"></span> active</span>
+    <span><span class="dot dot-pending dot-sm"></span> pending</span>
+    <span><span class="dot dot-parked dot-sm"></span> parked</span>
+  </div>
+      <div class="dep-wrap">
+        <svg class="dep-svg" viewBox="0 0 728 134" width="728" height="134">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="var(--border-2)"/>
+            </marker>
+            <marker id="arr-crit" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="var(--accent)"/>
+            </marker>
+          </defs>
+          <path d="M150,67 C178,67 178,40 206,40" class="edge" marker-end="url(#arr)"/><path d="M150,67 C178,67 178,94 206,94" class="edge" marker-end="url(#arr)"/><path d="M150,67 C271,67 271,67 392,67" class="edge" marker-end="url(#arr)"/><path d="M336,94 C364,94 364,67 392,67" class="edge" marker-end="url(#arr)"/><path d="M336,40 C457,40 457,67 578,67" class="edge" marker-end="url(#arr)"/><path d="M336,94 C457,94 457,67 578,67" class="edge" marker-end="url(#arr)"/><path d="M522,67 C550,67 550,67 578,67" class="edge" marker-end="url(#arr)"/>
+          <g class="node n-pending" transform="translate(20,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S01</text>
+      <text x="65" y="30" class="n-title">Tauri Project Set…</text>
+      <title>S01: Tauri Project Setup</title>
+    </g><g class="node n-pending" transform="translate(206,20)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S02</text>
+      <text x="65" y="30" class="n-title">Leptos Frontend I…</text>
+      <title>S02: Leptos Frontend Integration</title>
+    </g><g class="node n-pending" transform="translate(206,74)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S03</text>
+      <text x="65" y="30" class="n-title">Database Plugin M…</text>
+      <title>S03: Database Plugin Migration</title>
+    </g><g class="node n-pending" transform="translate(392,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S04</text>
+      <text x="65" y="30" class="n-title">OCR Engine Integr…</text>
+      <title>S04: OCR Engine Integration</title>
+    </g><g class="node n-pending" transform="translate(578,47)">
+      <rect width="130" height="40" rx="4"/>
+      <text x="65" y="16" class="n-id">S05</text>
+      <text x="65" y="30" class="n-title">Android Build + D…</text>
+      <title>S05: Android Build + Deploy</title>
+    </g>
+        </svg>
+      </div>
+    </div>
+</section>
+
+<section id="metrics">
+  <h2>Metrics</h2>
+  
+    <div class="kv-grid"><div class="kv"><span class="kv-val">$0.0000</span><span class="kv-lbl">Total cost</span></div><div class="kv"><span class="kv-val">27.89M</span><span class="kv-lbl">Total tokens</span></div><div class="kv"><span class="kv-val">3.18M</span><span class="kv-lbl">Input</span></div><div class="kv"><span class="kv-val">439.1k</span><span class="kv-lbl">Output</span></div><div class="kv"><span class="kv-val">24.28M</span><span class="kv-lbl">Cache read</span></div><div class="kv"><span class="kv-val">0</span><span class="kv-lbl">Cache write</span></div><div class="kv"><span class="kv-val">2h 57m</span><span class="kv-lbl">Duration</span></div><div class="kv"><span class="kv-val">54</span><span class="kv-lbl">Units</span></div><div class="kv"><span class="kv-val">1311</span><span class="kv-lbl">Tool calls</span></div><div class="kv"><span class="kv-val">0</span><span class="kv-lbl">Truncations</span></div></div>
+    
+    
+    <div class="token-block">
+      <h3>Token breakdown</h3>
+      <div class="token-bar"><div class="tseg seg-1" style="width:11.39%" title="Input: 3.18M (11.4%)"></div><div class="tseg seg-2" style="width:1.57%" title="Output: 439.1k (1.6%)"></div><div class="tseg seg-3" style="width:87.03%" title="Cache read: 24.28M (87.0%)"></div></div>
+      <div class="token-legend"><span class="leg-item"><span class="leg-dot seg-1"></span>Input: 3.18M (11.4%)</span><span class="leg-item"><span class="leg-dot seg-2"></span>Output: 439.1k (1.6%)</span><span class="leg-item"><span class="leg-dot seg-3"></span>Cache read: 24.28M (87.0%)</span></div>
+    </div>
+    
+    <div class="token-block">
+      <h3>Cost over time</h3>
+      <svg class="cost-svg" viewBox="0 0 600 200" width="600" height="200">
+        <line x1="50" y1="20" x2="570" y2="20" class="cost-grid"/><text x="46" y="23" class="cost-axis" text-anchor="end">$1.00</text><line x1="50" y1="57.5" x2="570" y2="57.5" class="cost-grid"/><text x="46" y="60.5" class="cost-axis" text-anchor="end">$0.750</text><line x1="50" y1="95" x2="570" y2="95" class="cost-grid"/><text x="46" y="98" class="cost-axis" text-anchor="end">$0.500</text><line x1="50" y1="132.5" x2="570" y2="132.5" class="cost-grid"/><text x="46" y="135.5" class="cost-axis" text-anchor="end">$0.250</text><line x1="50" y1="170" x2="570" y2="170" class="cost-grid"/><text x="46" y="173" class="cost-axis" text-anchor="end">$0.0000</text>
+        <path d="M50.0,170.0 L59.8,170.0 L69.6,170.0 L79.4,170.0 L89.2,170.0 L99.1,170.0 L108.9,170.0 L118.7,170.0 L128.5,170.0 L138.3,170.0 L148.1,170.0 L157.9,170.0 L167.7,170.0 L177.5,170.0 L187.4,170.0 L197.2,170.0 L207.0,170.0 L216.8,170.0 L226.6,170.0 L236.4,170.0 L246.2,170.0 L256.0,170.0 L265.8,170.0 L275.7,170.0 L285.5,170.0 L295.3,170.0 L305.1,170.0 L314.9,170.0 L324.7,170.0 L334.5,170.0 L344.3,170.0 L354.2,170.0 L364.0,170.0 L373.8,170.0 L383.6,170.0 L393.4,170.0 L403.2,170.0 L413.0,170.0 L422.8,170.0 L432.6,170.0 L442.5,170.0 L452.3,170.0 L462.1,170.0 L471.9,170.0 L481.7,170.0 L491.5,170.0 L501.3,170.0 L511.1,170.0 L520.9,170.0 L530.8,170.0 L540.6,170.0 L550.4,170.0 L560.2,170.0 L570.0,170.0 L570.0,170.0 L50.0,170.0 Z" class="cost-area"/>
+        <path d="M50.0,170.0 L59.8,170.0 L69.6,170.0 L79.4,170.0 L89.2,170.0 L99.1,170.0 L108.9,170.0 L118.7,170.0 L128.5,170.0 L138.3,170.0 L148.1,170.0 L157.9,170.0 L167.7,170.0 L177.5,170.0 L187.4,170.0 L197.2,170.0 L207.0,170.0 L216.8,170.0 L226.6,170.0 L236.4,170.0 L246.2,170.0 L256.0,170.0 L265.8,170.0 L275.7,170.0 L285.5,170.0 L295.3,170.0 L305.1,170.0 L314.9,170.0 L324.7,170.0 L334.5,170.0 L344.3,170.0 L354.2,170.0 L364.0,170.0 L373.8,170.0 L383.6,170.0 L393.4,170.0 L403.2,170.0 L413.0,170.0 L422.8,170.0 L432.6,170.0 L442.5,170.0 L452.3,170.0 L462.1,170.0 L471.9,170.0 L481.7,170.0 L491.5,170.0 L501.3,170.0 L511.1,170.0 L520.9,170.0 L530.8,170.0 L540.6,170.0 L550.4,170.0 L560.2,170.0 L570.0,170.0" class="cost-line"/>
+        <text x="50" y="196" class="cost-axis">#1</text>
+        <text x="570" y="196" class="cost-axis" text-anchor="end">#54</text>
+      </svg>
+    </div>
+    
+    <div class="chart-row">
+      <div class="chart-block"><h3>Cost by phase</h3>
+      <div class="bar-row">
+        <div class="bar-lbl">planning</div>
+        <div class="bar-track"><div class="bar-fill bar-c0" style="width:0.0%"></div></div>
+        <div class="bar-val">$0.0000</div>
+      </div>
+      <div class="bar-sub">54 units</div></div>
+      <div class="chart-block"><h3>Tokens by phase</h3>
+      <div class="bar-row">
+        <div class="bar-lbl">planning</div>
+        <div class="bar-track"><div class="bar-fill bar-c0" style="width:100.0%"></div></div>
+        <div class="bar-val">27.89M</div>
+      </div>
+      <div class="bar-sub">$0.0000</div></div>
+    </div>
+    
+    <div class="chart-row">
+      <div class="chart-block"><h3>Cost by slice</h3>
+      <div class="bar-row">
+        <div class="bar-lbl">M003/S07</div>
+        <div class="bar-track"><div class="bar-fill bar-c0" style="width:0.0%"></div></div>
+        <div class="bar-val">$0.0000</div>
+      </div>
+      <div class="bar-sub">54 units</div></div>
+      <div class="chart-block"><h3>Cost by model</h3>
+      <div class="bar-row">
+        <div class="bar-lbl">qwen3.5-plus</div>
+        <div class="bar-track"><div class="bar-fill bar-c0" style="width:0.0%"></div></div>
+        <div class="bar-val">$0.0000</div>
+      </div>
+      <div class="bar-sub">54 units</div></div>
+      <div class="chart-block"><h3>Duration by slice</h3>
+      <div class="bar-row">
+        <div class="bar-lbl">M003/S07</div>
+        <div class="bar-track"><div class="bar-fill bar-c0" style="width:100.0%"></div></div>
+        <div class="bar-val">2h 57m</div>
+      </div>
+      <div class="bar-sub">$0.0000</div></div>
+    </div>
+    
+  
+</section>
+
+<section id="health">
+  <h2>Health</h2>
+  
+    <table class="tbl tbl-kv"><tbody><tr><td>Token profile</td><td>standard</td></tr><tr class="h-ok"><td>Truncation rate</td><td>0.0% per unit (0 total)</td></tr><tr class="h-ok"><td>Continue-here rate</td><td>0.0% per unit (0 total)</td></tr><tr><td>Tool calls</td><td>1311</td></tr><tr><td>Messages</td><td>729 assistant / 0 user</td></tr></tbody></table>
+    
+    <h3>Tier breakdown</h3>
+    <table class="tbl">
+      <thead><tr><th>Tier</th><th>Units</th><th>Cost</th><th>Tokens</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">unknown</td>
+           <td>54</td><td>$0.0000</td>
+           <td>27.89M</td></tr>
+      </tbody>
+    </table>
+    
+    
+      <h3>Doctor Run History</h3>
+      <table class="tbl">
+        <thead><tr><th></th><th>Time</th><th>Summary</th></tr></thead>
+        <tbody><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 13:18:25</td>
+        <td>6 errors, 5 warnings · 5 fixed · All tasks are done but S02-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Task T02 has 5 must-haves but summary addresses only 4 <span class="mono" style="color:#888">M003/S01/T02</span></div><div style="margin-left:2em;color:#22c55e;font-size:0.85em">↳ removed orphaned worktree /home/devuser/develop/shusei/.gsd/worktrees/M003</div><div style="margin-left:2em;color:#22c55e;font-size:0.85em">↳ created placeholder /home/devuser/develop/shusei/.gsd/milestones/M003/slices/S02/S02-SUMMARY.md</div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 13:18:03</td>
+        <td>6 errors, 5 warnings · All tasks are done but S02-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Task T02 has 5 must-haves but summary addresses only 4 <span class="mono" style="color:#888">M003/S01/T02</span></div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 12:55:34</td>
+        <td>6 errors, 5 warnings · 6 fixed · All tasks are done but S02-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Task T02 has 5 must-haves but summary addresses only 4 <span class="mono" style="color:#888">M003/S01/T02</span></div><div style="margin-left:2em;color:#22c55e;font-size:0.85em">↳ removed orphaned worktree /home/devuser/develop/shusei/.gsd/worktrees/M003</div><div style="margin-left:2em;color:#22c55e;font-size:0.85em">↳ deleted 1 legacy slice branch(es)</div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 12:49:10</td>
+        <td>6 errors, 8 warnings · All tasks are done but S02-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Git remote &#39;origin&#39; is unreachable — Remote: git@github.com:ragman53/shusei.git <span class="mono" style="color:#888">environment</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 12:29:43</td>
+        <td>6 errors, 5 warnings · All tasks are done but S02-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Task T02 has 5 must-haves but summary addresses only 4 <span class="mono" style="color:#888">M003/S01/T02</span></div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 12:27:16</td>
+        <td>6 errors, 6 warnings · 7 fixed · All tasks are done but S02-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ 1 completed-unit key(s) reference missing artifacts: complete-milestone/M003 <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#22c55e;font-size:0.85em">↳ removed orphaned worktree /home/devuser/develop/shusei/.gsd/worktrees/M003</div><div style="margin-left:2em;color:#22c55e;font-size:0.85em">↳ deleted 1 legacy slice branch(es)</div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 09:33:50</td>
+        <td>2 errors, 5 warnings · 3 fixed · All tasks are done but S05-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Task T02 has 5 must-haves but summary addresses only 4 <span class="mono" style="color:#888">M003/S01/T02</span></div><div style="margin-left:2em;color:#22c55e;font-size:0.85em">↳ removed orphaned worktree /home/devuser/develop/shusei/.gsd/worktrees/M003</div><div style="margin-left:2em;color:#22c55e;font-size:0.85em">↳ created placeholder /home/devuser/develop/shusei/.gsd/milestones/M003/slices/S05/S05-SUMMARY.md</div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 09:27:45</td>
+        <td>2 errors, 8 warnings · All tasks are done but S05-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Git remote &#39;origin&#39; is unreachable — Remote: git@github.com:ragman53/shusei.git <span class="mono" style="color:#888">environment</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 09:24:57</td>
+        <td>2 errors, 5 warnings · All tasks are done but S05-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Task T02 has 5 must-haves but summary addresses only 4 <span class="mono" style="color:#888">M003/S01/T02</span></div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 08:52:38</td>
+        <td>6 errors, 5 warnings · 5 fixed · All tasks are done but S02-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Task T02 has 5 must-haves but summary addresses only 4 <span class="mono" style="color:#888">M003/S01/T02</span></div><div style="margin-left:2em;color:#22c55e;font-size:0.85em">↳ removed orphaned worktree /home/devuser/develop/shusei/.gsd/worktrees/M003</div><div style="margin-left:2em;color:#22c55e;font-size:0.85em">↳ created placeholder /home/devuser/develop/shusei/.gsd/milestones/M003/slices/S02/S02-SUMMARY.md</div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 08:52:21</td>
+        <td>6 errors, 5 warnings · All tasks are done but S02-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Task T02 has 5 must-haves but summary addresses only 4 <span class="mono" style="color:#888">M003/S01/T02</span></div></td></tr><tr style="color:#22c55e">
+        <td class="mono">✓</td>
+        <td class="mono">2026-03-22 08:51:46</td>
+        <td>Clean · Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ All slices are done but M003-SUMMARY.md is missing — milestone is stuck in completing-milestone phase <span class="mono" style="color:#888">M003</span></div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 08:46:19</td>
+        <td>6 errors, 8 warnings · All tasks are done but S02-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Git remote &#39;origin&#39; is unreachable — Remote: git@github.com:ragman53/shusei.git <span class="mono" style="color:#888">environment</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div></td></tr><tr style="color:#ef4444">
+        <td class="mono">✗</td>
+        <td class="mono">2026-03-22 08:20:45</td>
+        <td>6 errors, 5 warnings · All tasks are done but S02-SUMMARY.md is missing</td>
+      </tr>
+      <tr><td colspan="3"><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Worktree for completed milestone M003 still exists at /home/devuser/develop/shusei/.gsd/worktrees/M003 <span class="mono" style="color:#888">M003</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Anthropic (Claude) — not configured — Run /gsd keys to authenticate <span class="mono" style="color:#888">project</span></div><div style="margin-left:2em;color:#eab308;font-size:0.85em">⚠ Task T02 has 5 must-haves but summary addresses only 4 <span class="mono" style="color:#888">M003/S01/T02</span></div></td></tr></tbody>
+      </table>
+  
+</section>
+
+<section id="changelog">
+  <h2>Changelog <span class="count">17</span></h2>
+  
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M003/S01</span>
+          <span class="cl-title">Kotlin Camera Implementation</span>
+          <span class="muted cl-date">Mar 22, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">MainActivity.kt with CameraX ImageCapture providing JNI bridge for Rust camera integration</p>
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>Filesystem storage over SQLite BLOBs to avoid memory issues on low-RAM Android devices</li><li>Relative paths stored in database (not absolute) for portability</li><li>JSON file for state persistence over SharedPreferences for cross-platform compatibility</li><li>JNI frame management using PushLocalFrame/PopLocalFrame to prevent native memory leaks</li><li>Modal overlay pattern for AddBookForm to keep users in library context</li><li>Form validation computed from signal state rather than on submit for better UX</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">3 files modified</summary>
+        <ul class="file-list">
+          <li><code>scripts/android-patch.sh</code> — Extended to add CameraX dependencies and copy MainActivity.kt (modified)</li><li><code>platform/android/app/src/main/kotlin/dev/dioxus/main/MainActivity.kt</code> — CameraX implementation with JNI bridge (created)</li><li><code>scripts/verify-s01-camera.sh</code> — Automated verification script with logcat monitoring (created)</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M003/S02</span>
+          <span class="cl-title">Kotlin File Picker Implementation</span>
+          <span class="muted cl-date">Mar 22, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">PDF file picker using Storage Access Framework with JNI callbacks to Rust</p>
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>2MP downscaling limit for memory efficiency</li><li>Laplacian variance for blur detection (threshold: 100.0)</li><li>Separate ocr_markdown and ocr_text_plain columns</li><li>60/40 blur/brightness quality weighting</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">2 files modified</summary>
+        <ul class="file-list">
+          <li><code>platform/android/app/src/main/kotlin/dev/dioxus/main/MainActivity.kt</code> — Extended with file picker implementation (modified)</li><li><code>scripts/verify-s02-file-picker.sh</code> — Automated verification script (created)</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M003/S03</span>
+          <span class="cl-title">Asset Access Fix</span>
+          <span class="muted cl-date">Mar 22, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">Demo PDF bundling and asset access with correct package path</p>
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>Batch size of 10 pages balances memory usage and progress visibility</li><li>Stream-based concurrency (buffer_unordered) over tokio::spawn to avoid Send issues with rusqlite</li><li>Continuous scroll over pagination for natural reading flow</li><li>Simplified progress callback (no-op) due to Send+Sync constraints with Dioxus signals</li><li>PDF path convention (pdfs/{book_id}.pdf) avoids schema changes</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">3 files modified</summary>
+        <ul class="file-list">
+          <li><code>src/platform/android.rs</code> — Fixed package path (modified)</li><li><code>scripts/android-patch.sh</code> — Extended with Step 6 for asset bundling (modified)</li><li><code>scripts/verify-s03-asset.sh</code> — Automated verification script (created)</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M003/S04</span>
+          <span class="cl-title">Integration Verification</span>
+          <span class="muted cl-date">Mar 22, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">Unified verification script orchestrating all three M003 flows with combined logcat monitoring</p>
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>Single annotations table with type discriminator over separate tables for each type</li><li>CHECK constraint for type validation at database level</li><li>Position range (start/end) stored as character offsets for text selection</li><li>Color field optional with default null (UI will provide defaults)</li><li>Bulk delete by book_id for clean book deletion cascade</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">2 files modified</summary>
+        <ul class="file-list">
+          <li><code>scripts/verify-s04-integration.sh</code> — Unified verification script (created)</li><li><code>.gsd/milestones/M003/slices/S04/S04-UAT.md</code> — UAT report with test results (created)</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M003/S05</span>
+          <span class="cl-title">ARM64 APK Build and Device Verification</span>
+          <span class="muted cl-date">Mar 22, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">ARM64 APK build with physical device verification — blocked by Dioxus/Wry JNI symbol mismatch</p>
+        
+        
+      <details class="files-detail">
+        <summary class="muted">2 files modified</summary>
+        <ul class="file-list">
+          <li><code>scripts/verify-s05-arm64.sh</code> — Unified ARM64 verification script (created)</li><li><code>.gsd/milestones/M003/slices/S05/S05-UAT.md</code> — UAT report with JNI analysis (created)</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M002-dbrk2n/S05</span>
+          <span class="cl-title">Model Bundling + Integration</span>
+          <span class="muted cl-date">Mar 16, 2026, 09:28 PM</span>
+        </div>
+        <p class="cl-liner">Bundled NDLOCR models (220MB) into 490MB debug APK with automated asset copying pipeline, created comprehensive device E2E test infrastructure, and documented Moonshine STT model acquisition for M003 voice memo feature.</p>
+        
+        
+      <details class="files-detail">
+        <summary class="muted">8 files modified</summary>
+        <ul class="file-list">
+          <li><code>Dioxus.toml</code> — Updated `bundle.resources` to `assets/models/*`</li><li><code>scripts/verify-apk-models.sh</code> — Updated to match actual model structure and fix bash arithmetic</li><li><code>scripts/android-patch.sh</code> — Added asset copying step (Fix 4), updated lint configuration</li><li><code>scripts/android-build.sh</code> — Build wrapper with automatic patching</li><li><code>target/dx/shusei/debug/android/app/app/build.gradle.kts</code> — Disabled lint tasks blocking builds</li><li><code>tests/device_e2e_verification.rs</code> — Comprehensive test procedures, manual checklist, database queries</li><li><code>assets/models/moonshine/README.md</code> — Comprehensive documentation with download and integration instructions</li><li><code>target/dx/shusei/debug/android/app/app/build/outputs/apk/debug/app-debug.apk</code> — Built debug APK (490MB)</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M002-dbrk2n/S01</span>
+          <span class="cl-title">Android Build + Deploy</span>
+          <span class="muted cl-date">Mar 16, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">Debug APK built successfully with Gradle patch script; device testing infrastructure ready for physical hardware connection</p>
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>Filesystem storage over SQLite BLOBs to avoid memory issues on low-RAM Android devices</li><li>Relative paths stored in database (not absolute) for portability</li><li>JSON file for state persistence over SharedPreferences for cross-platform compatibility</li><li>JNI frame management using PushLocalFrame/PopLocalFrame to prevent native memory leaks</li><li>Modal overlay pattern for AddBookForm to keep users in library context</li><li>Form validation computed from signal state rather than on submit for better UX</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">9 files modified</summary>
+        <ul class="file-list">
+          <li><code>scripts/android-patch.sh</code> — Patch script with sed commands for Java 17, manifest fix, lint skip (executable)</li><li><code>scripts/android-build.sh</code> — Wrapper that runs dx build, applies patch, runs gradlew (executable)</li><li><code>scripts/verify-apk-models.sh</code> — Automated APK model verification script (executable)</li><li><code>scripts/verify-app-launch.sh</code> — Comprehensive app launch and persistence verification script (executable)</li><li><code>.cargo/config.toml</code> — Fixed NDK linker paths from /root/android-sdk to /home/devuser/android-ndk</li><li><code>assets/models/moonshine/README.md</code> — Added download commands and verification status table</li><li><code>src/core/db.rs</code> — Added 6 books tests including file-based persistence test</li><li><code>.gsd/milestones/M002-dbrk2n/slices/S01/tasks/T03-INSTALL-GUIDE.md</code> — Device installation guide</li><li><code>.gsd/milestones/M002-dbrk2n/slices/S01/tasks/T04-DEVICE-GUIDE.md</code> — Device testing guide</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M002-dbrk2n/S02</span>
+          <span class="cl-title">Camera Book Capture</span>
+          <span class="muted cl-date">Mar 16, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">End-to-end camera capture flow with book creation, OCR processing, and database persistence.</p>
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>2MP downscaling limit for memory efficiency</li><li>Laplacian variance for blur detection (threshold: 100.0)</li><li>Separate ocr_markdown and ocr_text_plain columns</li><li>60/40 blur/brightness quality weighting</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">6 files modified</summary>
+        <ul class="file-list">
+          <li><code>src/app.rs</code> — Added `CameraBook { book_id: String }` route variant and component wrapper</li><li><code>src/ui/camera.rs</code> — Enhanced with book_id prop, page number input, OCR engine initialization, OCR + save integration, loading states, error handling</li><li><code>src/ui/add_book.rs</code> — Implemented database-backed book creation with error handling and loading state</li><li><code>src/ui/library.rs</code> — Modified `BookCard` component with page count badge and &quot;Capture Pages&quot; button</li><li><code>src/core/db.rs</code> — Added `get_page_count()` method, `test_create_book_and_save_page` test, `test_get_page_count` tests</li><li><code>tests/camera_ocr_integration.rs</code> — New integration test file with 4 comprehensive tests</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M002-dbrk2n/S03</span>
+          <span class="cl-title">PDF Reflow Reader</span>
+          <span class="muted cl-date">Mar 16, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">Implemented PDF reflow reader with proper markdown rendering (pulldown-cmark), word tap detection with database persistence, debounced progress auto-save, and position restore on mount.</p>
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>Batch size of 10 pages balances memory usage and progress visibility</li><li>Stream-based concurrency (buffer_unordered) over tokio::spawn to avoid Send issues with rusqlite</li><li>Continuous scroll over pagination for natural reading flow</li><li>Simplified progress callback (no-op) due to Send+Sync constraints with Dioxus signals</li><li>PDF path convention (pdfs/{book_id}.pdf) avoids schema changes</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">7 files modified</summary>
+        <ul class="file-list">
+          <li><code>src/ui/reader.rs</code> — Complete rewrite with pulldown-cmark integration, word tap components (ToastNotification, WordSpan, TapParagraph), progress persistence with debounced scroll handler, position restore on mount, font size slider with persistence, and 13 unit tests</li><li><code>Cargo.toml</code> — Added web-sys and js-sys dependencies for localStorage and DOM APIs</li><li><code>.gsd/milestones/M002-dbrk2n/slices/S03/S03-PLAN.md</code> — Marked all tasks as complete</li><li><code>.gsd/milestones/M002-dbrk2n/slices/S03/tasks/T01-SUMMARY.md</code> — T01 completion summary</li><li><code>.gsd/milestones/M002-dbrk2n/slices/S03/tasks/T02-SUMMARY.md</code> — T02 completion summary</li><li><code>.gsd/milestones/M002-dbrk2n/slices/S03/tasks/T03-SUMMARY.md</code> — T03 completion summary</li><li><code>.gsd/milestones/M002-dbrk2n/slices/S03/tasks/T04-SUMMARY.md</code> — T04 completion summary</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M002-dbrk2n/S04</span>
+          <span class="cl-title">Word Collection</span>
+          <span class="muted cl-date">Mar 16, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">Vocabulary list UI with database integration, search, delete confirmation, and Markdown/CSV export functionality.</p>
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>Single annotations table with type discriminator over separate tables for each type</li><li>CHECK constraint for type validation at database level</li><li>Position range (start/end) stored as character offsets for text selection</li><li>Color field optional with default null (UI will provide defaults)</li><li>Bulk delete by book_id for clean book deletion cascade</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">3 files modified</summary>
+        <ul class="file-list">
+          <li><code>src/core/db.rs</code> — Added `get_all_words()` method; added `word_operations` test module with 8 CRUD tests</li><li><code>src/core/vocab.rs</code> — Added Word struct export functions (export_vocabulary_words, export_markdown_words, export_csv_words, export_json_words) with 6 tests</li><li><code>src/ui/vocab.rs</code> — Complete rewrite: VocabPage with async database loading, WordCard display, search filter, delete confirmation dialog, export handlers, ToastNotification integration; 7 UI integration tests</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M001/S02</span>
+          <span class="cl-title">Paper Book Capture</span>
+          <span class="muted cl-date">Mar 15, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">Image preprocessing pipeline, book pages database schema, and quality detection algorithms implemented and tested</p>
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>2MP downscaling limit for memory efficiency</li><li>Laplacian variance for blur detection (threshold: 100.0)</li><li>Separate ocr_markdown and ocr_text_plain columns</li><li>60/40 blur/brightness quality weighting</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">5 files modified</summary>
+        <ul class="file-list">
+          <li><code>src/core/ocr/preprocess.rs</code> — Image preprocessing with 2MP downscaling, contrast enhancement</li><li><code>src/core/ocr/postprocess.rs</code> — Quality detection (Laplacian variance, brightness analysis), retry logic</li><li><code>src/core/db.rs</code> — Extended with book_pages table, BookPage/NewBookPage structs, CRUD methods</li><li><code>src/core/storage.rs</code> — Added save_page_image() method with book_id directory structure</li><li><code>.gsd/DECISIONS.md</code> — Appended S02 architectural decisions</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M001/S03</span>
+          <span class="cl-title">Pdf Support</span>
+          <span class="muted cl-date">Mar 15, 2026, 09:00 AM</span>
+        </div>
+        
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>Batch size of 10 pages balances memory usage and progress visibility</li><li>Stream-based concurrency (buffer_unordered) over tokio::spawn to avoid Send issues with rusqlite</li><li>Continuous scroll over pagination for natural reading flow</li><li>Simplified progress callback (no-op) due to Send+Sync constraints with Dioxus signals</li><li>PDF path convention (pdfs/{book_id}.pdf) avoids schema changes</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">7 files modified</summary>
+        <ul class="file-list">
+          <li><code>src/ui/library.rs</code> — LibraryFilter enum, filter toggle, PDF badge, conversion progress, import flow integration</li><li><code>src/ui/reader.rs</code> — ReaderBookView component, font slider, Convert button, conversion state management</li><li><code>src/ui/components.rs</code> — PageJumpModal, ConversionProgressDisplay, MetadataReviewDialog</li><li><code>Cargo.toml</code> — ort = &quot;2.0.0-rc.12&quot;, futures = &quot;0.3&quot;, rfd = &quot;0.15&quot;, tokio features</li><li><code>assets/ocr/models/</code> — text_detection.onnx (84MB), text_recognition.onnx (81MB), dict.txt (73KB)</li><li><code>tests/large_pdf_test.pdf</code> — 373-page test PDF (pre-existing, documented)</li><li><code>tests/large_pdf_test.md</code> — Test procedure documentation (pre-existing, documented)</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M001/S04</span>
+          <span class="cl-title">Annotation Foundation</span>
+          <span class="muted cl-date">Mar 15, 2026, 09:00 AM</span>
+        </div>
+        
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>Single annotations table with type discriminator over separate tables for each type</li><li>CHECK constraint for type validation at database level</li><li>Position range (start/end) stored as character offsets for text selection</li><li>Color field optional with default null (UI will provide defaults)</li><li>Bulk delete by book_id for clean book deletion cascade</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">6 files modified</summary>
+        <ul class="file-list">
+          <li><code>.gsd/milestones/M001/slices/S04/tasks/T01-PLAN.md</code> — Task plan for database schema</li><li><code>.gsd/milestones/M001/slices/S04/tasks/T01-SUMMARY.md</code> — Task summary for database schema</li><li><code>.gsd/milestones/M001/slices/S04/tasks/T02-PLAN.md</code> — Task plan for models and CRUD</li><li><code>.gsd/milestones/M001/slices/S04/tasks/T02-SUMMARY.md</code> — Task summary for models and CRUD</li><li><code>.gsd/milestones/M001/slices/S04/tasks/T03-PLAN.md</code> — Task plan for unit tests</li><li><code>.gsd/milestones/M001/slices/S04/tasks/T03-SUMMARY.md</code> — Task summary for unit tests</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M001/S05</span>
+          <span class="cl-title">Voice Memos</span>
+          <span class="muted cl-date">Mar 15, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">Audio recording and preprocessing pipeline implemented; model integration deferred due to ONNX linker issue</p>
+        
+        
+      <details class="files-detail">
+        <summary class="muted">1 file modified</summary>
+        <ul class="file-list">
+          <li><code>src/platform/mod.rs</code> — `AudioResult` structure definition</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M001/S06</span>
+          <span class="cl-title">AI Enhancement</span>
+          <span class="muted cl-date">Mar 15, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">Words table schema, AI engine trait, and mock definition service implemented; Qwen model integration deferred due to pre-existing ONNX linker issue</p>
+        
+        
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M001/S07</span>
+          <span class="cl-title">Performance Polish</span>
+          <span class="muted cl-date">Mar 15, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">Tract migration complete - ort linker errors resolved, 92 tests passing</p>
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>Migrate from ort to tract-onnx to resolve linker issues</li><li>Use type alias (NdlocrEngineTract as NdlocrEngine) to maintain API compatibility</li><li>Add default trait method for process_pages_parallel to avoid breaking changes</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">11 files modified</summary>
+        <ul class="file-list">
+          <li><code>src/core/tract_utils.rs</code> — NEW: Shared tract ONNX utilities (load_model, tensor conversion, inference)</li><li><code>src/core/ocr/engine_tract.rs</code> — NEW: Tract-based NDLOCR engine implementation</li><li><code>src/core/stt/engine_tract.rs</code> — NEW: Tract-based Moonshine engine implementation</li><li><code>src/core/ocr/engine.rs</code> — MODIFIED: Reduced to trait definition + stub (implementation moved to engine_tract.rs)</li><li><code>src/core/stt/engine.rs</code> — MODIFIED: Reduced to trait definition + stub (implementation moved to engine_tract.rs)</li><li><code>src/core/ocr/mod.rs</code> — MODIFIED: Export NdlocrEngineTract as NdlocrEngine</li><li><code>src/core/stt/mod.rs</code> — MODIFIED: Export MoonshineEngineTract as MoonshineEngine</li><li><code>src/core/error.rs</code> — MODIFIED: Added SttError::Inference variant</li><li><code>src/core/pdf.rs</code> — MODIFIED: Added OcrEngine trait import for process_pages_parallel</li><li><code>Cargo.toml</code> — MODIFIED: Removed ort dependencies, kept tract-onnx</li><li><code>src/core/mod.rs</code> — MODIFIED: Added tract_utils module</li>
+        </ul>
+      </details>
+      </div>
+      <div class="cl-entry">
+        <div class="cl-header">
+          <span class="mono muted">M001/S01</span>
+          <span class="cl-title">Core Infrastructure</span>
+          <span class="muted cl-date">Mar 11, 2026, 09:00 AM</span>
+        </div>
+        <p class="cl-liner">Working database foundation with Book model, books table schema, filesystem storage for cover photos, library UI, and Android lifecycle handling with state persistence</p>
+        
+      <div class="detail-block"><span class="detail-label">Decisions</span>
+        <ul><li>Filesystem storage over SQLite BLOBs to avoid memory issues on low-RAM Android devices</li><li>Relative paths stored in database (not absolute) for portability</li><li>JSON file for state persistence over SharedPreferences for cross-platform compatibility</li><li>JNI frame management using PushLocalFrame/PopLocalFrame to prevent native memory leaks</li><li>Modal overlay pattern for AddBookForm to keep users in library context</li><li>Form validation computed from signal state rather than on submit for better UX</li></ul>
+      </div>
+        
+      <details class="files-detail">
+        <summary class="muted">9 files modified</summary>
+        <ul class="file-list">
+          <li><code>src/core/models.rs</code> — Book struct with Serialize/Deserialize/Default traits (pre-existing, verified)</li><li><code>src/core/db.rs</code> — Books table schema, CRUD operations, cover photo methods (modified: fixed updated_at column)</li><li><code>src/core/storage.rs</code> — StorageService for filesystem image storage (pre-existing, verified)</li><li><code>src/core/state.rs</code> — AppState struct with JSON serialization (pre-existing, verified)</li><li><code>src/ui/library.rs</code> — LibraryScreen component with book list and empty state (pre-existing, verified)</li><li><code>src/ui/add_book.rs</code> — AddBookForm component with modal and validation (pre-existing, verified)</li><li><code>src/platform/android.rs</code> — get_assets_directory(), onPause/onResume JNI handlers (pre-existing, verified)</li><li><code>src/app.rs</code> — Route enum extension, state restoration on initialization (pre-existing, verified)</li><li><code>src/ui/mod.rs</code> — Component exports (pre-existing, verified)</li>
+        </ul>
+      </details>
+      </div>
+</section>
+
+<section id="knowledge">
+  <h2>Knowledge</h2>
+  <p class="empty">KNOWLEDGE.md exists but no entries parsed.</p>
+</section>
+
+<section id="captures">
+  <h2>Captures</h2>
+  <p class="empty">No captures recorded.</p>
+</section>
+
+<section id="stats">
+  <h2>Artifacts</h2>
+  
+    <h3>Missing changelogs <span class="count">7</span></h3>
+    <table class="tbl">
+      <thead><tr><th>Milestone</th><th>Slice</th><th>Title</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">M003</td><td class="mono">S07</td><td>JNI Symbol Fix</td></tr><tr><td class="mono">M003</td><td class="mono">S08</td><td>Full UAT Execution</td></tr><tr><td class="mono">M004</td><td class="mono">S01</td><td>Tauri Project Setup</td></tr><tr><td class="mono">M004</td><td class="mono">S02</td><td>Leptos Frontend Integration</td></tr><tr><td class="mono">M004</td><td class="mono">S03</td><td>Database Plugin Migration</td></tr>
+        <tr><td colspan="3" class="muted">and 2 more</td></tr>
+      </tbody>
+    </table>
+    <h3>Recently completed <span class="count">5</span></h3>
+    <table class="tbl">
+      <thead><tr><th>Milestone</th><th>Slice</th><th>Title</th><th>Completed</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">M003</td><td class="mono">S01</td><td>Kotlin Camera Implementation</td><td class="muted">Mar 22, 2026, 09:00 AM</td></tr>
+        <tr><td class="mono">M003</td><td class="mono">S02</td><td>Kotlin File Picker Implementation</td><td class="muted">Mar 22, 2026, 09:00 AM</td></tr>
+        <tr><td class="mono">M003</td><td class="mono">S03</td><td>Asset Access Fix</td><td class="muted">Mar 22, 2026, 09:00 AM</td></tr>
+        <tr><td class="mono">M003</td><td class="mono">S04</td><td>Integration Verification</td><td class="muted">Mar 22, 2026, 09:00 AM</td></tr>
+        <tr><td class="mono">M003</td><td class="mono">S05</td><td>ARM64 APK Build and Device Verification</td><td class="muted">Mar 22, 2026, 09:00 AM</td></tr>
+      </tbody>
+    </table>
+</section>
+
+<section id="discussion">
+  <h2>Planning</h2>
+  
+    <table class="tbl">
+      <thead><tr><th>ID</th><th>Milestone</th><th>State</th><th>Context</th><th>Draft</th><th>Updated</th></tr></thead>
+      <tbody>
+    <tr>
+      <td class="mono">M001</td>
+      <td>Migration</td>
+      <td class="mono">discussed</td>
+      <td>yes</td>
+      <td></td>
+      <td class="muted">Mar 23, 2026, 07:13 PM</td>
+    </tr>
+    <tr>
+      <td class="mono">M002-dbrk2n</td>
+      <td>Android Prototype</td>
+      <td class="mono">discussed</td>
+      <td>yes</td>
+      <td></td>
+      <td class="muted">Mar 23, 2026, 07:13 PM</td>
+    </tr>
+    <tr>
+      <td class="mono">M003</td>
+      <td>Android Stability</td>
+      <td class="mono">discussed</td>
+      <td>yes</td>
+      <td></td>
+      <td class="muted">Mar 23, 2026, 07:13 PM</td>
+    </tr>
+    <tr>
+      <td class="mono">M004</td>
+      <td>Tauri + Leptos Migration</td>
+      <td class="mono">discussed</td>
+      <td>yes</td>
+      <td></td>
+      <td class="muted">Mar 23, 2026, 10:18 PM</td>
+    </tr></tbody>
+    </table>
+</section>
+</main>
+<footer>
+  <div class="footer-inner">
+    <span>GSD v2.42.0</span>
+    <span class="sep">/</span>
+    <span>M004</span>
+    <span class="sep">/</span><span class="mono">M004</span>
+    <span class="sep">/</span>
+    <span>Mon, Mar 23, 2026, 10:18 PM GMT+9</span>
+  </div>
+</footer>
+<script>
+(function(){
+  const sections=document.querySelectorAll('section[id]');
+  const links=document.querySelectorAll('.toc a');
+  if(!sections.length||!links.length)return;
+  const obs=new IntersectionObserver(entries=>{
+    for(const e of entries){
+      if(!e.isIntersecting)continue;
+      for(const l of links)l.classList.remove('active');
+      const a=document.querySelector('.toc a[href="#'+e.target.id+'"]');
+      if(a)a.classList.add('active');
+    }
+  },{rootMargin:'-10% 0px -80% 0px',threshold:0});
+  for(const s of sections)obs.observe(s);
+})();
+(function(){
+  var tl=document.getElementById('timeline');
+  if(!tl)return;
+  var table=tl.querySelector('.tbl');
+  if(!table)return;
+  var input=document.createElement('input');
+  input.className='tl-filter';
+  input.placeholder='Filter timeline\u2026';
+  input.type='text';
+  table.parentNode.insertBefore(input,table);
+  var rows=table.querySelectorAll('tbody tr');
+  input.addEventListener('input',function(){
+    var q=this.value.toLowerCase();
+    for(var i=0;i<rows.length;i++){
+      rows[i].style.display=rows[i].textContent.toLowerCase().indexOf(q)>-1?'':'none';
+    }
+  });
+})();
+(function(){
+  var saved=JSON.parse(localStorage.getItem('gsd-collapsed')||'{}');
+  document.querySelectorAll('section[id]').forEach(function(sec){
+    var h2=sec.querySelector('h2');
+    if(!h2)return;
+    var btn=document.createElement('button');
+    btn.className='sec-toggle';
+    btn.textContent=saved[sec.id]?'+':'-';
+    btn.setAttribute('aria-label','Toggle section');
+    h2.prepend(btn);
+    if(saved[sec.id])toggleSection(sec,true);
+    btn.addEventListener('click',function(e){
+      e.preventDefault();
+      var collapsed=btn.textContent==='-';
+      toggleSection(sec,collapsed);
+      btn.textContent=collapsed?'+':'-';
+      saved[sec.id]=collapsed;
+      localStorage.setItem('gsd-collapsed',JSON.stringify(saved));
+    });
+  });
+  function toggleSection(sec,hide){
+    var children=sec.children;
+    for(var i=0;i<children.length;i++){
+      if(children[i].tagName!=='H2')children[i].style.display=hide?'none':'';
+    }
+  }
+})();
+(function(){
+  var hr=document.querySelector('.header-right');
+  if(!hr)return;
+  var btn=document.createElement('button');
+  btn.className='theme-toggle';
+  btn.textContent=localStorage.getItem('gsd-theme')==='light'?'Dark':'Light';
+  if(localStorage.getItem('gsd-theme')==='light')document.documentElement.classList.add('light-theme');
+  btn.addEventListener('click',function(){
+    document.documentElement.classList.toggle('light-theme');
+    var isLight=document.documentElement.classList.contains('light-theme');
+    btn.textContent=isLight?'Dark':'Light';
+    localStorage.setItem('gsd-theme',isLight?'light':'dark');
+  });
+  hr.prepend(btn);
+})();
+</script>
+</body>
+</html>
